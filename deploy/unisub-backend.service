@@ -1,0 +1,35 @@
+[Unit]
+Description=UniSub Backend — 统一媒体订阅聚合器
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hermes
+Group=hermes
+WorkingDirectory=/home/hermes/projects/unisub/backend
+
+# 环境变量
+Environment=UNISUB_DEBUG=false
+Environment=UNISUB_DATABASE_URL=postgresql+asyncpg://tgbot:tgbot@192.168.31.10:5432/unisub
+Environment=UNISUB_CORS_ORIGINS=["http://localhost:5173","http://localhost:3000","http://localhost"]
+
+# 启动命令
+ExecStart=/home/hermes/.local/bin/uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# 日志
+StandardOutput=append:/home/hermes/projects/unisub/backend/logs/systemd.log
+StandardError=append:/home/hermes/projects/unisub/backend/logs/systemd.log
+
+# 重启策略
+Restart=on-failure
+RestartSec=10
+
+# 安全限制
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/hermes/projects/unisub/backend/logs
+
+[Install]
+WantedBy=multi-user.target

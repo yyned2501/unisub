@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: unisub-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - UNISUB_DATABASE_URL=${UNISUB_DATABASE_URL:-postgresql+asyncpg://tgbot:tgbot@192.168.31.10:5432/unisub}
+      - UNISUB_CORS_ORIGINS=${UNISUB_CORS_ORIGINS:-["http://localhost:5173","http://localhost:3000","http://localhost"]}
+      - UNISUB_DEBUG=${UNISUB_DEBUG:-false}
+    volumes:
+      - ./backend/logs:/app/logs
+    networks:
+      - unisub-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: unisub-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+    networks:
+      - unisub-net
+
+networks:
+  unisub-net:
+    driver: bridge
