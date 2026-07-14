@@ -1,120 +1,129 @@
-<template>
-  <el-container class="app-container">
-    <!-- 侧边栏 -->
-    <el-aside width="220px" class="app-sidebar">
-      <div class="logo">
-        <h2>UniSub</h2>
-        <p>统一媒体订阅聚合器</p>
-      </div>
-      <el-menu
-        :default-active="activeRoute"
-        router
-        background-color="#304156"
-        text-color="#bfcbd9"
-        active-text-color="#409eff"
-      >
-        <el-menu-item index="/">
-          <el-icon><DataAnalysis /></el-icon>
-          <span>看板</span>
-        </el-menu-item>
-        <el-menu-item index="/search">
-          <el-icon><Search /></el-icon>
-          <span>搜索</span>
-        </el-menu-item>
-        <el-menu-item index="/subscriptions">
-          <el-icon><Collection /></el-icon>
-          <span>订阅管理</span>
-        </el-menu-item>
-        <el-menu-item index="/settings">
-          <el-icon><Setting /></el-icon>
-          <span>设置</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
-
-    <!-- 主内容区 -->
-    <el-container>
-      <el-header class="app-header">
-        <h3>{{ pageTitle }}</h3>
-      </el-header>
-      <el-main class="app-main">
-        <router-view />
-      </el-main>
-    </el-container>
-  </el-container>
-</template>
-
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
-import { DataAnalysis, Search, Collection, Setting } from '@element-plus/icons-vue'
+import { ref, computed, watch, h } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { NConfigProvider, zhCN } from 'naive-ui'
+import AppProvider from '@/components/common/app-provider.vue'
+import { useThemeStore } from '@/store/modules/theme'
 
+defineOptions({ name: 'App' })
+
+const themeStore = useThemeStore()
+const router = useRouter()
 const route = useRoute()
 
-const activeRoute = computed(() => route.path)
-const pageTitle = computed(() => route.meta?.title || 'UniSub')
+const collapsed = ref(false)
+
+function riIcon(className) {
+  return () => h('i', { class: className })
+}
+
+const menuOptions = [
+  { label: '看板', key: '/', icon: riIcon('ri-dashboard-line text-lg') },
+  { label: '搜索', key: '/search', icon: riIcon('ri-search-line text-lg') },
+  { label: '订阅', key: '/subscriptions', icon: riIcon('ri-rss-line text-lg') },
+  {
+    label: '设置',
+    key: 'settings-group',
+    icon: riIcon('ri-settings-3-line text-lg'),
+    children: [
+      { label: '平台配置', key: '/settings/platforms', icon: riIcon('ri-database-2-line') },
+      { label: '定时任务', key: '/settings/tasks', icon: riIcon('ri-time-line') },
+    ],
+  },
+]
+
+const activeKey = computed(() => route.path)
+
+/** 自动展开设置子菜单 */
+const expandedKeys = ref([])
+
+watch(() => route.path, (path) => {
+  if (path.startsWith('/settings') && !expandedKeys.value.includes('settings-group')) {
+    expandedKeys.value = [...expandedKeys.value, 'settings-group']
+  }
+}, { immediate: true })
+
+function handleMenuSelect(key) {
+  router.push(key)
+}
 </script>
 
+<template>
+  <NConfigProvider :theme="themeStore.naiveTheme" :locale="zhCN" class="h-full">
+    <AppProvider>
+      <div style="position: relative; height: 100%;">
+        <n-layout has-sider position="absolute">
+          <!-- 侧边栏 -->
+          <n-layout-sider
+            bordered
+            :collapsed="collapsed"
+            collapse-mode="width"
+            :collapsed-width="64"
+            :width="200"
+            :native-scrollbar="false"
+          >
+            <div class="flex items-center h-14 px-4 gap-2.5">
+              <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 shrink-0">
+                <rect width="32" height="32" rx="8" fill="#3b82f6"/>
+                <text x="16" y="22" text-anchor="middle" fill="white" font-size="18" font-weight="bold" font-family="Arial">U</text>
+              </svg>
+              <span v-show="!collapsed" class="text-base font-bold tracking-wide whitespace-nowrap">UniSub</span>
+            </div>
+
+            <n-menu
+              :value="activeKey"
+              :collapsed="collapsed"
+              :collapsed-width="64"
+              :collapsed-icon-size="20"
+              :options="menuOptions"
+              v-model:expanded-keys="expandedKeys"
+              @update:value="handleMenuSelect"
+              class="pt-2"
+            />
+          </n-layout-sider>
+
+          <!-- 右侧区域 -->
+          <n-layout>
+            <n-layout-header bordered class="h-14 flex items-center justify-between px-4">
+              <div class="flex items-center gap-3">
+                <n-button quaternary size="small" @click="collapsed = !collapsed">
+                  <template #icon>
+                    <i :class="collapsed ? 'ri-menu-unfold-line' : 'ri-menu-fold-line'" class="text-lg"></i>
+                  </template>
+                </n-button>
+                <span class="text-sm opacity-60 hidden sm:inline">统一媒体订阅聚合器</span>
+              </div>
+
+              <n-button quaternary size="small" @click="themeStore.toggleDarkMode()">
+                <template #icon>
+                  <i :class="themeStore.darkMode ? 'ri-sun-line' : 'ri-moon-line'" class="text-lg"></i>
+                </template>
+              </n-button>
+            </n-layout-header>
+
+            <n-layout-content :native-scrollbar="false">
+              <div class="p-5 mx-auto" style="max-width: 1400px">
+                <router-view v-slot="{ Component }">
+                  <transition name="fade" mode="out-in">
+                    <component :is="Component" />
+                  </transition>
+                </router-view>
+              </div>
+            </n-layout-content>
+          </n-layout>
+        </n-layout>
+      </div>
+    </AppProvider>
+  </NConfigProvider>
+</template>
+
 <style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
 }
-
-html, body, #app {
-  height: 100%;
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB',
-    'Microsoft YaHei', Arial, sans-serif;
-}
-
-.app-container {
-  height: 100%;
-}
-
-.app-sidebar {
-  background-color: #304156;
-  overflow-y: auto;
-}
-
-.app-sidebar .logo {
-  padding: 20px 16px;
-  text-align: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.app-sidebar .logo h2 {
-  color: #fff;
-  font-size: 20px;
-  margin-bottom: 4px;
-}
-
-.app-sidebar .logo p {
-  color: #8899aa;
-  font-size: 12px;
-}
-
-.app-sidebar .el-menu {
-  border-right: none;
-}
-
-.app-header {
-  background: #fff;
-  border-bottom: 1px solid #e6e6e6;
-  display: flex;
-  align-items: center;
-  padding: 0 24px;
-  height: 56px;
-}
-
-.app-header h3 {
-  font-size: 18px;
-  color: #303133;
-}
-
-.app-main {
-  background: #f0f2f5;
-  min-height: calc(100vh - 56px);
-  padding: 20px;
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

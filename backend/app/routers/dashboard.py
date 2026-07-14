@@ -93,6 +93,12 @@ async def get_platform_status(db: AsyncSession = Depends(get_db)):
                 sites = await mp.get_site_statistic()
                 connected = isinstance(sites, list)
                 message = f"连接正常 ({len(sites) if isinstance(sites, list) else 0} 个站点)" if connected else "连接失败"
+            elif config.name == "emby":
+                from app.services.emby import EmbyService
+                emby = EmbyService(config.base_url, config.api_key)
+                info = await emby.test_connection()
+                connected = "error" not in info and "ServerName" in info
+                message = f"Emby 连接正常: {info.get('ServerName')}" if connected else "连接失败"
         except Exception as e:
             message = f"连接异常: {str(e)}"
 

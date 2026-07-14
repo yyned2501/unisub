@@ -18,6 +18,7 @@ from app.schemas.platform import (
 )
 from app.services.moviepilot import MoviePilotService
 from app.services.nextfind import NextFindService
+from app.services.emby import EmbyService
 
 router = APIRouter(prefix="/api/platforms", tags=["平台配置"])
 logger = init_logger()
@@ -128,6 +129,20 @@ async def test_platform_connection(
                 success=True,
                 message="MoviePilot 连接正常",
                 details={"sites": len(result) if isinstance(result, list) else 0},
+            )
+        elif config.name == "emby":
+            service = EmbyService(config.base_url, config.api_key)
+            result = await service.test_connection()
+            if "error" in result or "ServerName" not in result:
+                return PlatformTestResult(
+                    success=False,
+                    message=f"连接失败: {result.get('detail', result.get('error', '未知错误'))}",
+                    details=result,
+                )
+            return PlatformTestResult(
+                success=True,
+                message=f"Emby 连接正常: {result.get('ServerName')}",
+                details={"ServerName": result.get("ServerName"), "Version": result.get("Version")},
             )
         else:
             return PlatformTestResult(

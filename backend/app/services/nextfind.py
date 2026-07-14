@@ -8,6 +8,13 @@ from app.core.logger import init_logger
 
 logger = init_logger()
 
+# NextFind type 映射：前端传的英文类型 → NextFind 中文类型
+_TYPE_MAP = {
+    "movie": "电影",
+    "tv": "剧集",
+    "all": "全部",
+}
+
 
 class NextFindService:
     """NextFind OpenAPI 客户端。
@@ -36,8 +43,10 @@ class NextFindService:
         Returns:
             搜索结果列表
         """
+        # 将英文类型映射为 NextFind 所需的中文类型
+        mapped_type = _TYPE_MAP.get(media_type, media_type)
         url = f"{self.base_url}/api/openapi/search"
-        params = {"query": query, "type": media_type}
+        params = {"query": query, "type": mapped_type}
         result = await http_client.get(url, headers=self._headers, params=params)
         if "error" in result:
             logger.error(f"NextFind 搜索失败: {result}")
@@ -162,3 +171,171 @@ class NextFindService:
         if isinstance(result, dict):
             return result.get("data", result.get("directories", []))
         return []
+
+    async def search_resources(
+        self, tmdb_id: int, media_type: str = "movie",
+        season: int | None = None, episode: int | None = None,
+    ) -> list[dict]:
+        """搜索网盘与种子资源，获取标签、神盾标志、洗版权重等属性。
+
+        Args:
+            tmdb_id: TMDB ID
+            media_type: 媒体类型（movie / tv）
+            season: 季号
+            episode: 集号
+
+        Returns:
+            资源列表
+        """
+        url = f"{self.base_url}/api/openapi/resources/search"
+        params: dict = {"tmdb_id": tmdb_id, "media_type": media_type}
+        if season is not None:
+            params["season"] = season
+        if episode is not None:
+            params["episode"] = episode
+        result = await http_client.get(url, headers=self._headers, params=params)
+        if "error" in result:
+            logger.error(f"NextFind 资源搜索失败: {result}")
+            return []
+        if isinstance(result, list):
+            return result
+        if isinstance(result, dict):
+            return result.get("data", result.get("results", []))
+        return []
+
+    async def trigger_preview(self, slug: str) -> dict:
+        """触发探针解包，提取隐藏属性、探针缓存和文件树。
+
+        Args:
+            slug: 资源原始链接或标识
+
+        Returns:
+            API 响应字典
+        """
+        url = f"{self.base_url}/api/openapi/preview"
+        result = await http_client.post(
+            url, headers=self._headers, json={"slug": slug}
+        )
+        if "error" in result:
+            logger.error(f"NextFind 探针解包失败: {result}")
+            return {}
+        return result
+
+    async def hdhive_unlock(self, resource_id: str, resource_type: str) -> dict:
+        """HDHive 积分解锁，消耗积分获取资源真实下载链接。
+
+        Args:
+            resource_id: 资源 ID
+            resource_type: 资源类型
+
+        Returns:
+            API 响应字典
+        """
+        url = f"{self.base_url}/api/openapi/hdhive/unlock"
+        result = await http_client.post(
+            url, headers=self._headers,
+            json={"id": resource_id, "type": resource_type},
+        )
+        if "error" in result:
+            logger.error(f"NextFind HDHive 解锁失败: {result}")
+            return {}
+        return result
+
+    async def create_directory(self, parent_cid: str, name: str) -> dict:
+        """创建网盘目录。
+
+        Args:
+            parent_cid: 父目录 CID
+            name: 新目录名称
+
+        Returns:
+            API 响应字典
+        """
+        url = f"{self.base_url}/api/openapi/directories"
+        result = await http_client.post(
+            url, headers=self._headers,
+            json={"parent_cid": parent_cid, "name": name},
+        )
+        if "error" in result:
+            logger.error(f"NextFind 创建目录失败: {result}")
+            return {}
+        return result
+
+    async def filter_local_library(self, status_filter: str = "missing") -> list[dict]:
+        """过滤本地库状态。
+
+        Args:
+            status_filter: 状态过滤器（missing / error / duplicate）
+
+        Returns:
+            过滤结果列表
+        """
+        url = f"{self.base_url}/api/openapi/local_library/filter"
+        params = {"status_filter": status_filter}
+        result = await http_client.get(url, headers=self._headers, params=params)
+        if "error" in result:
+            logger.error(f"NextFind 本地库过滤失败: {result}")
+            return []
+        if isinstance(result, list):
+            return result
+        if isinstance(result, dict):
+            return result.get("data", result.get("results", []))
+        return []
+
+    async def get_subscriptions_info(self, subscription_ids: list[int]) -> dict:
+        """批量查询订阅的入库详情和进度。
+
+        Args:
+            subscription_ids: 订阅 ID 列表
+
+        Returns:
+            订阅详情字典
+        """
+        url = f"{self.base_url}/api/openapi/subscriptions/info"
+        result = await http_client.post(
+            url, headers=self._headers, json={"ids": subscription_ids}
+        )
+        if "error" in result:
+            logger.error(f"NextFind 查询订阅详情失败: {result}")
+            return {}
+        return result
+
+    async def fill_missing(self, tmdb_id: int, media_type: str = "tv") -> dict:
+        """触发补缺集搜索，推入高优搜索队列。
+
+        Args:
+            tmdb_id: TMDB ID
+            media_type: 媒体类型（movie / tv）
+
+        Returns:
+            API 响应字典
+        """
+        url = f"{self.base_url}/api/openapi/media/fill_missing"
+        result = await http_client.post(
+            url, headers=self._headers,
+            json={"tmdb_id": tmdb_id, "media_type": media_type},
+        )
+        if "error" in result:
+            logger.error(f"NextFind 补缺集搜索失败: {result}")
+            return {}
+        return result
+
+    async def toggle_ignored_episode(self, tmdb_id: int, season: int) -> dict:
+        """切换忽略季状态。
+
+        Args:
+            tmdb_id: TMDB ID
+            season: 季号
+
+        Returns:
+            API 响应字典
+        """
+        url = f"{self.base_url}/api/openapi/ignored_episodes/toggle"
+        result = await http_client.post(
+            url, headers=self._headers,
+            json={"tmdb_id": tmdb_id, "season": season},
+        )
+        if "error" in result:
+            logger.error(f"NextFind 切换忽略季失败: {result}")
+            return {}
+        return result

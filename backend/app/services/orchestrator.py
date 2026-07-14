@@ -2,7 +2,7 @@
 
 订阅 = 本地记录 + NextFind 添加
 取消 = NextFind 移除 + 本地清理
-同步 = 拉取 NF 状态 → 更新本地缺集信息
+同步 = 双向同步（NF ↔ US）确保两端一致
 补充 = 对缺集条目调用 MoviePilot 搜索
 """
 
@@ -20,6 +20,23 @@ from app.services.moviepilot import MoviePilotService
 from app.services.nextfind import NextFindService
 
 logger = init_logger()
+
+
+def _parse_year(year_val: str | int | None) -> int | None:
+    """安全解析年份值。
+
+    Args:
+        year_val: 原始年份值（字符串、数字或 None）
+
+    Returns:
+        整数年份或 None
+    """
+    if year_val is None:
+        return None
+    try:
+        return int(year_val)
+    except (ValueError, TypeError):
+        return None
 
 
 class OrchestratorService:
@@ -148,64 +165,198 @@ class OrchestratorService:
 
         return {"success": True, "message": f"已取消订阅 {sub.title}"}
 
+    @staticmethod
+    def _infer_media_type(nf_sub: dict) -> str:
+        """从 NF 订阅数据推断媒体类型。
+
+        Args:
+            nf_sub: NF 订阅数据字典
+
+        Returns:
+            "movie" 或 "tv"
+        """
+        raw = (
+            nf_sub.get("raw_type")
+            or nf_sub.get("media_type")
+            or nf_sub.get("type")
+            or ""
+        )
+        raw_lower = raw.lower()
+        if raw_lower in ("movie", "电影"):
+            return "movie"
+        if raw_lower in ("tv", "剧集", "series"):
+            return "tv"
+        # 按 tmdb_id 范围做 fallback（电影 tmdb_id 通常 < 1_000_000）
+        return "movie"
+
     async def sync_subscriptions(
         self, db: AsyncSession
     ) -> list[SubscriptionSyncResult]:
-        """同步 NextFind 订阅状态到本地数据库。
+        """双向同步订阅 —— 三阶段确保 NextFind 与本地数据库一致。
 
-        从 NextFind 拉取所有订阅，匹配本地记录并更新缺集状态。
+        1. NF → US: 将 NF 有但本地缺的订阅写入本地
+        2. US → NF: 将本地有但 NF 未订阅的推送到 NF
+        3. 状态更新: 刷新 nf_status / nf_missing_eps / completed
 
         Args:
             db: 数据库会话
 
         Returns:
-            每条匹配记录的同步结果列表
+            每条操作的同步结果列表
         """
         nf_subs = await self.nf.get_subscriptions()
         results: list[SubscriptionSyncResult] = []
 
+        # === Phase 1: NF → US（补全本地缺失的记录）===
         for nf_sub in nf_subs:
             tmdb_id = nf_sub.get("tmdb_id")
             if not tmdb_id:
                 continue
+            tmdb_id = int(tmdb_id)
 
-            # 查找本地记录
-            stmt = select(Subscription).where(Subscription.tmdb_id == int(tmdb_id))
+            stmt = select(Subscription).where(Subscription.tmdb_id == tmdb_id)
             local_sub = (await db.execute(stmt)).scalar_one_or_none()
 
+            nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or nf_sub.get("nf_status")
+            # 缺集数 = total_episodes - local_episodes（仅剧集有效）
+            total_eps = nf_sub.get("total_episodes", 0)
+            local_eps = nf_sub.get("local_episodes", 0)
+            if total_eps and local_eps is not None:
+                nf_missing = max(0, int(total_eps) - int(local_eps))
+            else:
+                nf_missing = nf_sub.get("missing_eps") or nf_sub.get(
+                    "fillable_episodes_count", 0
+                )
+            nf_missing = int(nf_missing) if nf_missing else 0
+
+            if not local_sub:
+                # NF 有但本地缺 → 创建新记录
+                media_type = self._infer_media_type(nf_sub)
+                title = nf_sub.get("title") or nf_sub.get("name") or f"tmdb_{tmdb_id}"
+                year = _parse_year(nf_sub.get("year"))
+                poster = (
+                    nf_sub.get("poster")
+                    or nf_sub.get("poster_url")
+                    or nf_sub.get("poster_path")
+                )
+                if poster and poster.startswith("/"):
+                    poster = f"{self.nf.base_url}{poster}"
+
+                local_sub = Subscription(
+                    id=str(uuid.uuid4()),
+                    tmdb_id=tmdb_id,
+                    media_type=media_type,
+                    title=title,
+                    poster_url=poster,
+                    year=year,
+                    nf_subscribed=True,
+                    nf_status=str(nf_status) if nf_status else None,
+                    nf_missing_eps=nf_missing,
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                )
+                db.add(local_sub)
+                results.append(
+                    SubscriptionSyncResult(
+                        tmdb_id=tmdb_id,
+                        title=title,
+                        action="created",
+                        nf_status=local_sub.nf_status,
+                        nf_missing_eps=nf_missing,
+                        nf_subscribed=True,
+                        message=f"从 NF 创建本地订阅: {title}",
+                    )
+                )
+                logger.info(f"双向同步 — 从 NF 创建本地记录: {title} (tmdb_id={tmdb_id})")
+            else:
+                # 更新 nf_subscribed、状态、缺集，同时补全年份与海报
+                local_sub.nf_subscribed = True
+                local_sub.nf_status = str(nf_status) if nf_status else None
+                local_sub.nf_missing_eps = nf_missing
+                if not local_sub.year:
+                    local_sub.year = _parse_year(nf_sub.get("year"))
+                if not local_sub.poster_url:
+                    poster = (
+                        nf_sub.get("poster")
+                        or nf_sub.get("poster_url")
+                        or nf_sub.get("poster_path")
+                    )
+                    if poster:
+                        if poster.startswith("/"):
+                            poster = f"{self.nf.base_url}{poster}"
+                        local_sub.poster_url = poster
+                local_sub.updated_at = datetime.now(timezone.utc)
+
+                results.append(
+                    SubscriptionSyncResult(
+                        tmdb_id=tmdb_id,
+                        title=local_sub.title,
+                        action="updated",
+                        nf_status=local_sub.nf_status,
+                        nf_missing_eps=nf_missing,
+                        nf_subscribed=True,
+                        needs_mp_search=nf_missing > 0,
+                        message=(
+                            f"已同步: {local_sub.title}, "
+                            f"缺集 {nf_missing}"
+                        ),
+                    )
+                )
+
+        # === Phase 2: US → NF（补全 NF 缺失的订阅）===
+        unpushed = await db.execute(
+            select(Subscription).where(Subscription.nf_subscribed == False)
+        )
+        for local_sub in unpushed.scalars().all():
+            nf_result = await self.nf.add_subscription(local_sub.tmdb_id)
+            if "error" not in nf_result:
+                local_sub.nf_subscribed = True
+                nf_id = nf_result.get("id") or nf_result.get("sub_id") or ""
+                local_sub.nf_sub_id = str(nf_id) if nf_id else None
+                local_sub.updated_at = datetime.now(timezone.utc)
+
+                results.append(
+                    SubscriptionSyncResult(
+                        tmdb_id=local_sub.tmdb_id,
+                        title=local_sub.title,
+                        action="pushed_to_nf",
+                        nf_subscribed=True,
+                        message=f"已推送到 NF: {local_sub.title}",
+                    )
+                )
+                logger.info(
+                    f"双向同步 — 推送订阅到 NF: {local_sub.title} "
+                    f"(tmdb_id={local_sub.tmdb_id})"
+                )
+            else:
+                logger.warning(
+                    f"双向同步 — 推送订阅到 NF 失败: {local_sub.title}, "
+                    f"{nf_result}"
+                )
+
+        # === Phase 3: 更新已完成状态 ===
+        for nf_sub in nf_subs:
+            tmdb_id = nf_sub.get("tmdb_id")
+            if not tmdb_id:
+                continue
+            tmdb_id = int(tmdb_id)
+
+            stmt = select(Subscription).where(Subscription.tmdb_id == tmdb_id)
+            local_sub = (await db.execute(stmt)).scalar_one_or_none()
             if not local_sub:
                 continue
 
-            # 更新 NextFind 状态字段
-            nf_status = nf_sub.get("status") or nf_sub.get("nf_status")
-            nf_missing = nf_sub.get("missing_eps") or nf_sub.get(
-                "fillable_episodes_count", 0
-            )
-
-            local_sub.nf_status = str(nf_status) if nf_status else None
-            local_sub.nf_missing_eps = int(nf_missing) if nf_missing else 0
-            local_sub.updated_at = datetime.now(timezone.utc)
-
-            needs_mp = local_sub.nf_missing_eps > 0
-
-            result = SubscriptionSyncResult(
-                tmdb_id=int(tmdb_id),
-                title=local_sub.title,
-                nf_status=local_sub.nf_status,
-                nf_missing_eps=local_sub.nf_missing_eps,
-                needs_mp_search=needs_mp,
-                message=(
-                    f"已同步: {local_sub.title}, 缺集 {local_sub.nf_missing_eps}"
-                ),
-            )
-            results.append(result)
+            nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or nf_sub.get("nf_status")
+            if nf_status and str(nf_status) in ("completed", "finished"):
+                local_sub.completed = True
+                local_sub.updated_at = datetime.now(timezone.utc)
 
         # 记录同步活动
         log_entry = ActivityLog(
             id=str(uuid.uuid4()),
             action="sync",
             tmdb_id=None,
-            message=f"同步完成: 更新了 {len(results)} 条订阅记录",
+            message=f"双向同步完成: 处理了 {len(results)} 条记录",
             created_at=datetime.now(timezone.utc),
         )
         db.add(log_entry)
