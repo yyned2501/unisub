@@ -40,7 +40,9 @@ class SubscriptionSyncResult(BaseModel):
 
     tmdb_id: int
     title: str
+    action: str = "skipped"  # created / pushed_to_nf / updated / skipped
     nf_status: str | None = None
     nf_missing_eps: int = 0
+    nf_subscribed: bool = False
     needs_mp_search: bool = False
     message: str = ""

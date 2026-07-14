@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
 const routes = [
   {
@@ -20,16 +20,38 @@ const routes = [
     meta: { title: '订阅管理' },
   },
   {
+    path: '/settings/platforms',
+    name: 'PlatformSettings',
+    component: () => import('../views/settings/PlatformSettings.vue'),
+    meta: { title: '平台配置' },
+  },
+  {
+    path: '/settings/tasks',
+    name: 'TaskSettings',
+    component: () => import('../views/settings/TaskSettings.vue'),
+    meta: { title: '定时任务' },
+  },
+  {
     path: '/settings',
-    name: 'Settings',
-    component: () => import('../views/SettingsView.vue'),
-    meta: { title: '设置' },
+    redirect: '/settings/platforms',
   },
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes,
 })
+
+router.afterEach((to) => {
+  const title = to.meta?.title
+  if (title) {
+    document.title = `${title} — UniSub`
+  }
+})
+
+export async function setupRouter(app) {
+  app.use(router)
+  await router.isReady()
+}
 
 export default router

@@ -1,79 +1,10 @@
-<template>
-  <div class="search-view">
-    <!-- 搜索栏 -->
-    <el-card shadow="never" class="search-bar-card">
-      <div class="search-bar">
-        <el-select v-model="searchType" placeholder="类型" style="width: 120px">
-          <el-option label="全部" value="all" />
-          <el-option label="电影" value="movie" />
-          <el-option label="剧集" value="tv" />
-        </el-select>
-        <el-input
-          v-model="keyword"
-          placeholder="输入关键词搜索..."
-          clearable
-          class="search-input"
-          @keyup.enter="handleSearch"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
-        <el-button type="primary" :loading="loading" @click="handleSearch">
-          搜索
-        </el-button>
-      </div>
-    </el-card>
-
-    <!-- 搜索结果 -->
-    <div class="results-section" v-loading="loading">
-      <div v-if="!loading && searched && results.length === 0" class="empty-result">
-        <el-empty description="未找到相关结果" />
-      </div>
-
-      <div v-if="!loading && !searched" class="empty-result">
-        <el-empty description="输入关键词开始搜索" />
-      </div>
-
-      <div v-if="results.length > 0" class="results-grid">
-        <MediaCard
-          v-for="item in results"
-          :key="item.tmdb_id"
-          :media="item"
-          :subscribed="isSubscribed(item.tmdb_id)"
-          @subscribe="openSubDialog"
-        />
-      </div>
-    </div>
-
-    <!-- 订阅确认弹窗 -->
-    <SubDialog
-      v-model="subDialogVisible"
-      :media="selectedMedia"
-      @confirm="handleSubscribe"
-    />
-
-    <!-- 分页 -->
-    <div v-if="results.length > pageSize" class="pagination-wrap">
-      <el-pagination
-        v-model:current-page="currentPage"
-        :page-size="pageSize"
-        :total="results.length"
-        layout="prev, pager, next"
-        background
-      />
-    </div>
-  </div>
-</template>
-
 <script setup>
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
-import { searchMedia } from '../api/search'
-import { createSubscription } from '../api/subscriptions'
-import MediaCard from '../components/MediaCard.vue'
-import SubDialog from '../components/SubDialog.vue'
+import { searchMedia } from '@/service/api/search'
+import { createSubscription } from '@/service/api/subscriptions'
+import SubDialog from '@/components/SubDialog.vue'
+
+defineOptions({ name: 'SearchView' })
 
 const keyword = ref('')
 const searchType = ref('all')
@@ -83,13 +14,12 @@ const searched = ref(false)
 
 const subDialogVisible = ref(false)
 const selectedMedia = ref(null)
-
-/** 已订阅的 TMDB ID 集合（简单前端去重，实际以后端为准） */
 const subscribedIds = ref(new Set())
 
-// 分页
 const currentPage = ref(1)
 const pageSize = 20
+
+const totalPages = computed(() => Math.ceil(results.value.length / pageSize))
 
 const pagedResults = computed(() => {
   const start = (currentPage.value - 1) * pageSize
@@ -100,9 +30,16 @@ function isSubscribed(tmdbId) {
   return subscribedIds.value.has(tmdbId)
 }
 
+function clearSearch() {
+  keyword.value = ''
+  results.value = []
+  searched.value = false
+  currentPage.value = 1
+}
+
 async function handleSearch() {
   if (!keyword.value.trim()) {
-    ElMessage.warning('请输入搜索关键词')
+    window.$message?.warning('请输入搜索关键词')
     return
   }
   loading.value = true
@@ -110,7 +47,7 @@ async function handleSearch() {
   currentPage.value = 1
   try {
     const { data } = await searchMedia(keyword.value.trim(), searchType.value)
-    results.value = Array.isArray(data) ? data : data.results || []
+    results.value = Array.isArray(data) ? data : data?.items || []
   } catch {
     results.value = []
   } finally {
@@ -133,7 +70,7 @@ async function handleSubscribe(media, done) {
       year: media.year || null,
     })
     subscribedIds.value.add(media.tmdb_id)
-    ElMessage.success(`已订阅「${media.title}」`)
+    window.$message?.success(`已订阅「${media.title}」`)
     done(true)
   } catch {
     done(false)
@@ -141,44 +78,75 @@ async function handleSubscribe(media, done) {
 }
 </script>
 
-<style scoped>
-.search-view {
-  max-width: 1200px;
-}
+<template>
+  <div>
+    <!-- 搜索栏 -->
+    <n-card :bordered="true" size="small" class="!rounded-2xl mb-6">
+      <div class="flex gap-2 mb-3">
+        <n-button v-for="t in [{ label: '全部', value: 'all' }, { label: '电影', value: 'movie' }, { label: '剧集', value: 'tv' }]"
+          :key="t.value" size="tiny"
+          :type="searchType === t.value ? 'primary' : 'default'"
+          :secondary="searchType !== t.value"
+          @click="searchType = t.value">
+          {{ t.label }}
+        </n-button>
+      </div>
+      <n-input
+        v-model:value="keyword"
+        placeholder="搜索电影、电视剧、TMDB ID..."
+        size="large"
+        clearable
+        @keyup.enter="handleSearch"
+        @clear="clearSearch"
+      >
+        <template #suffix>
+          <n-button size="small" :type="loading ? 'default' : 'primary'" :loading="loading" @click="handleSearch" class="!rounded-lg">
+            <template #icon><i :class="loading ? 'ri-loader-4-line animate-spin' : 'ri-search-line'"></i></template>
+          </n-button>
+        </template>
+      </n-input>
+    </n-card>
 
-.search-bar-card {
-  margin-bottom: 20px;
-}
+    <!-- 搜索结果 -->
+    <n-spin :show="loading">
+      <n-empty v-if="searched && pagedResults.length === 0" description="未找到相关结果" class="py-20" />
+      <n-empty v-else-if="!searched" description="输入关键词开始搜索" class="py-20">
+        <template #icon><i class="ri-search-line text-6xl opacity-30"></i></template>
+      </n-empty>
 
-.search-bar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
+      <template v-else>
+        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2.5">
+          <div v-for="item in pagedResults" :key="item.tmdb_id"
+            class="rounded-xl p-0.5 cursor-pointer transition-colors hover:bg-[var(--n-action-color)]"
+            @click="openSubDialog(item)">
+            <div class="relative w-full pb-[150%] rounded-lg overflow-hidden bg-[var(--n-border-color)]">
+              <img
+                :src="item.poster_url || ''"
+                class="absolute inset-0 w-full h-full object-cover"
+                :alt="item.title"
+                @error="$event.target.src = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22300%22><rect fill=%22%2327272a%22 width=%22200%22 height=%22300%22/><text fill=%22%236b7280%22 font-size=%2230%22 x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22 dy=%22.3em%22>%3F</text></svg>'"
+              />
+              <n-tag :type="item.media_type === 'tv' ? 'primary' : 'success'" size="tiny" class="!absolute top-1.5 left-1.5" round>
+                {{ item.media_type === 'tv' ? '剧集' : '电影' }}
+              </n-tag>
+              <div v-if="isSubscribed(item.tmdb_id)" class="absolute bottom-1.5 left-1.5 w-7 h-7 rounded-full bg-black/50 flex items-center justify-center">
+                <i class="ri-rss-fill text-sm" style="color: rgb(96,165,250);"></i>
+              </div>
+            </div>
+            <div class="px-0.5 pt-1.5 text-center">
+              <div class="text-xs truncate font-medium">{{ item.title }}</div>
+              <div class="text-xs mt-0.5 opacity-40">{{ item.year || '未知年份' }}</div>
+            </div>
+          </div>
+        </div>
 
-.search-input {
-  flex: 1;
-}
+        <div v-if="results.length > pageSize" class="flex items-center justify-center gap-4 mt-7 py-3">
+          <span class="text-xs opacity-50">{{ results.length }} 条结果</span>
+          <n-pagination :page="currentPage" :page-count="totalPages" :page-slot="5" size="small" @update:page="currentPage = $event" />
+        </div>
+      </template>
+    </n-spin>
 
-.results-section {
-  min-height: 200px;
-}
-
-.results-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.empty-result {
-  display: flex;
-  justify-content: center;
-  padding: 60px 0;
-}
-
-.pagination-wrap {
-  display: flex;
-  justify-content: center;
-  margin-top: 24px;
-}
-</style>
+    <SubDialog v-model="subDialogVisible" :media="selectedMedia" @confirm="handleSubscribe" />
+  </div>
+</template>

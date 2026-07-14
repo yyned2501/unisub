@@ -1,15 +1,19 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import { setupAssets } from './plugins'
+import { setupRouter } from './router'
 import App from './App.vue'
-import router from './router'
 
-const app = createApp(App)
+async function setupApp() {
+  setupAssets()
 
-app.use(createPinia())
-app.use(router)
-app.use(ElementPlus, { locale: zhCn })
+  const app = createApp(App)
 
-app.mount('#app')
+  app.use(createPinia())
+
+  await setupRouter(app)
+
+  app.mount('#app')
+}
+
+setupApp()
