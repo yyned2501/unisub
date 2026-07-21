@@ -7,7 +7,6 @@
 from fastapi import APIRouter, Depends, Form, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import parse_config
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
@@ -17,6 +16,7 @@ from app.schemas.forward import (
     ForwardSubscribeInput,
 )
 from app.services import get_nf_service
+from app.services.auth_config import load_auth_config
 from app.services.forward import ForwardService
 from app.services.orchestrator import OrchestratorService
 
@@ -53,13 +53,13 @@ async def forward_login(
 
     使用 Form 参数接收用户名密码，与 MoviePilot 风格兼容。
     """
-    config = parse_config()
     svc = await _get_forward_service(db)
+    auth = load_auth_config()
     result = await svc.login(
         username=username,
         password=password,
-        config_username=config.forward_username,
-        config_password=config.forward_password,
+        config_username=auth.get("username", ""),
+        config_password=auth.get("password", ""),
     )
 
     if "success" in result and not result["success"]:
@@ -75,9 +75,9 @@ async def forward_auth_info(
     _current_user: str = Depends(get_current_user),
 ):
     """获取当前 Forward 账号信息。"""
-    config = parse_config()
     svc = await _get_forward_service(db)
-    return await svc.get_auth_info(config.forward_username, config.forward_password)
+    auth = load_auth_config()
+    return await svc.get_auth_info(auth.get("username", ""), auth.get("password", ""))
 
 
 @router.put("/api/v1/auth/update", response_model=ForwardActionResponse)
