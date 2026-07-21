@@ -15,7 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import init_logger
 from app.models.activity_log import ActivityLog
+from app.models.emby_cache import EmbyCache
 from app.models.subscription import Subscription
+from app.models.tmdb_cache import TmdbCache
 from app.schemas.subscription import SubscriptionResponse, SubscriptionSyncResult
 from app.services.moviepilot import MoviePilotService
 from app.services.nextfind import NextFindService
@@ -378,6 +380,35 @@ class OrchestratorService:
             if nf_status and str(nf_status) in ("completed", "finished"):
                 local_sub.completed = True
                 local_sub.updated_at = datetime.now(UTC)
+
+        # === Phase 4: 基于本地 Emby/TMDB 缓存判断入库完成 ===
+        # 不完全依赖 NF 数据，用 emby_cache.emby_episode_count vs tmdb_cache.tmdb_aired_eps/total_eps
+        tv_tids = [s.tmdb_id for s in local_all if s.media_type == "tv" and not s.completed]
+        if tv_tids:
+            emby_rows = (await db.execute(select(EmbyCache).where(EmbyCache.tmdb_id.in_(tv_tids)))).scalars().all()
+            emby_map = {e.tmdb_id: e for e in emby_rows}
+            tmdb_rows = (await db.execute(select(TmdbCache).where(TmdbCache.tmdb_id.in_(tv_tids)))).scalars().all()
+            tmdb_map = {t.tmdb_id: t for t in tmdb_rows}
+
+            for sub in local_all:
+                if sub.media_type != "tv" or sub.completed:
+                    continue
+                ec = emby_map.get(sub.tmdb_id)
+                tc = tmdb_map.get(sub.tmdb_id)
+                if not ec or not ec.emby_episode_count:
+                    continue
+                # 目标集数：优先已播出集数（在播剧），否则用 TMDB 总集数
+                target_eps = None
+                if tc:
+                    target_eps = tc.tmdb_aired_eps or tc.tmdb_total_eps
+                if not target_eps:
+                    continue
+                if ec.emby_episode_count >= target_eps:
+                    sub.completed = True
+                    sub.updated_at = datetime.now(UTC)
+                    logger.info(
+                        f"本地数据判定已全部入库: {sub.title} (emby={ec.emby_episode_count}, target={target_eps})"
+                    )
 
         # 记录同步活动
         log_entry = ActivityLog(
