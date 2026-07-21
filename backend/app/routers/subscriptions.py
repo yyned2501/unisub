@@ -1,31 +1,51 @@
 """订阅管理路由 — 订阅列表、创建、取消、同步。"""
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
+from app.models.platform_config import PlatformConfig
 from app.models.subscription import Subscription
 from app.schemas.subscription import (
     SubscriptionCreate,
     SubscriptionResponse,
     SubscriptionSyncResult,
 )
-from app.services import get_mp_service, get_nf_service
+from app.services import get_nf_service, get_mp_service, get_tmdb_service
 from app.services.orchestrator import OrchestratorService
+from app.services.subscription import (
+    list_subscriptions_with_cache,
+    background_update_tmdb_cache,
+)
 
-router = APIRouter(prefix="/api/subscriptions", tags=["订阅管理"])
+router = APIRouter(prefix="/api/subscriptions", tags=["订阅管理"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
 
 
 @router.get("", response_model=list[SubscriptionResponse])
 async def list_subscriptions(db: AsyncSession = Depends(get_db)):
     """获取所有订阅列表。"""
-    result = await db.execute(
-        select(Subscription).order_by(Subscription.created_at.desc())
+    # 获取 NextFind 基础 URL 用于补全相对路径海报
+    nf_result = await db.execute(
+        select(PlatformConfig).where(PlatformConfig.name == "nextfind")
     )
-    return result.scalars().all()
+    nf_config = nf_result.scalar_one_or_none()
+    nf_base_url = nf_config.base_url if nf_config else None
+
+    subs = await list_subscriptions_with_cache(db, nf_base_url=nf_base_url)
+
+    # 后台异步更新 TMDB 数据
+    tmdb = await get_tmdb_service(db)
+    if tmdb:
+        tv_subs = [s for s in subs if s.media_type == "tv" and s.nf_missing_eps > 0]
+        asyncio.create_task(background_update_tmdb_cache(tmdb, tv_subs))
+
+    return subs
 
 
 @router.post("", response_model=SubscriptionResponse, status_code=201)

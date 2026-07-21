@@ -4,13 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
 from app.models.subscription import Subscription
 from app.schemas.search import SearchResponse, SearchResultItem
 from app.services import get_nf_service
 
-router = APIRouter(prefix="/api/search", tags=["搜索"])
+router = APIRouter(prefix="/api/search", tags=["搜索"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
 
 
