@@ -13,6 +13,7 @@ class SubscriptionCreate(BaseModel):
     title: str = Field(..., description="媒体标题")
     poster_url: str | None = Field(None, description="海报 URL")
     year: int | None = Field(None, description="发行年份")
+    source: str | None = Field(None, description="数据来源")
 
 
 class SubscriptionResponse(BaseModel):
@@ -29,8 +30,11 @@ class SubscriptionResponse(BaseModel):
     nf_missing_eps: int = 0
     nf_sub_id: str | None = None
     completed: bool = False
+    source: str | None = None
     created_at: datetime
     updated_at: datetime
+    adjusted_missing_eps: int | None = None
+    tmdb_aired_eps: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -46,3 +50,13 @@ class SubscriptionSyncResult(BaseModel):
     nf_subscribed: bool = False
     needs_mp_search: bool = False
     message: str = ""
+
+
+class PaginatedSubscriptionResponse(BaseModel):
+    """分页的订阅列表响应。"""
+
+    total: int = 0
+    page: int = 1
+    page_size: int = 50
+    total_pages: int = 1
+    items: list[SubscriptionResponse] = Field(default_factory=list)

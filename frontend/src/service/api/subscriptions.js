@@ -1,7 +1,7 @@
 import apiClient from '../request'
 
-export function getSubscriptions() {
-  return apiClient.get('/subscriptions')
+export function getSubscriptions(params = {}) {
+  return apiClient.get('/subscriptions', { params })
 }
 
 export function createSubscription(data) {

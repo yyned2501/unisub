@@ -11,8 +11,10 @@ class DashboardStats(BaseModel):
     total_subscriptions: int = 0
     movie_count: int = 0
     tv_count: int = 0
-    missing_eps_count: int = 0
+    missing_count: int = 0
     completed_count: int = 0
+    tmdb_cached_total: int = 0
+    tmdb_data_filled: int = 0
 
 
 class PlatformStatus(BaseModel):
