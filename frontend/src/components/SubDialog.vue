@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
+import { onImgError } from '@/utils/format'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -30,7 +31,7 @@ function handleConfirm() {
     <div v-if="media" class="flex gap-4 items-start mb-4">
       <img :src="media.poster_url || ''" class="w-22.5 h-32 rounded-lg object-cover shrink-0"
         style="background: var(--n-border-color);"
-        @error="$event.target.style.display='none'" />
+        @error="onImgError" />
       <div class="flex-1 pt-1">
         <h4 class="text-base font-semibold mb-1.5">{{ media.title }}</h4>
         <p class="text-xs opacity-50 mb-2">{{ media.year || '未知年份' }} · {{ media.media_type === 'tv' ? '剧集' : '电影' }}</p>
