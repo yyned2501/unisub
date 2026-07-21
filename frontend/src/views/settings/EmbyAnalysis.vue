@@ -2,6 +2,9 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getEmbyLibraryAnalysis, syncEmbyCache, triggerEmbyScan, getEmbyScanStatus, addToBlacklist, removeFromBlacklist, subscribeFromEmby, fillMissingFromEmby } from '@/service/api/emby'
 import { onImgError } from '@/utils/format'
+import EmbyStatsCards from '@/components/emby/EmbyStatsCards.vue'
+import EmbyScanProgress from '@/components/emby/EmbyScanProgress.vue'
+import EmbySeriesItem from '@/components/emby/EmbySeriesItem.vue'
 
 defineOptions({ name: 'EmbyAnalysis' })
 
@@ -245,52 +248,7 @@ onUnmounted(() => stopPolling())
     </div>
 
     <!-- 统计卡片 -->
-    <div v-if="analysis" class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
-      <n-card size="small" :bordered="true">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center justify-center w-10 h-10 rounded-lg shrink-0" style="background: rgba(59,130,246,0.12);">
-            <i class="ri-tv-2-line text-lg" style="color: rgb(96,165,250);"></i>
-          </div>
-          <div>
-            <div class="text-xs opacity-50">Emby 剧集总数</div>
-            <div class="text-xl font-bold">{{ analysis.total_series }}</div>
-          </div>
-        </div>
-      </n-card>
-      <n-card size="small" :bordered="true">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center justify-center w-10 h-10 rounded-lg shrink-0" style="background: rgba(34,197,94,0.12);">
-            <i class="ri-rss-line text-lg" style="color: rgb(74,222,128);"></i>
-          </div>
-          <div>
-            <div class="text-xs opacity-50">已订阅</div>
-            <div class="text-xl font-bold">{{ analysis.subscribed_count }}</div>
-          </div>
-        </div>
-      </n-card>
-      <n-card size="small" :bordered="true">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center justify-center w-10 h-10 rounded-lg shrink-0" style="background: rgba(251,146,60,0.12);">
-            <i class="ri-error-warning-line text-lg" style="color: rgb(251,146,60);"></i>
-          </div>
-          <div>
-            <div class="text-xs opacity-50">缺集</div>
-            <div class="text-xl font-bold">{{ analysis.missing_count }}</div>
-          </div>
-        </div>
-      </n-card>
-      <n-card size="small" :bordered="true">
-        <div class="flex items-center gap-3">
-          <div class="flex items-center justify-center w-10 h-10 rounded-lg shrink-0" style="background: rgba(239,68,68,0.12);">
-            <i class="ri-eye-off-line text-lg" style="color: rgb(248,113,113);"></i>
-          </div>
-          <div>
-            <div class="text-xs opacity-50">已隐藏</div>
-            <div class="text-xl font-bold">{{ analysis.series.filter(s => s.is_blacklisted).length }}</div>
-          </div>
-        </div>
-      </n-card>
-    </div>
+    <EmbyStatsCards v-if="analysis" :analysis="analysis" />
 
     <!-- 工具栏 -->
     <div v-if="analysis" class="flex items-center gap-3 mb-4 flex-wrap">
@@ -319,24 +277,12 @@ onUnmounted(() => stopPolling())
     </div>
 
     <!-- 扫描进度条 -->
-    <n-card v-if="scanRunning" size="small" :bordered="true" class="mb-4">
-      <div class="flex flex-col gap-2">
-        <div class="flex items-center justify-between text-xs">
-          <span class="opacity-70">{{ scanStepName }}</span>
-          <span class="font-medium">{{ Math.round(scanProgress) }}%</span>
-        </div>
-        <n-progress
-          type="line"
-          :percentage="Math.round(scanProgress)"
-          :height="18"
-          :processing="scanRunning"
-          color="#3b82f6"
-        />
-        <div v-if="scanItem" class="text-xs opacity-40 truncate">
-          当前: {{ scanItem }}
-        </div>
-      </div>
-    </n-card>
+    <EmbyScanProgress
+      :running="scanRunning"
+      :progress="scanProgress"
+      :step-name="scanStepName"
+      :current-item="scanItem"
+    />
 
     <n-spin :show="loading || syncing">
       <!-- 缓存为空时的提示 -->
@@ -357,86 +303,18 @@ onUnmounted(() => stopPolling())
       <!-- 剧集列表 -->
       <n-card v-else-if="analysis && analysis.total_series > 0" size="small" :bordered="true" class="mb-4">
         <div class="divide-y" :style="{ 'border-bottom': '1px solid var(--n-border-color)' }">
-          <template v-for="s in filteredSeries" :key="s.tmdb_id">
-            <div class="flex items-start gap-3 py-2.5 px-1"
-              :class="{ 'opacity-50': s.is_blacklisted }">
-
-              <!-- 海报 -->
-              <img v-if="s.emby_image_url" :src="s.emby_image_url" :alt="s.emby_series_name"
-                class="w-10 h-14 rounded object-cover shrink-0"
-                @error="onImgError" />
-              <img v-else-if="s.poster_url" :src="s.poster_url" :alt="s.emby_series_name"
-                class="w-10 h-14 rounded object-cover shrink-0" />
-              <div v-else class="w-10 h-14 rounded flex items-center justify-center shrink-0"
-                :style="{ background: 'var(--n-action-color)' }">
-                <i class="ri-film-line opacity-40"></i>
-              </div>
-
-              <!-- 信息 -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 mb-0.5">
-                  <span class="text-sm font-medium truncate">{{ s.emby_series_name || '未知' }}</span>
-                  <span v-if="s.emby_year" class="text-xs opacity-40 shrink-0">({{ s.emby_year }})</span>
-                  <n-tag v-if="s.emby_library_name" size="tiny" type="info" round class="shrink-0">{{ s.emby_library_name }}</n-tag>
-                </div>
-
-                <div class="flex items-center gap-2 text-xs">
-                  <n-tag v-if="s.is_subscribed" size="tiny" type="success" round>已订阅</n-tag>
-                  <n-tag v-else size="tiny" type="default" round>未订阅</n-tag>
-
-                  <span class="opacity-40">|</span>
-
-                  <span class="opacity-50">Emby: {{ s.emby_episode_count ?? 0 }} 集</span>
-
-                  <template v-if="s.tmdb_aired_eps !== null">
-                    <span class="opacity-40">|</span>
-                    <span class="text-green-500">已播出 {{ s.tmdb_aired_eps }} 集</span>
-                  </template>
-                  <template v-else-if="s.tmdb_total_eps !== null">
-                    <span class="opacity-40">|</span>
-                    <span class="text-green-500">TMDB 共 {{ s.tmdb_total_eps }} 集</span>
-                  </template>
-
-                  <span v-if="s.adjusted_missing !== null && s.adjusted_missing > 0"
-                    class="text-yellow-500 font-medium">
-                    | 缺: {{ s.adjusted_missing }}
-                  </span>
-
-                  <span v-if="s.tmdb_next_air_date" class="opacity-40">
-                    | 下一集: {{ s.tmdb_next_air_date }}
-                  </span>
-                </div>
-
-                <div v-if="s.overview" class="text-xs opacity-30 mt-0.5 truncate">{{ s.overview }}</div>
-              </div>
-
-              <!-- 操作按钮 -->
-              <div class="flex items-center gap-1 shrink-0">
-                <n-button v-if="!s.is_subscribed" size="tiny" type="primary" secondary
-                  :loading="subscribingIds.has(s.tmdb_id)"
-                  @click="handleSubscribe(s)">
-                  <template #icon><i class="ri-add-line"></i></template>
-                  添加订阅
-                </n-button>
-                <n-button v-if="s.adjusted_missing > 0" size="tiny" type="warning" secondary
-                  :loading="fillingIds.has(s.tmdb_id)"
-                  @click="handleFillMissing(s.tmdb_id)">
-                  <template #icon><i class="ri-refresh-line"></i></template>
-                  立即补缺
-                </n-button>
-                <n-button v-if="!s.is_blacklisted" size="tiny" quaternary
-                  :loading="hidingIds.has(s.tmdb_id)"
-                  @click="handleHide(s.tmdb_id)">
-                  <template #icon><i class="ri-eye-off-line"></i></template>
-                </n-button>
-                <n-button v-else size="tiny" quaternary type="warning"
-                  :loading="hidingIds.has(s.tmdb_id)"
-                  @click="handleUnhide(s.tmdb_id)">
-                  <template #icon><i class="ri-eye-line"></i></template>
-                </n-button>
-              </div>
-            </div>
-          </template>
+          <EmbySeriesItem
+            v-for="s in filteredSeries"
+            :key="s.tmdb_id"
+            :s="s"
+            :hiding="hidingIds.has(s.tmdb_id)"
+            :subscribing="subscribingIds.has(s.tmdb_id)"
+            :filling="fillingIds.has(s.tmdb_id)"
+            @hide="handleHide"
+            @unhide="handleUnhide"
+            @subscribe="handleSubscribe"
+            @fill="handleFillMissing"
+          />
         </div>
       </n-card>
 
