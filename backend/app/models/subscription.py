@@ -29,7 +29,8 @@ class Subscription(Base):
     )
     nf_missing_eps: Mapped[int] = mapped_column(Integer, default=0, comment="NF 缺集数量")
     nf_sub_id: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="NextFind 订阅 ID")
-    completed: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否已全部入库")
+    completed: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否已全部入库（仅完结剧）")
+    aired_complete: Mapped[bool] = mapped_column(Boolean, default=False, comment="在播剧已播出集数是否已全部入库")
     source: Mapped[str | None] = mapped_column(
         String(20), nullable=True, comment="数据来源: manual / forward / auto_subscribe / nextfind"
     )

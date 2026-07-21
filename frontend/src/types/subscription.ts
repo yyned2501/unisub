@@ -26,6 +26,7 @@ export interface Subscription {
   nf_missing_eps: number
   nf_sub_id: string | null
   completed: boolean
+  aired_complete: boolean
   source: string | null
   created_at: string
   updated_at: string

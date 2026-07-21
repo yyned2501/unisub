@@ -300,10 +300,10 @@ class OrchestratorService:
                 local_sub.nf_subscribed = True
                 local_sub.nf_status = str(nf_status) if nf_status else None
                 local_sub.nf_missing_eps = nf_missing
-                # 剧集无缺集 → 标记已完成
-                if local_sub.media_type == "tv" and nf_missing == 0 and not local_sub.completed:
+                # 电影无缺集 → 标记已完成（电影只有一集，入库即完成）
+                if local_sub.media_type == "movie" and nf_missing == 0 and not local_sub.completed:
                     local_sub.completed = True
-                    logger.info(f"订阅已全部入库，标记完成: {local_sub.title} (tmdb_id={tid})")
+                    logger.info(f"电影已入库，标记完成: {local_sub.title} (tmdb_id={tid})")
                 if not local_sub.year:
                     local_sub.year = _parse_year(nf_sub.get("year"))
                 if not local_sub.poster_url:
@@ -371,10 +371,10 @@ class OrchestratorService:
             else:
                 logger.warning(f"双向同步 — 推送订阅到 NF 失败: {local_sub.title}, {nf_result}")
 
-        # === Phase 3: 更新完成状态 ===
+        # === Phase 3: 更新完成状态（仅电影；TV 由 Phase 4 基于 TMDB 数据判断）===
         for tid, nf_sub in nf_by_tmdb.items():
             local_sub = local_by_tmdb.get(tid)
-            if not local_sub:
+            if not local_sub or local_sub.media_type != "movie":
                 continue
             nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or nf_sub.get("nf_status")
             if nf_status and str(nf_status) in ("completed", "finished"):
@@ -382,33 +382,53 @@ class OrchestratorService:
                 local_sub.updated_at = datetime.now(UTC)
 
         # === Phase 4: 基于本地 Emby/TMDB 缓存判断入库完成 ===
-        # 不完全依赖 NF 数据，用 emby_cache.emby_episode_count vs tmdb_cache.tmdb_aired_eps/total_eps
-        tv_tids = [s.tmdb_id for s in local_all if s.media_type == "tv" and not s.completed]
-        if tv_tids:
-            emby_rows = (await db.execute(select(EmbyCache).where(EmbyCache.tmdb_id.in_(tv_tids)))).scalars().all()
+        # 电影：emby 有记录即完成
+        # 完结剧（tmdb_aired_eps 为 None）：emby >= tmdb_total_eps → completed
+        # 在播剧（tmdb_aired_eps 有值）：emby >= tmdb_aired_eps → aired_complete（不标 completed）
+        unfinished_tids = [s.tmdb_id for s in local_all if not s.completed]
+        if unfinished_tids:
+            emby_rows = (
+                (await db.execute(select(EmbyCache).where(EmbyCache.tmdb_id.in_(unfinished_tids)))).scalars().all()
+            )
             emby_map = {e.tmdb_id: e for e in emby_rows}
-            tmdb_rows = (await db.execute(select(TmdbCache).where(TmdbCache.tmdb_id.in_(tv_tids)))).scalars().all()
+            tmdb_rows = (
+                (await db.execute(select(TmdbCache).where(TmdbCache.tmdb_id.in_(unfinished_tids)))).scalars().all()
+            )
             tmdb_map = {t.tmdb_id: t for t in tmdb_rows}
 
             for sub in local_all:
-                if sub.media_type != "tv" or sub.completed:
+                if sub.completed:
                     continue
                 ec = emby_map.get(sub.tmdb_id)
-                tc = tmdb_map.get(sub.tmdb_id)
                 if not ec or not ec.emby_episode_count:
                     continue
-                # 目标集数：优先已播出集数（在播剧），否则用 TMDB 总集数
-                target_eps = None
-                if tc:
-                    target_eps = tc.tmdb_aired_eps or tc.tmdb_total_eps
-                if not target_eps:
-                    continue
-                if ec.emby_episode_count >= target_eps:
+
+                if sub.media_type == "movie":
                     sub.completed = True
                     sub.updated_at = datetime.now(UTC)
-                    logger.info(
-                        f"本地数据判定已全部入库: {sub.title} (emby={ec.emby_episode_count}, target={target_eps})"
-                    )
+                    logger.info(f"本地数据判定电影已入库: {sub.title} (emby={ec.emby_episode_count})")
+                    continue
+
+                tc = tmdb_map.get(sub.tmdb_id)
+                if not tc:
+                    continue
+                if tc.tmdb_aired_eps:
+                    # 在播剧：已播出集数全部入库 → aired_complete
+                    if ec.emby_episode_count >= tc.tmdb_aired_eps and not sub.aired_complete:
+                        sub.aired_complete = True
+                        sub.updated_at = datetime.now(UTC)
+                        logger.info(
+                            f"在播剧已播出集数全部入库: {sub.title} "
+                            f"(emby={ec.emby_episode_count}, aired={tc.tmdb_aired_eps})"
+                        )
+                elif tc.tmdb_total_eps:
+                    # 完结剧：总集数全部入库 → completed
+                    if ec.emby_episode_count >= tc.tmdb_total_eps:
+                        sub.completed = True
+                        sub.updated_at = datetime.now(UTC)
+                        logger.info(
+                            f"完结剧已全部入库: {sub.title} (emby={ec.emby_episode_count}, total={tc.tmdb_total_eps})"
+                        )
 
         # 记录同步活动
         log_entry = ActivityLog(

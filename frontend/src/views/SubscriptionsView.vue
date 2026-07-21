@@ -15,10 +15,11 @@ function subStatus(row: Subscription) {
 
 function embyStatus(row: Subscription) {
   if (row.completed) return { label: '已完成', type: 'success' as const }
+  if (row.aired_complete) return { label: '已入库', type: 'primary' as const }
   if (row.media_type === 'tv' && row.nf_missing_eps > 0)
     return { label: `缺 ${row.nf_missing_eps} 集`, type: 'info' as const }
   if (row.nf_subscribed && row.nf_missing_eps === 0)
-    return { label: '已入库', type: 'success' as const }
+    return { label: '已入库', type: 'primary' as const }
   return { label: '未入库', type: 'default' as const }
 }
 
