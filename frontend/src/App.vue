@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NConfigProvider, zhCN, useMessage } from 'naive-ui'
+import { NConfigProvider, zhCN } from 'naive-ui'
 import AppProvider from '@/components/common/app-provider.vue'
 import { useThemeStore } from '@/store/modules/theme'
 import { useAuthStore } from '@/store/modules/auth'
@@ -46,14 +46,23 @@ const activeKey = computed(() => route.path)
 /** 自动展开设置子菜单 */
 const expandedKeys = ref<string[]>([])
 
-watch(() => route.path, (path) => {
-  if (path.startsWith('/settings') && !expandedKeys.value.includes('settings-group')) {
-    expandedKeys.value = [...expandedKeys.value, 'settings-group']
-  }
-}, { immediate: true })
+watch(
+  () => route.path,
+  (path) => {
+    if (path.startsWith('/settings') && !expandedKeys.value.includes('settings-group')) {
+      expandedKeys.value = [...expandedKeys.value, 'settings-group']
+    }
+  },
+  { immediate: true }
+)
 
 function handleMenuSelect(key: string) {
   router.push(key)
+}
+
+function handleLogout() {
+  auth.logout()
+  router.push('/login')
 }
 </script>
 
@@ -63,7 +72,7 @@ function handleMenuSelect(key: string) {
       <!-- 登录页 — 不显示侧边栏 -->
       <router-view v-if="isLoginPage" />
       <!-- 主布局 — 侧边栏 + 内容区 -->
-      <div v-else style="position: relative; height: 100%;">
+      <div v-else style="position: relative; height: 100%">
         <n-layout has-sider position="absolute">
           <!-- 侧边栏 -->
           <n-layout-sider
@@ -76,8 +85,18 @@ function handleMenuSelect(key: string) {
           >
             <div class="flex items-center h-14 px-4 gap-2.5">
               <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 shrink-0">
-                <rect width="32" height="32" rx="8" fill="#3b82f6"/>
-                <text x="16" y="22" text-anchor="middle" fill="white" font-size="18" font-weight="bold" font-family="Arial">U</text>
+                <rect width="32" height="32" rx="8" fill="#3b82f6" />
+                <text
+                  x="16"
+                  y="22"
+                  text-anchor="middle"
+                  fill="white"
+                  font-size="18"
+                  font-weight="bold"
+                  font-family="Arial"
+                >
+                  U
+                </text>
               </svg>
               <span v-show="!collapsed" class="text-base font-bold tracking-wide whitespace-nowrap">UniSub</span>
             </div>
@@ -113,7 +132,7 @@ function handleMenuSelect(key: string) {
                     <i :class="themeStore.darkMode ? 'ri-sun-line' : 'ri-moon-line'" class="text-lg"></i>
                   </template>
                 </n-button>
-                <n-button quaternary size="small" @click="auth.logout(); router.push('/login')">
+                <n-button quaternary size="small" @click="handleLogout">
                   <template #icon>
                     <i class="ri-logout-box-r-line text-lg"></i>
                   </template>

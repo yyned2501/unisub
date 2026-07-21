@@ -47,10 +47,10 @@ export function useEmbyAnalysis() {
     let items = analysis.value.series || []
     if (searchText.value.trim()) {
       const kw = searchText.value.trim().toLowerCase()
-      items = items.filter(s => (s.emby_series_name || '').toLowerCase().includes(kw))
+      items = items.filter((s) => (s.emby_series_name || '').toLowerCase().includes(kw))
     }
     if (!showHidden.value) {
-      items = items.filter(s => !s.is_blacklisted)
+      items = items.filter((s) => !s.is_blacklisted)
     }
     return items
   })
@@ -142,7 +142,7 @@ export function useEmbyAnalysis() {
     hidingIds.add(tmdbId)
     try {
       await addToBlacklist(tmdbId)
-      const s = analysis.value?.series.find(item => item.tmdb_id === tmdbId)
+      const s = analysis.value?.series.find((item) => item.tmdb_id === tmdbId)
       if (s) s.is_blacklisted = true
       msg.success('已隐藏')
     } catch {
@@ -156,7 +156,7 @@ export function useEmbyAnalysis() {
     hidingIds.add(tmdbId)
     try {
       await removeFromBlacklist(tmdbId)
-      const s = analysis.value?.series.find(item => item.tmdb_id === tmdbId)
+      const s = analysis.value?.series.find((item) => item.tmdb_id === tmdbId)
       if (s) s.is_blacklisted = false
       msg.success('已取消隐藏')
     } catch {
@@ -171,7 +171,7 @@ export function useEmbyAnalysis() {
     try {
       const data = await subscribeFromEmby(s.tmdb_id, s.emby_series_name || '未知', 'tv', s.poster_url, s.emby_year)
       if (data?.success) {
-        const item = analysis.value?.series.find(x => x.tmdb_id === s.tmdb_id)
+        const item = analysis.value?.series.find((x) => x.tmdb_id === s.tmdb_id)
         if (item) item.is_subscribed = true
         msg.success(data.message || '订阅成功')
       } else {

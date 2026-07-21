@@ -33,7 +33,9 @@ async function load() {
     }
   } catch {
     msg.error('加载任务配置失败')
-  } finally { loading.value = false }
+  } finally {
+    loading.value = false
+  }
 }
 
 async function handleSave() {
@@ -47,7 +49,9 @@ async function handleSave() {
     msg.success('任务配置已保存')
   } catch {
     msg.error('保存任务配置失败')
-  } finally { saving.value = false }
+  } finally {
+    saving.value = false
+  }
 }
 
 onMounted(() => load())
@@ -57,20 +61,27 @@ onMounted(() => load())
   <div>
     <h2 class="text-lg font-bold mb-4">定时任务</h2>
 
-    <n-card :bordered="true" size="small" style="max-width: 480px;">
+    <n-card :bordered="true" size="small" style="max-width: 480px">
       <n-spin :show="loading">
         <div class="flex flex-col gap-5">
           <div class="flex flex-col gap-1.5">
             <label class="text-xs opacity-50 font-medium">全量扫描间隔</label>
             <div class="flex items-center gap-2.5">
-              <n-input-number v-model:value="config.interval" :min="60" :max="86400" :step="60" size="small" style="width: 140px;">
+              <n-input-number
+                v-model:value="config.interval"
+                :min="60"
+                :max="86400"
+                :step="60"
+                size="small"
+                style="width: 140px"
+              >
                 <template #suffix><span class="text-xs opacity-40">秒</span></template>
               </n-input-number>
               <span class="text-xs opacity-50">{{ formatInterval(config.interval) }}</span>
             </div>
           </div>
 
-          <div style="border-top: 1px solid var(--n-border-color);"></div>
+          <div style="border-top: 1px solid var(--n-border-color)"></div>
 
           <div class="flex items-center justify-between">
             <label class="text-xs opacity-50 font-medium">启用自动补缺集</label>
@@ -80,14 +91,21 @@ onMounted(() => load())
           <div class="flex flex-col gap-1.5">
             <label class="text-xs opacity-50 font-medium">补缺集间隔</label>
             <div class="flex items-center gap-2.5">
-              <n-input-number v-model:value="config.auto_fill_interval_secs" :min="10" :max="86400" :step="10" size="small" style="width: 140px;">
+              <n-input-number
+                v-model:value="config.auto_fill_interval_secs"
+                :min="10"
+                :max="86400"
+                :step="10"
+                size="small"
+                style="width: 140px"
+              >
                 <template #suffix><span class="text-xs opacity-40">秒</span></template>
               </n-input-number>
               <span class="text-xs opacity-50">{{ formatInterval(config.auto_fill_interval_secs) }}</span>
             </div>
           </div>
 
-          <div class="flex pt-2" style="border-top: 1px solid var(--n-border-color);">
+          <div class="flex pt-2" style="border-top: 1px solid var(--n-border-color)">
             <n-button size="small" type="primary" :loading="saving" @click="handleSave">
               <template #icon><i class="ri-save-line"></i></template>
               保存配置

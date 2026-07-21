@@ -1,5 +1,4 @@
 <script setup lang="ts">
-
 defineProps<{
   running: boolean
   progress: number
@@ -15,16 +14,8 @@ defineProps<{
         <span class="opacity-70">{{ stepName }}</span>
         <span class="font-medium">{{ Math.round(progress) }}%</span>
       </div>
-      <n-progress
-        type="line"
-        :percentage="Math.round(progress)"
-        :height="18"
-        :processing="running"
-        color="#3b82f6"
-      />
-      <div v-if="currentItem" class="text-xs opacity-40 truncate">
-        当前: {{ currentItem }}
-      </div>
+      <n-progress type="line" :percentage="Math.round(progress)" :height="18" :processing="running" color="#3b82f6" />
+      <div v-if="currentItem" class="text-xs opacity-40 truncate">当前: {{ currentItem }}</div>
     </div>
   </n-card>
 </template>

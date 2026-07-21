@@ -24,7 +24,9 @@ export const useThemeStore = defineStore('theme', () => {
       if (saved !== null) {
         darkMode.value = JSON.parse(saved)
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   /** 切换主题 */
@@ -34,9 +36,13 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   /** 监听暗色模式，给 html 加 class 用于 UnoCSS 适配 */
-  watch(darkMode, (val) => {
-    document.documentElement.classList.toggle('dark', val)
-  }, { immediate: true })
+  watch(
+    darkMode,
+    (val) => {
+      document.documentElement.classList.toggle('dark', val)
+    },
+    { immediate: true }
+  )
 
   // 初始化加载
   load()

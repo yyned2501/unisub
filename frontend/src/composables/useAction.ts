@@ -9,9 +9,7 @@ import { ref } from 'vue'
  *   list.value = data
  * })
  */
-export function useAction<TArgs extends unknown[], TResult>(
-  fn: (...args: TArgs) => Promise<TResult>
-) {
+export function useAction<TArgs extends unknown[], TResult>(fn: (...args: TArgs) => Promise<TResult>) {
   const loading = ref(false)
 
   async function run(...args: TArgs): Promise<TResult | undefined> {

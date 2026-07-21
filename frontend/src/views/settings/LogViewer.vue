@@ -76,7 +76,8 @@ function toggleDebug() {
 }
 
 function copyLog() {
-  navigator.clipboard?.writeText(logLines.value.join('\n'))
+  navigator.clipboard
+    ?.writeText(logLines.value.join('\n'))
     .then(() => msg.success('已复制到剪贴板'))
     .catch(() => msg.error('复制失败'))
 }
@@ -123,25 +124,32 @@ watch(isTail, () => loadContent())
           <span class="text-xs opacity-50">文件</span>
           <n-select
             v-model:value="selectedFile"
-            :options="files.map(f => ({ value: f.name, label: `${f.name} (${formatSize(f.size)})` }))"
-            size="small" style="min-width: 200px;" filterable
+            :options="files.map((f) => ({ value: f.name, label: `${f.name} (${formatSize(f.size)})` }))"
+            size="small"
+            style="min-width: 200px"
+            filterable
           />
         </div>
 
         <div class="flex items-center gap-1.5">
           <span class="text-xs opacity-50">级别</span>
-          <n-select v-model:value="logLevel" :options="LEVEL_OPTIONS" size="small" style="width: 100px;" />
+          <n-select v-model:value="logLevel" :options="LEVEL_OPTIONS" size="small" style="width: 100px" />
         </div>
 
         <div class="flex items-center gap-1.5">
           <span class="text-xs opacity-50">行数</span>
-          <n-select v-model:value="lines" :options="[
-            { value: 100, label: '100' },
-            { value: 200, label: '200' },
-            { value: 500, label: '500' },
-            { value: 1000, label: '1000' },
-            { value: 2000, label: '2000' },
-          ]" size="small" style="width: 90px;" />
+          <n-select
+            v-model:value="lines"
+            :options="[
+              { value: 100, label: '100' },
+              { value: 200, label: '200' },
+              { value: 500, label: '500' },
+              { value: 1000, label: '1000' },
+              { value: 2000, label: '2000' },
+            ]"
+            size="small"
+            style="width: 90px"
+          />
         </div>
 
         <div class="flex items-center gap-1.5">
@@ -160,7 +168,7 @@ watch(isTail, () => loadContent())
           </n-switch>
         </div>
 
-        <div class="flex items-center gap-1.5" style="flex: 1; min-width: 150px; max-width: 280px;">
+        <div class="flex items-center gap-1.5" style="flex: 1; min-width: 150px; max-width: 280px">
           <span class="text-xs opacity-50">筛选</span>
           <n-input v-model:value="filter" placeholder="关键字" size="small" clearable @keyup.enter="refresh" />
         </div>
@@ -184,7 +192,9 @@ watch(isTail, () => loadContent())
     <n-collapse v-if="showDebug" :default-expanded-names="['debug']" class="mb-4">
       <n-collapse-item title="Debug Info" name="debug">
         <n-card size="small" :bordered="false">
-          <pre class="text-xs leading-relaxed whitespace-pre-wrap">{{ JSON.stringify(debugInfo, null, 2) || '加载中...' }}</pre>
+          <pre class="text-xs leading-relaxed whitespace-pre-wrap">{{
+            JSON.stringify(debugInfo, null, 2) || '加载中...'
+          }}</pre>
         </n-card>
       </n-collapse-item>
     </n-collapse>

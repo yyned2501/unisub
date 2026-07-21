@@ -38,8 +38,10 @@ async function handleLogin() {
       <div class="text-center mb-8">
         <div class="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-blue-500 mb-4">
           <svg viewBox="0 0 32 32" fill="none" class="w-8 h-8">
-            <rect width="32" height="32" rx="8" fill="#3b82f6"/>
-            <text x="16" y="22" text-anchor="middle" fill="white" font-size="18" font-weight="bold" font-family="Arial">U</text>
+            <rect width="32" height="32" rx="8" fill="#3b82f6" />
+            <text x="16" y="22" text-anchor="middle" fill="white" font-size="18" font-weight="bold" font-family="Arial">
+              U
+            </text>
           </svg>
         </div>
         <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">UniSub</h1>
@@ -69,30 +71,13 @@ async function handleLogin() {
             />
           </n-form-item>
 
-          <n-alert
-            v-if="errorMsg"
-            type="error"
-            :title="errorMsg"
-            closable
-            class="mb-4"
-            @close="errorMsg = ''"
-          />
+          <n-alert v-if="errorMsg" type="error" :title="errorMsg" closable class="mb-4" @close="errorMsg = ''" />
 
-          <n-button
-            type="primary"
-            block
-            :loading="loading"
-            attr-type="submit"
-            size="large"
-          >
-            登录
-          </n-button>
+          <n-button type="primary" block :loading="loading" attr-type="submit" size="large"> 登录 </n-button>
         </n-form>
       </n-card>
 
-      <p class="text-center text-xs text-gray-400 dark:text-gray-500 mt-6">
-        UniSub v0.1.0
-      </p>
+      <p class="text-center text-xs text-gray-400 dark:text-gray-500 mt-6">UniSub v0.1.0</p>
     </div>
   </div>
 </template>

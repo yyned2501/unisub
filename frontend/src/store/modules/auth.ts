@@ -1,7 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { login as loginApi } from '@/service/api/auth'
-import type { LoginResponse } from '@/types'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('unisub_token') || '')

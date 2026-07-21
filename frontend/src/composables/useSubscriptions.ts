@@ -1,5 +1,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { getSubscriptions, deleteSubscription, syncSubscriptions } from '@/service/api/subscriptions'
+import { usePagedList } from '@/composables/usePagedList'
 import { msg } from '@/utils/message'
 import type { Subscription } from '@/types'
 
@@ -14,10 +15,6 @@ export function useSubscriptions() {
 
   const searchText = ref('')
   const filterTab = ref('active')
-
-  // 前端分页
-  const page = ref(1)
-  const pageSize = ref(20)
 
   const filteredList = computed(() => {
     let items = list.value
@@ -35,23 +32,17 @@ export function useSubscriptions() {
     return items
   })
 
-  const totalPages = computed(() => Math.max(1, Math.ceil(filteredList.value.length / pageSize.value)))
-
-  const pagedList = computed(() => {
-    const start = (page.value - 1) * pageSize.value
-    return filteredList.value.slice(start, start + pageSize.value)
-  })
+  // 前端分页
+  const { page, pageSize, totalPages, pagedList, setPage: handlePageChange } = usePagedList(filteredList, 20)
 
   async function loadList() {
     loading.value = true
     try {
       const data = await getSubscriptions()
       list.value = Array.isArray(data) ? data : []
-    } finally { loading.value = false }
-  }
-
-  function handlePageChange(p: number) {
-    page.value = p
+    } finally {
+      loading.value = false
+    }
   }
 
   async function handleSync() {
@@ -60,14 +51,16 @@ export function useSubscriptions() {
       await syncSubscriptions()
       await loadList()
       msg.success(`同步完成，共 ${list.value.length} 条订阅`)
-    } finally { syncing.value = false }
+    } finally {
+      syncing.value = false
+    }
   }
 
   async function handleDelete(row: Subscription) {
     try {
       await deleteSubscription(row.id)
       msg.success(`已取消订阅「${row.title}」`)
-      list.value = list.value.filter(i => i.id !== row.id)
+      list.value = list.value.filter((i) => i.id !== row.id)
     } catch {
       msg.error(`取消订阅「${row.title}」失败`)
     }

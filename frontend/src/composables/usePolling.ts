@@ -11,11 +11,7 @@ import { useIntervalFn } from '@vueuse/core'
  * @example
  * const { pause, resume, isActive } = usePolling(pollStatus, 3000, { immediate: true })
  */
-export function usePolling(
-  fn: () => void | Promise<void>,
-  interval: number,
-  options?: { immediate?: boolean }
-) {
+export function usePolling(fn: () => void | Promise<void>, interval: number, options?: { immediate?: boolean }) {
   const { pause, resume, isActive } = useIntervalFn(fn, interval, {
     immediate: options?.immediate ?? false,
     immediateCallback: options?.immediate ?? false,

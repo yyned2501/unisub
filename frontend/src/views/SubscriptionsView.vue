@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, h } from 'vue'
+import { computed, h } from 'vue'
 import { NTag, NButton, NPopconfirm } from 'naive-ui'
 import { useSubscriptions } from '@/composables/useSubscriptions'
 import { onImgError } from '@/utils/format'
@@ -15,7 +15,8 @@ function subStatus(row: Subscription) {
 
 function embyStatus(row: Subscription) {
   if (row.completed) return { label: '已完成', type: 'success' as const }
-  if (row.media_type === 'tv' && row.nf_missing_eps > 0) return { label: `缺 ${row.nf_missing_eps} 集`, type: 'info' as const }
+  if (row.media_type === 'tv' && row.nf_missing_eps > 0)
+    return { label: `缺 ${row.nf_missing_eps} 集`, type: 'info' as const }
   return { label: '未入库', type: 'default' as const }
 }
 
@@ -24,7 +25,6 @@ const {
   syncing,
   searchText,
   filterTab,
-  filteredList,
   pagedList,
   page,
   pageSize,
@@ -36,66 +36,117 @@ const {
 
 const columns = computed<DataTableColumns<Subscription>>(() => [
   {
-    title: '海报', key: 'poster_url', width: 60,
+    title: '海报',
+    key: 'poster_url',
+    width: 60,
     render(row) {
-      if (row.poster_url) return h('img', { src: row.poster_url, class: 'w-10 h-14 rounded object-cover block', onError: onImgError })
-      return h('div', { class: 'w-10 h-14 rounded flex items-center justify-center', style: 'background: var(--n-border-color);' },
-        () => h('i', { class: 'ri-film-line text-lg opacity-30' }))
+      if (row.poster_url)
+        return h('img', { src: row.poster_url, class: 'w-10 h-14 rounded object-cover block', onError: onImgError })
+      return h(
+        'div',
+        { class: 'w-10 h-14 rounded flex items-center justify-center', style: 'background: var(--n-border-color);' },
+        () => h('i', { class: 'ri-film-line text-lg opacity-30' })
+      )
     },
   },
   {
-    title: '标题', key: 'title', ellipsis: { tooltip: true }, minWidth: 200,
-    render(row) { return h('span', { class: 'font-medium' }, row.title) },
+    title: '标题',
+    key: 'title',
+    ellipsis: { tooltip: true },
+    minWidth: 200,
+    render(row) {
+      return h('span', { class: 'font-medium' }, row.title)
+    },
   },
   {
-    title: '类型', key: 'media_type', width: 70,
-    render(row) { return h(NTag, { type: row.media_type === 'tv' ? 'primary' : 'success', size: 'tiny', round: true }, { default: () => row.media_type === 'tv' ? '剧集' : '电影' }) },
+    title: '类型',
+    key: 'media_type',
+    width: 70,
+    render(row) {
+      return h(
+        NTag,
+        { type: row.media_type === 'tv' ? 'primary' : 'success', size: 'tiny', round: true },
+        { default: () => (row.media_type === 'tv' ? '剧集' : '电影') }
+      )
+    },
   },
   {
-    title: '年份', key: 'year', width: 54,
-    render(row) { return h('span', { class: 'opacity-50' }, row.year || '-') },
+    title: '年份',
+    key: 'year',
+    width: 54,
+    render(row) {
+      return h('span', { class: 'opacity-50' }, row.year || '-')
+    },
   },
   {
-    title: 'TMDB', key: 'tmdb_id', width: 90,
+    title: 'TMDB',
+    key: 'tmdb_id',
+    width: 90,
     render(row) {
       if (!row.tmdb_id) return h('span', { class: 'opacity-30' }, '-')
-      return h('a', {
-        href: `https://www.themoviedb.org/${row.media_type || 'movie'}/${row.tmdb_id}`,
-        target: '_blank',
-        class: 'text-primary hover:underline cursor-pointer',
-      }, row.tmdb_id)
+      return h(
+        'a',
+        {
+          href: `https://www.themoviedb.org/${row.media_type || 'movie'}/${row.tmdb_id}`,
+          target: '_blank',
+          class: 'text-primary hover:underline cursor-pointer',
+        },
+        row.tmdb_id
+      )
     },
   },
   {
-    title: '订阅状态', key: 'sub_status', width: 80,
+    title: '订阅状态',
+    key: 'sub_status',
+    width: 80,
     render(row) {
       const s = subStatus(row)
       return h(NTag, { type: s.type, size: 'tiny', round: true }, { default: () => s.label })
     },
   },
   {
-    title: 'Emby 状态', key: 'emby_status', width: 90,
+    title: 'Emby 状态',
+    key: 'emby_status',
+    width: 90,
     render(row) {
       const s = embyStatus(row)
       return h(NTag, { type: s.type, size: 'tiny', round: true }, { default: () => s.label })
     },
   },
   {
-    title: '来源', key: 'source', width: 80,
+    title: '来源',
+    key: 'source',
+    width: 80,
     render(row) {
       if (!row.source) return '-'
-      const labels: Record<string, string> = { manual: '手动', forward: 'Forward', auto_subscribe: '自动订阅', nextfind: 'NF同步' }
+      const labels: Record<string, string> = {
+        manual: '手动',
+        forward: 'Forward',
+        auto_subscribe: '自动订阅',
+        nextfind: 'NF同步',
+      }
       return h('span', { class: 'text-xs opacity-50' }, labels[row.source] || row.source)
     },
   },
   {
-    title: '操作', key: 'actions', width: 60, align: 'right',
+    title: '操作',
+    key: 'actions',
+    width: 60,
+    align: 'right',
     render(row) {
-      return h(NPopconfirm, { onPositiveClick: () => handleDelete(row), positiveText: '确认', negativeText: '取消' }, {
-        default: () => '确认取消订阅？',
-        trigger: () => h(NButton, { size: 'tiny', quaternary: true, type: 'error' },
-          { default: () => h('i', { class: 'ri-delete-bin-6-line text-sm' }) }),
-      })
+      return h(
+        NPopconfirm,
+        { onPositiveClick: () => handleDelete(row), positiveText: '确认', negativeText: '取消' },
+        {
+          default: () => '确认取消订阅？',
+          trigger: () =>
+            h(
+              NButton,
+              { size: 'tiny', quaternary: true, type: 'error' },
+              { default: () => h('i', { class: 'ri-delete-bin-6-line text-sm' }) }
+            ),
+        }
+      )
     },
   },
 ])
@@ -112,7 +163,7 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
             <n-radio-button value="unsynced">未同步</n-radio-button>
             <n-radio-button value="all">全部</n-radio-button>
           </n-radio-group>
-          <n-input v-model:value="searchText" placeholder="搜索标题..." size="small" clearable style="width: 200px;">
+          <n-input v-model:value="searchText" placeholder="搜索标题..." size="small" clearable style="width: 200px">
             <template #prefix><i class="ri-search-line opacity-40"></i></template>
           </n-input>
         </div>
@@ -127,20 +178,21 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
 
     <n-card :bordered="true" size="small">
       <n-spin :show="loading">
-        <n-data-table v-if="pagedList.length > 0"
-          :columns="columns" :data="pagedList" :bordered="false" :single-line="false" size="small"
-          :row-key="(row) => row.id" />
+        <n-data-table
+          v-if="pagedList.length > 0"
+          :columns="columns"
+          :data="pagedList"
+          :bordered="false"
+          :single-line="false"
+          size="small"
+          :row-key="(row) => row.id"
+        />
         <n-empty v-else description="暂无活跃订阅" class="py-15" />
       </n-spin>
     </n-card>
 
     <div v-if="totalPages > 1" class="flex justify-center mt-4">
-      <n-pagination
-        :page="page"
-        :page-count="totalPages"
-        :page-size="pageSize"
-        @update:page="handlePageChange"
-      />
+      <n-pagination :page="page" :page-count="totalPages" :page-size="pageSize" @update:page="handlePageChange" />
     </div>
   </div>
 </template>

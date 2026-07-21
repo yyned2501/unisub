@@ -54,10 +54,7 @@ export function useDashboard() {
   async function loadPlatformData() {
     loading.platforms = true
     try {
-      const [platformRes, quotaRes] = await Promise.allSettled([
-        getPlatformStatus(),
-        getNextFindQuota(),
-      ])
+      const [platformRes, quotaRes] = await Promise.allSettled([getPlatformStatus(), getNextFindQuota()])
       if (platformRes.status === 'fulfilled') {
         platforms.value = platformRes.value ?? []
       }
