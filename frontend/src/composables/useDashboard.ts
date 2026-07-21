@@ -1,7 +1,9 @@
-import { reactive, ref, onMounted, onUnmounted } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { getStats, getPlatformStatus, getActivities, getNextFindQuota } from '@/service/api/dashboard'
 import { getTaskStatus } from '@/service/api/tasks'
 import { getEmbyScanStatus } from '@/service/api/emby'
+import { usePolling } from '@/composables/usePolling'
+import { msg } from '@/utils/message'
 import type { DashboardStats, PlatformStatus, ActivityLog, EmbyScanStatus, AutoFillProgress } from '@/types'
 
 /**
@@ -26,7 +28,6 @@ export function useDashboard() {
 
   // 扫描进度
   const scanStatus = ref<EmbyScanStatus | null>(null)
-  let scanPollTimer: ReturnType<typeof setInterval> | null = null
 
   // 自动补缺状态
   const autoFillStatus = reactive<{
@@ -40,14 +41,13 @@ export function useDashboard() {
     cursor: null,
     progress: null,
   })
-  let autoFillPollTimer: ReturnType<typeof setInterval> | null = null
 
   async function loadStats() {
     try {
-      const { data } = await getStats()
+      const data = await getStats()
       if (data) Object.assign(stats, data)
     } catch {
-      window.$message?.error('加载仪表盘数据失败')
+      msg.error('加载仪表盘数据失败')
     }
   }
 
@@ -59,10 +59,10 @@ export function useDashboard() {
         getNextFindQuota(),
       ])
       if (platformRes.status === 'fulfilled') {
-        platforms.value = platformRes.value.data ?? []
+        platforms.value = platformRes.value ?? []
       }
       if (quotaRes.status === 'fulfilled') {
-        nfQuota.value = (quotaRes.value.data?.remaining ?? quotaRes.value.data?.quota ?? null) as number | null
+        nfQuota.value = (quotaRes.value?.remaining ?? quotaRes.value?.quota ?? null) as number | null
       }
     } finally {
       loading.platforms = false
@@ -72,7 +72,7 @@ export function useDashboard() {
   async function loadActivities() {
     loading.activities = true
     try {
-      const { data } = await getActivities()
+      const data = await getActivities()
       activities.value = data ?? []
     } finally {
       loading.activities = false
@@ -81,29 +81,16 @@ export function useDashboard() {
 
   async function pollScanStatus() {
     try {
-      const { data } = await getEmbyScanStatus()
-      scanStatus.value = data
+      scanStatus.value = await getEmbyScanStatus()
     } catch {
       // 轮询类偶发失败不打扰用户，静默重置状态即可
       scanStatus.value = null
     }
   }
 
-  function startScanPolling() {
-    stopScanPolling()
-    scanPollTimer = setInterval(pollScanStatus, 3000)
-  }
-
-  function stopScanPolling() {
-    if (scanPollTimer) {
-      clearInterval(scanPollTimer)
-      scanPollTimer = null
-    }
-  }
-
   async function loadAutoFillStatus() {
     try {
-      const { data } = await getTaskStatus()
+      const data = await getTaskStatus()
       if (data) {
         autoFillStatus.enabled = data.config?.auto_fill_enabled ?? false
         autoFillStatus.lastRun = data.auto_fill_last_run ?? null
@@ -115,31 +102,14 @@ export function useDashboard() {
     }
   }
 
-  function startAutoFillPolling() {
-    stopAutoFillPolling()
-    autoFillPollTimer = setInterval(loadAutoFillStatus, 5000)
-  }
-
-  function stopAutoFillPolling() {
-    if (autoFillPollTimer) {
-      clearInterval(autoFillPollTimer)
-      autoFillPollTimer = null
-    }
-  }
-
   onMounted(() => {
     loadStats()
     loadPlatformData()
     loadActivities()
     loadAutoFillStatus()
-    startAutoFillPolling()
-    pollScanStatus()
-    startScanPolling()
-  })
-
-  onUnmounted(() => {
-    stopScanPolling()
-    stopAutoFillPolling()
+    // 轮询：自动补缺状态（5s）、扫描进度（3s）— usePolling 自动在卸载时清理
+    usePolling(loadAutoFillStatus, 5000)
+    usePolling(pollScanStatus, 3000, { immediate: true })
   })
 
   return {

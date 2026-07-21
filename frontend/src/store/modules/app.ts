@@ -28,7 +28,7 @@ export const useAppStore = defineStore('app', () => {
   async function loadPlatforms() {
     loading.platforms = true
     try {
-      const { data } = await getPlatforms()
+      const data = await getPlatforms()
       platforms.value = data ?? []
     } finally {
       loading.platforms = false
@@ -38,7 +38,7 @@ export const useAppStore = defineStore('app', () => {
   async function loadStats() {
     loading.stats = true
     try {
-      const { data } = await getStats()
+      const data = await getStats()
       if (data) Object.assign(stats, data)
     } finally {
       loading.stats = false

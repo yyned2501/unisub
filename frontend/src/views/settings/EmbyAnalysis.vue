@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getEmbyLibraryAnalysis, syncEmbyCache, triggerEmbyScan, getEmbyScanStatus, addToBlacklist, removeFromBlacklist, subscribeFromEmby, fillMissingFromEmby } from '@/service/api/emby'
-import { onImgError } from '@/utils/format'
+import { useIdSet } from '@/composables/useIdSet'
+import { usePolling } from '@/composables/usePolling'
+import { msg } from '@/utils/message'
 import EmbyStatsCards from '@/components/emby/EmbyStatsCards.vue'
 import EmbyScanProgress from '@/components/emby/EmbyScanProgress.vue'
 import EmbySeriesItem from '@/components/emby/EmbySeriesItem.vue'
@@ -14,9 +16,9 @@ const syncing = ref(false)
 const analysis = ref<EmbyMissingAnalysis | null>(null)
 const searchText = ref('')
 const showHidden = ref(false)
-const hidingIds = ref<Set<number>>(new Set())
-const subscribingIds = ref<Set<number>>(new Set())
-const fillingIds = ref<Set<number>>(new Set())
+const hidingIds = useIdSet()
+const subscribingIds = useIdSet()
+const fillingIds = useIdSet()
 
 // 分页
 const page = ref(1)
@@ -28,7 +30,6 @@ const scanRunning = ref(false)
 const scanProgress = ref(0)
 const scanStepName = ref('')
 const scanItem = ref('')
-let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const libraries = computed(() => {
   if (!analysis.value) return []
@@ -65,7 +66,7 @@ async function load() {
     if (libraryFilter.value) {
       params.library = libraryFilter.value
     }
-    const { data } = await getEmbyLibraryAnalysis(params)
+    const data = await getEmbyLibraryAnalysis(params)
     analysis.value = data
   } catch {
     analysis.value = null
@@ -89,14 +90,42 @@ async function handleSync() {
   syncing.value = true
   try {
     await syncEmbyCache()
-    window.$message?.success('Emby 缓存同步完成')
+    msg.success('Emby 缓存同步完成')
     await load()
   } catch {
-    window.$message?.error('同步失败')
+    msg.error('同步失败')
   } finally {
     syncing.value = false
   }
 }
+
+// 扫描进度轮询 — 默认不启动，handleFullScan 时 resume；完成/出错时 pause
+const scanPolling = usePolling(async () => {
+  try {
+    const data = await getEmbyScanStatus()
+    if (data) {
+      scanRunning.value = data.running
+      scanProgress.value = data.progress || 0
+      scanStepName.value = data.step_name || ''
+      scanItem.value = String(data.current_item || '')
+      if (data.error) {
+        msg.error(`扫描出错: ${data.error}`)
+        scanPolling.pause()
+      }
+      if (!data.running && scanProgress.value >= 100) {
+        scanPolling.pause()
+        msg.success('全量扫描完成')
+        await load()
+      }
+      if (!data.running && data.error) {
+        scanPolling.pause()
+        await load()
+      }
+    }
+  } catch {
+    scanPolling.pause()
+  }
+}, 1500)
 
 async function handleFullScan() {
   try {
@@ -104,128 +133,82 @@ async function handleFullScan() {
     scanRunning.value = true
     scanProgress.value = 0
     scanStepName.value = '正在启动扫描...'
-    startPolling()
-    window.$message?.success('全量扫描已启动')
+    scanPolling.resume()
+    msg.success('全量扫描已启动')
   } catch (e: unknown) {
-    window.$message?.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '启动扫描失败')
-  }
-}
-
-function startPolling() {
-  stopPolling()
-  pollTimer = setInterval(async () => {
-    try {
-      const { data } = await getEmbyScanStatus()
-      if (data) {
-        scanRunning.value = data.running
-        scanProgress.value = data.progress || 0
-        scanStepName.value = data.step_name || ''
-        scanItem.value = String(data.current_item || '')
-        if (data.error) {
-          window.$message?.error(`扫描出错: ${data.error}`)
-          stopPolling()
-        }
-        if (!data.running && scanProgress.value >= 100) {
-          stopPolling()
-          window.$message?.success('全量扫描完成')
-          await load()
-        }
-        if (!data.running && data.error) {
-          stopPolling()
-          await load()
-        }
-      }
-    } catch {
-      stopPolling()
-    }
-  }, 1500)
-}
-
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
+    msg.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '启动扫描失败')
   }
 }
 
 async function handleHide(tmdbId: number) {
-  hidingIds.value = new Set([...hidingIds.value, tmdbId])
+  hidingIds.add(tmdbId)
   try {
     await addToBlacklist(tmdbId)
     if (analysis.value) {
       const s = analysis.value.series.find(item => item.tmdb_id === tmdbId)
       if (s) s.is_blacklisted = true
     }
-    window.$message?.success('已隐藏')
+    msg.success('已隐藏')
   } catch {
-    window.$message?.error('隐藏失败')
+    msg.error('隐藏失败')
   } finally {
-    const next = new Set(hidingIds.value)
-    next.delete(tmdbId)
-    hidingIds.value = next
+    hidingIds.remove(tmdbId)
   }
 }
 
 async function handleUnhide(tmdbId: number) {
-  hidingIds.value = new Set([...hidingIds.value, tmdbId])
+  hidingIds.add(tmdbId)
   try {
     await removeFromBlacklist(tmdbId)
     if (analysis.value) {
       const s = analysis.value.series.find(item => item.tmdb_id === tmdbId)
       if (s) s.is_blacklisted = false
     }
-    window.$message?.success('已取消隐藏')
+    msg.success('已取消隐藏')
   } catch {
-    window.$message?.error('取消隐藏失败')
+    msg.error('取消隐藏失败')
   } finally {
-    const next = new Set(hidingIds.value)
-    next.delete(tmdbId)
-    hidingIds.value = next
+    hidingIds.remove(tmdbId)
   }
 }
 
 async function handleSubscribe(s: EmbyCacheResponse) {
-  subscribingIds.value = new Set([...subscribingIds.value, s.tmdb_id])
+  subscribingIds.add(s.tmdb_id)
   try {
-    const { data } = await subscribeFromEmby(s.tmdb_id, s.emby_series_name || '未知', 'tv', s.poster_url, s.emby_year)
+    const data = await subscribeFromEmby(s.tmdb_id, s.emby_series_name || '未知', 'tv', s.poster_url, s.emby_year)
     if (data?.success) {
       if (analysis.value) {
         const item = analysis.value.series.find(x => x.tmdb_id === s.tmdb_id)
         if (item) item.is_subscribed = true
       }
-      window.$message?.success(data.message || '订阅成功')
+      msg.success(data.message || '订阅成功')
     } else {
-      window.$message?.error(data?.message || '订阅失败')
+      msg.error(data?.message || '订阅失败')
     }
   } catch (e: unknown) {
-    window.$message?.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '订阅失败')
+    msg.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '订阅失败')
   } finally {
-    const next = new Set(subscribingIds.value)
-    next.delete(s.tmdb_id)
-    subscribingIds.value = next
+    subscribingIds.remove(s.tmdb_id)
   }
 }
 
 async function handleFillMissing(tmdbId: number) {
-  fillingIds.value = new Set([...fillingIds.value, tmdbId])
+  fillingIds.add(tmdbId)
   try {
-    const { data } = await fillMissingFromEmby(tmdbId)
+    const data = await fillMissingFromEmby(tmdbId)
     if (data?.success) {
-      window.$message?.success(data.message || '补缺集已触发')
+      msg.success(data.message || '补缺集已触发')
     } else {
-      window.$message?.error(data?.message || '补缺集失败')
+      msg.error(data?.message || '补缺集失败')
     }
   } catch (e: unknown) {
-    window.$message?.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '补缺集失败')
+    msg.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '补缺集失败')
   } finally {
-    const next = new Set(fillingIds.value)
-    next.delete(tmdbId)
-    fillingIds.value = next
+    fillingIds.remove(tmdbId)
   }
 }
 
 onMounted(() => load())
-onUnmounted(() => stopPolling())
 </script>
 
 <template>

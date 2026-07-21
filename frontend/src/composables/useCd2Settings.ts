@@ -1,5 +1,6 @@
 import { reactive, ref, onMounted } from 'vue'
 import { getCd2Config, testCd2Connection, updateCd2Config } from '@/service/api/cd2'
+import { msg } from '@/utils/message'
 
 /** 管理 CloudDrive2 设置页的配置与操作状态。 */
 export function useCd2Settings() {
@@ -18,7 +19,7 @@ export function useCd2Settings() {
   async function loadConfig() {
     loading.value = true
     try {
-      const { data } = await getCd2Config()
+      const data = await getCd2Config()
       Object.assign(form, data)
     } finally {
       loading.value = false
@@ -28,7 +29,7 @@ export function useCd2Settings() {
   async function saveConfig() {
     saving.value = true
     try {
-      const { data } = await updateCd2Config({
+      const data = await updateCd2Config({
         base_url: form.base_url,
         api_key: form.api_key,
         target_path: form.target_path,
@@ -37,7 +38,7 @@ export function useCd2Settings() {
         enabled: form.enabled,
       })
       Object.assign(form, data)
-      window.$message?.success('CloudDrive2 设置已保存')
+      msg.success('CloudDrive2 设置已保存')
     } finally {
       saving.value = false
     }
@@ -47,11 +48,11 @@ export function useCd2Settings() {
     await saveConfig()
     testing.value = true
     try {
-      const { data } = await testCd2Connection()
+      const data = await testCd2Connection()
       if (data.success) {
-        window.$message?.success(data.message)
+        msg.success(data.message)
       } else {
-        window.$message?.error(data.message)
+        msg.error(data.message)
       }
     } finally {
       testing.value = false
