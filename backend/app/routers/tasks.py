@@ -1,6 +1,5 @@
 """定时任务路由 — 任务状态、手动触发、配置管理。"""
 
-import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,8 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
-from app.models.activity_log import ActivityLog
-from app.services import get_mp_service, get_nf_service
+from app.services import get_mp_service, get_nf_service, log_activity
 from app.services import scheduler as _sched_mod
 from app.services.orchestrator import OrchestratorService
 from app.services.scheduler import TaskConfigUpdate, _auto_fill_progress, _task_config, save_state
@@ -95,14 +93,7 @@ async def trigger_task(db: AsyncSession = Depends(get_db)):
             logger.info("MP 补充搜索跳过: MoviePilot 未配置")
 
         # 记录系统活动
-        log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
-            action="system",
-            tmdb_id=None,
-            message=(f"定时任务完成: 同步 {sync_count} 条, MP 补充搜索 {mp_search_count} 条"),
-            created_at=datetime.now(UTC),
-        )
-        db.add(log_entry)
+        await log_activity(db, "system", f"定时任务完成: 同步 {sync_count} 条, MP 补充搜索 {mp_search_count} 条")
         await db.commit()
 
         _task_status["last_run"] = datetime.now(UTC).isoformat()

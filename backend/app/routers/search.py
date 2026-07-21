@@ -1,6 +1,6 @@
 """搜索路由 — 统一 TMDB 搜索入口，调用 NextFind OpenAPI。"""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,7 +9,8 @@ from app.core.database import get_db
 from app.core.logger import init_logger
 from app.models.subscription import Subscription
 from app.schemas.search import SearchResponse, SearchResultItem
-from app.services import get_nf_service
+from app.services import require_nf_service
+from app.services.nextfind import NextFindService
 
 router = APIRouter(prefix="/api/search", tags=["搜索"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
@@ -39,15 +40,12 @@ async def search_media(
     q: str = Query(..., description="搜索关键词"),
     type: str = Query("all", description="媒体类型: movie / tv / all"),
     db: AsyncSession = Depends(get_db),
+    nf: NextFindService = Depends(require_nf_service),
 ):
     """统一 TMDB 搜索 — 调用 NextFind OpenAPI 搜索接口。
 
     会自动标注每个搜索结果是否已被本地订阅。
     """
-    nf = await get_nf_service(db)
-    if not nf:
-        raise HTTPException(status_code=503, detail="NextFind 平台未配置或未启用")
-
     # 获取已订阅的 tmdb_id 集合
     subscribed = await db.execute(select(Subscription.tmdb_id))
     subscribed_ids = {row[0] for row in subscribed.all()}

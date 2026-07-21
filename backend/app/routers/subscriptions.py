@@ -16,7 +16,8 @@ from app.schemas.subscription import (
     SubscriptionResponse,
     SubscriptionSyncResult,
 )
-from app.services import get_nf_service, get_tmdb_service
+from app.services import get_tmdb_service, require_nf_service
+from app.services.nextfind import NextFindService
 from app.services.orchestrator import OrchestratorService
 from app.services.subscription import (
     background_update_tmdb_cache,
@@ -47,14 +48,14 @@ async def list_subscriptions(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", response_model=SubscriptionResponse, status_code=201)
-async def create_subscription(body: SubscriptionCreate, db: AsyncSession = Depends(get_db)):
+async def create_subscription(
+    body: SubscriptionCreate,
+    db: AsyncSession = Depends(get_db),
+    nf: NextFindService = Depends(require_nf_service),
+):
     """添加订阅 — 创建本地记录并通过 NextFind 添加订阅。"""
-    nf = await get_nf_service(db)
-    if not nf:
-        raise HTTPException(status_code=503, detail="NextFind 平台未配置或未启用")
-
     orchestrator = OrchestratorService(nf)
-    result = await orchestrator.subscribe(
+    return await orchestrator.subscribe(
         db=db,
         tmdb_id=body.tmdb_id,
         title=body.title,
@@ -62,16 +63,15 @@ async def create_subscription(body: SubscriptionCreate, db: AsyncSession = Depen
         poster_url=body.poster_url,
         year=body.year,
     )
-    return result
 
 
 @router.delete("/{subscription_id}")
-async def delete_subscription(subscription_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_subscription(
+    subscription_id: str,
+    db: AsyncSession = Depends(get_db),
+    nf: NextFindService = Depends(require_nf_service),
+):
     """取消订阅 — 从 NextFind 移除并删除本地记录。"""
-    nf = await get_nf_service(db)
-    if not nf:
-        raise HTTPException(status_code=503, detail="NextFind 平台未配置或未启用")
-
     orchestrator = OrchestratorService(nf)
     result = await orchestrator.unsubscribe(db, subscription_id)
     if not result["success"]:
@@ -89,12 +89,11 @@ async def get_subscription(subscription_id: str, db: AsyncSession = Depends(get_
 
 
 @router.post("/sync", response_model=list[SubscriptionSyncResult])
-async def sync_subscriptions(db: AsyncSession = Depends(get_db)):
+async def sync_subscriptions(
+    db: AsyncSession = Depends(get_db),
+    nf: NextFindService = Depends(require_nf_service),
+):
     """手动同步 NextFind 订阅状态到本地数据库。"""
-    nf = await get_nf_service(db)
-    if not nf:
-        raise HTTPException(status_code=503, detail="NextFind 平台未配置或未启用")
-
     orchestrator = OrchestratorService(nf)
     results = await orchestrator.sync_subscriptions(db)
     logger.info(f"手动同步完成: {len(results)} 条记录")
