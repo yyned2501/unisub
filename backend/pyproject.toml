@@ -13,6 +13,11 @@ dependencies = [
     "pydantic-settings",
     "python-dotenv",
     "alembic",
+    "grpcio>=1.76.0",
+    "protobuf>=6.31.1",
+    "pyjwt",
+    "python-multipart>=0.0.32",
+    "croniter>=6.2.4",
 ]
 
 [tool.setuptools.packages.find]
@@ -21,3 +26,32 @@ include = ["app*"]
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.22",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+exclude = ["app/core/clouddrive_pb2*.py"]
+
+[tool.ruff.lint]
+select = [
+    "F",   # pyflakes — bug detection
+    "I",   # isort — import sorting
+    "N",   # pep8-naming
+    "W",   # pycodestyle warnings
+    "E",   # pycodestyle errors
+    "UP",  # pyupgrade — modern Python idioms
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "E712",  # SQLAlchemy WHERE 需要 == True 生成正确 SQL
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false

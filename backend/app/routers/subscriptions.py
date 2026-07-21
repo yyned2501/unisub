@@ -16,11 +16,11 @@ from app.schemas.subscription import (
     SubscriptionResponse,
     SubscriptionSyncResult,
 )
-from app.services import get_nf_service, get_mp_service, get_tmdb_service
+from app.services import get_nf_service, get_tmdb_service
 from app.services.orchestrator import OrchestratorService
 from app.services.subscription import (
-    list_subscriptions_with_cache,
     background_update_tmdb_cache,
+    list_subscriptions_with_cache,
 )
 
 router = APIRouter(prefix="/api/subscriptions", tags=["订阅管理"], dependencies=[Depends(get_current_user)])
@@ -31,9 +31,7 @@ logger = init_logger()
 async def list_subscriptions(db: AsyncSession = Depends(get_db)):
     """获取所有订阅列表。"""
     # 获取 NextFind 基础 URL 用于补全相对路径海报
-    nf_result = await db.execute(
-        select(PlatformConfig).where(PlatformConfig.name == "nextfind")
-    )
+    nf_result = await db.execute(select(PlatformConfig).where(PlatformConfig.name == "nextfind"))
     nf_config = nf_result.scalar_one_or_none()
     nf_base_url = nf_config.base_url if nf_config else None
 
@@ -49,9 +47,7 @@ async def list_subscriptions(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", response_model=SubscriptionResponse, status_code=201)
-async def create_subscription(
-    body: SubscriptionCreate, db: AsyncSession = Depends(get_db)
-):
+async def create_subscription(body: SubscriptionCreate, db: AsyncSession = Depends(get_db)):
     """添加订阅 — 创建本地记录并通过 NextFind 添加订阅。"""
     nf = await get_nf_service(db)
     if not nf:
@@ -70,9 +66,7 @@ async def create_subscription(
 
 
 @router.delete("/{subscription_id}")
-async def delete_subscription(
-    subscription_id: str, db: AsyncSession = Depends(get_db)
-):
+async def delete_subscription(subscription_id: str, db: AsyncSession = Depends(get_db)):
     """取消订阅 — 从 NextFind 移除并删除本地记录。"""
     nf = await get_nf_service(db)
     if not nf:
@@ -86,9 +80,7 @@ async def delete_subscription(
 
 
 @router.get("/{subscription_id}", response_model=SubscriptionResponse)
-async def get_subscription(
-    subscription_id: str, db: AsyncSession = Depends(get_db)
-):
+async def get_subscription(subscription_id: str, db: AsyncSession = Depends(get_db)):
     """获取单条订阅详情。"""
     sub = await db.get(Subscription, subscription_id)
     if not sub:

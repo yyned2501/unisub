@@ -32,9 +32,7 @@ async def get_platform_status(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/activities", response_model=list[ActivityLogResponse])
-async def get_activities(
-    limit: int = 10, db: AsyncSession = Depends(get_db)
-):
+async def get_activities(limit: int = 10, db: AsyncSession = Depends(get_db)):
     """获取最近活动日志。"""
     return await get_recent_activities(db, limit)
 

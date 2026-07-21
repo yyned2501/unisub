@@ -9,7 +9,7 @@
 
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
 from app.config import parse_config
-from app.core.database import init_db, async_session
+from app.core.database import async_session, init_db
 from app.core.http_client import http_client
 from app.core.logger import init_logger
 from app.models.platform_config import PlatformConfig
@@ -50,9 +50,7 @@ async def _seed_default_platforms():
     ]
     async with async_session() as session:
         for item in defaults:
-            existing = await session.execute(
-                select(PlatformConfig).where(PlatformConfig.name == item["name"])
-            )
+            existing = await session.execute(select(PlatformConfig).where(PlatformConfig.name == item["name"]))
             if not existing.scalar_one_or_none():
                 platform = PlatformConfig(
                     id=str(uuid.uuid4()),
@@ -60,8 +58,8 @@ async def _seed_default_platforms():
                     base_url=item["base_url"],
                     api_key=item["api_key"],
                     enabled=item["enabled"],
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(UTC),
+                    updated_at=datetime.now(UTC),
                 )
                 session.add(platform)
         await session.commit()
@@ -96,16 +94,17 @@ async def lifespan(app: FastAPI):
     # TMDB 缓存数据迁移（从旧表复制到独立 tmdb_cache 表）
     try:
         from app.services.tmdb_cache_migration import migrate_tmdb_cache
+
         await migrate_tmdb_cache()
     except Exception as e:
         logger.error(f"TMDB 缓存迁移失败: {e}")
 
     # 启动后台调度器
     try:
+        from app.core.database import async_session
+        from app.services import get_emby_service, get_mp_service, get_nf_service, get_tmdb_service
         from app.services import scheduler as _scheduler_mod
         from app.services.emby_scan import EmbyScanService
-        from app.core.database import async_session
-        from app.services import get_nf_service, get_mp_service, get_emby_service, get_tmdb_service
 
         # 从文件加载持久化的调度状态
         try:
@@ -138,7 +137,7 @@ async def lifespan(app: FastAPI):
         async def _scheduler_auto_fill_runner():
             """自动缺集补全 runner — 先订阅再补缺，补完取消临时订阅。"""
             import uuid as _uuid
-            from datetime import datetime as _dt, timezone as _tz
+            from datetime import datetime as _dt
 
             async with async_session() as scan_db:
                 nf = await get_nf_service(scan_db)
@@ -147,11 +146,12 @@ async def lifespan(app: FastAPI):
                     return
 
                 from sqlalchemy import select
-                from app.models.emby_cache import EmbyCache
-                from app.models.tmdb_cache import TmdbCache
-                from app.models.emby_blacklist import EmbyBlacklist
-                from app.models.subscription import Subscription
+
                 from app.models.activity_log import ActivityLog
+                from app.models.emby_blacklist import EmbyBlacklist
+                from app.models.emby_cache import EmbyCache
+                from app.models.subscription import Subscription
+                from app.models.tmdb_cache import TmdbCache
 
                 # 1. 取消上一次自动订阅（如果有）
                 prev_sub = _scheduler_mod._auto_fill_current_sub
@@ -163,16 +163,12 @@ async def lifespan(app: FastAPI):
                         logger.error(f"取消临时订阅失败 tmdb_id={prev_sub}: {e}")
 
                 # 2. 获取所有有缺集的剧集
-                emby_result = await scan_db.execute(
-                    select(EmbyCache).order_by(EmbyCache.updated_at.asc())
-                )
+                emby_result = await scan_db.execute(select(EmbyCache).order_by(EmbyCache.updated_at.asc()))
                 all_series = emby_result.scalars().all()
 
                 # 3. 获取 TMDB 缓存数据
                 tmdb_ids = [s.tmdb_id for s in all_series]
-                tmdb_result = await scan_db.execute(
-                    select(TmdbCache).where(TmdbCache.tmdb_id.in_(tmdb_ids))
-                )
+                tmdb_result = await scan_db.execute(select(TmdbCache).where(TmdbCache.tmdb_id.in_(tmdb_ids)))
                 tmdb_map = {t.tmdb_id: t for t in tmdb_result.scalars().all()}
 
                 # 4. 获取黑名单
@@ -181,9 +177,7 @@ async def lifespan(app: FastAPI):
 
                 # 5. 获取已订阅的 tmdb_id 集合
                 sub_result = await scan_db.execute(
-                    select(Subscription.tmdb_id).where(
-                        Subscription.nf_subscribed == True
-                    )
+                    select(Subscription.tmdb_id).where(Subscription.nf_subscribed == True)
                 )
                 subscribed_ids = {row[0] for row in sub_result.all()}
 
@@ -269,7 +263,7 @@ async def lifespan(app: FastAPI):
                         action="sync",
                         tmdb_id=picked.tmdb_id,
                         message=f"自动补缺: {picked.emby_series_name}, {'已订阅' if already_subscribed else '临时订阅'}",
-                        created_at=_dt.now(_tz.utc),
+                        created_at=_dt.now(UTC),
                     )
                     scan_db.add(log_entry)
                     await scan_db.commit()
@@ -297,6 +291,7 @@ async def lifespan(app: FastAPI):
     # 关闭调度器
     try:
         from app.services import scheduler as _scheduler_mod
+
         await _scheduler_mod.stop()
     except Exception as e:
         logger.error(f"调度器关闭异常: {e}")

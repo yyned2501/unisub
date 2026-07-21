@@ -17,6 +17,7 @@ LOGS_DIR = Path(__file__).parent.parent.parent / "logs"
 LEVEL_MAP = {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3}
 _LOG_LEVEL_RE = re.compile(r"\[(DEBUG|INFO|WARNING|ERROR)\]")
 
+
 def _parse_level(line: str) -> int | None:
     """从日志行提取级别数值（数字越大越严重）。"""
     m = _LOG_LEVEL_RE.search(line)
@@ -33,11 +34,13 @@ async def list_log_files():
         return {"files": []}
     for f in sorted(LOGS_DIR.iterdir(), key=lambda x: x.name, reverse=True):
         if f.is_file():
-            files.append({
-                "name": f.name,
-                "size": f.stat().st_size,
-                "mtime": f.stat().st_mtime,
-            })
+            files.append(
+                {
+                    "name": f.name,
+                    "size": f.stat().st_size,
+                    "mtime": f.stat().st_mtime,
+                }
+            )
     return {"files": files}
 
 
@@ -88,6 +91,7 @@ async def get_log_content(
 async def get_debug_info():
     """获取调试信息（环境变量、配置等）。"""
     import app.config as cfg
+
     config = cfg.parse_config()
     return {
         "debug": config.debug,

@@ -1,13 +1,13 @@
 """Emby 媒体库路由 — 缺集分析（从缓存表读取）+ 缓存同步 + 黑名单。"""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
-from app.core.database import get_db, async_session
+from app.core.database import async_session, get_db
 from app.core.logger import init_logger
 from app.schemas.emby import (
     BlacklistActionResponse,
@@ -18,17 +18,17 @@ from app.schemas.emby import (
     EmbySubscribeRequest,
 )
 from app.schemas.emby_cache import EmbyMissingAnalysis, EmbySyncResult, Tmdb404Item
-from app.services import get_emby_service, get_tmdb_service, get_nf_service, get_mp_service
+from app.services import get_emby_service, get_mp_service, get_nf_service, get_tmdb_service
 from app.services.cd2_config import get_cd2_config
 from app.services.clouddrive2 import CloudDrive2Service
-from app.services.emby_scan import EmbyScanService
 from app.services.emby_db import (
+    add_blacklist_entry,
     analyze_missing_library,
     list_blacklist,
-    add_blacklist_entry,
-    remove_blacklist_entry,
     list_tmdb_404_items,
+    remove_blacklist_entry,
 )
+from app.services.emby_scan import EmbyScanService
 
 router = APIRouter(prefix="/api/emby", tags=["Emby 媒体库"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
@@ -94,16 +94,11 @@ async def analyze_missing(
 async def list_blacklist_endpoint(db: AsyncSession = Depends(get_db)):
     """获取所有黑名单条目。"""
     entries = await list_blacklist(db)
-    return [
-        EmbyBlacklistEntry(tmdb_id=e.tmdb_id, created_at=e.created_at)
-        for e in entries
-    ]
+    return [EmbyBlacklistEntry(tmdb_id=e.tmdb_id, created_at=e.created_at) for e in entries]
 
 
 @router.post("/blacklist", response_model=BlacklistActionResponse, status_code=201)
-async def add_to_blacklist(
-    body: BlacklistCreate, db: AsyncSession = Depends(get_db)
-):
+async def add_to_blacklist(body: BlacklistCreate, db: AsyncSession = Depends(get_db)):
     """添加 TMDB ID 到黑名单。"""
     result = await add_blacklist_entry(db, body.tmdb_id)
     logger.info(f"添加黑名单: tmdb_id={body.tmdb_id}, {result['message']}")
@@ -111,9 +106,7 @@ async def add_to_blacklist(
 
 
 @router.delete("/blacklist/{tmdb_id}", response_model=BlacklistActionResponse)
-async def remove_from_blacklist(
-    tmdb_id: int, db: AsyncSession = Depends(get_db)
-):
+async def remove_from_blacklist(tmdb_id: int, db: AsyncSession = Depends(get_db)):
     """从黑名单移除 TMDB ID。"""
     result = await remove_blacklist_entry(db, tmdb_id)
     if not result["success"]:
@@ -146,6 +139,7 @@ async def trigger_scan(db: AsyncSession = Depends(get_db)):
             await EmbyScanService.run_full_scan(scan_db, emby, tmdb, nf, mp)
 
     import asyncio
+
     asyncio.create_task(_run_scan())
 
     return {"success": True, "message": "扫描已启动"}
@@ -158,9 +152,7 @@ async def get_scan_status():
 
 
 @router.post("/subscribe", response_model=EmbyActionResponse)
-async def subscribe_from_emby(
-    body: EmbySubscribeRequest, db: AsyncSession = Depends(get_db)
-):
+async def subscribe_from_emby(body: EmbySubscribeRequest, db: AsyncSession = Depends(get_db)):
     """从 Emby 缺集列表添加订阅 — 调用 NextFind 订阅 + 创建本地记录。"""
     from app.services.orchestrator import OrchestratorService
 
@@ -191,9 +183,7 @@ async def subscribe_from_emby(
 
 
 @router.post("/fill-missing", response_model=EmbyActionResponse)
-async def fill_missing_from_emby(
-    body: EmbyActionRequest, db: AsyncSession = Depends(get_db)
-):
+async def fill_missing_from_emby(body: EmbyActionRequest, db: AsyncSession = Depends(get_db)):
     """从 Emby 缺集列表触发补缺集 — 调用 NextFind /media/fill_missing。"""
     from app.models.activity_log import ActivityLog
 
@@ -215,7 +205,7 @@ async def fill_missing_from_emby(
             action="sync",
             tmdb_id=body.tmdb_id,
             message=f"触发补缺集: tmdb_id={body.tmdb_id}",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         db.add(log_entry)
         await db.commit()
@@ -244,7 +234,6 @@ async def resolve_tmdb_404_path(
     db: AsyncSession = Depends(get_db),
 ):
     """通过 CD2 gRPC 验证并确认真实路径。"""
-    from app.models.activity_log import ActivityLog
 
     cd2_config = await get_cd2_config(db)
     if not cd2_config.base_url or not cd2_config.api_key:
@@ -331,9 +320,10 @@ async def move_tmdb_404_to_pending(
 
         # 1. 先重命名文件夹，去掉 {tmdb-xxx} 标记
         import re
+
         parent_path = "/".join(cd2_src_path.rstrip("/").split("/")[:-1]) or "/"
         folder_name = cd2_src_path.rstrip("/").split("/")[-1]
-        new_name = re.sub(r'\s*\{tmdb-\d+\}\s*', '', folder_name).strip()
+        new_name = re.sub(r"\s*\{tmdb-\d+\}\s*", "", folder_name).strip()
         if new_name and new_name != folder_name:
             rename_ok = await service._client.rename_file(cd2_src_path, new_name)
             if rename_ok:
@@ -356,7 +346,7 @@ async def move_tmdb_404_to_pending(
                 action="sync",
                 tmdb_id=tmdb_id,
                 message=f"CD2 移动失败: {item['emby_series_name']} (tmdb_id={tmdb_id})",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             db.add(log_entry)
             await db.commit()
@@ -368,7 +358,7 @@ async def move_tmdb_404_to_pending(
             action="sync",
             tmdb_id=tmdb_id,
             message=f"CD2 移动待整理: {item['emby_series_name']} (tmdb_id={tmdb_id})",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         db.add(log_entry)
         await db.commit()

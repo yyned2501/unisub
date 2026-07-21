@@ -1,8 +1,8 @@
 """配置模块 — 从环境变量读取应用配置。"""
 
 import json
-import os
 import logging
+import os
 from dataclasses import dataclass, field
 
 
@@ -12,9 +12,7 @@ class UniSubConfig:
 
     debug: bool = False
     database_url: str = "postgresql+asyncpg://unisub:unisub@192.168.31.10:5432/unisub"
-    cors_origins: list[str] = field(
-        default_factory=lambda: ["http://localhost:5173", "http://localhost:3000"]
-    )
+    cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173", "http://localhost:3000"])
     jwt_secret: str = "unisub-forward-jwt-secret"
     forward_username: str = "admin"
     forward_password: str = "password"
@@ -65,5 +63,3 @@ def parse_config() -> UniSubConfig:
         forward_password=forward_password,
         proxy_url=proxy_url,
     )
-
-    

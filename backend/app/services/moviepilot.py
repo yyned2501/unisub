@@ -47,9 +47,7 @@ class MoviePilotService:
         body = {"tmdbid": tmdb_id, "media_type": media_type}
         result = await http_client.post(url, headers=self._headers, json=body)
         if "error" in result:
-            logger.error(
-                f"MoviePilot 搜索失败 (tmdb_id={tmdb_id}, type={media_type}): {result}"
-            )
+            logger.error(f"MoviePilot 搜索失败 (tmdb_id={tmdb_id}, type={media_type}): {result}")
         return result
 
     async def get_site_statistic(self) -> list[dict]:

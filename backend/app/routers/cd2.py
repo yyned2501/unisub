@@ -55,9 +55,7 @@ async def test_cd2_connection_endpoint(
         return Cd2TestResult(success=False, message="请先填写 URL 和 API Key")
 
     try:
-        details = await CloudDrive2Service(
-            config.base_url, config.api_key
-        ).test_connection()
+        details = await CloudDrive2Service(config.base_url, config.api_key).test_connection()
         return Cd2TestResult(
             success=True,
             message="CloudDrive2 连接正常",

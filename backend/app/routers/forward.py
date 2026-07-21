@@ -13,7 +13,6 @@ from app.core.database import get_db
 from app.core.logger import init_logger
 from app.schemas.forward import (
     ForwardActionResponse,
-    ForwardLoginResponse,
     ForwardSearchItem,
     ForwardSubscribeInput,
 )
