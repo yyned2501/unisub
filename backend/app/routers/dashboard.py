@@ -1,6 +1,6 @@
 """看板路由 — 统计、平台状态、活动日志、NextFind 额度。"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
@@ -12,8 +12,9 @@ from app.schemas.dashboard import (
     NextFindQuota,
     PlatformStatus,
 )
-from app.services import get_nf_service
+from app.services import require_nf_service
 from app.services.dashboard import get_dashboard_stats, get_platform_statuses, get_recent_activities
+from app.services.nextfind import NextFindService
 
 router = APIRouter(prefix="/api/dashboard", tags=["看板"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
@@ -38,12 +39,8 @@ async def get_activities(limit: int = 10, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/nextfind-quota", response_model=NextFindQuota)
-async def get_nextfind_quota(db: AsyncSession = Depends(get_db)):
+async def get_nextfind_quota(nf: NextFindService = Depends(require_nf_service)):
     """获取 NextFind 积分/额度信息。"""
-    nf = await get_nf_service(db)
-    if not nf:
-        raise HTTPException(status_code=503, detail="NextFind 平台未配置或未启用")
-
     result = await nf.get_quota()
     if "error" in result:
         return NextFindQuota(
