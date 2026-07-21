@@ -16,6 +16,9 @@ dist/
 logs/
 *.log
 
+# 运行时数据（auth_config.json、scheduler_state.json 等）
+backend/app/data/
+
 # IDE
 .vscode/
 .idea/
@@ -31,3 +34,6 @@ Thumbs.db
 
 # Docker
 .docker/
+
+# Claude Code
+.claude/
