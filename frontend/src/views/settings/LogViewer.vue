@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { getLogFiles, getLogContent, getDebugInfo } from '@/service/api/logs'
+import { msg } from '@/utils/message'
 import type { LogFileInfo, DebugInfo } from '@/types'
 
 defineOptions({ name: 'LogViewer' })
@@ -27,17 +28,17 @@ const LEVEL_OPTIONS = [
 
 async function loadFiles() {
   try {
-    const { data } = await getLogFiles()
+    const data = await getLogFiles()
     files.value = data.files || []
   } catch {
-    window.$message?.error('加载日志文件列表失败')
+    msg.error('加载日志文件列表失败')
   }
 }
 
 async function loadContent() {
   loading.value = true
   try {
-    const { data } = await getLogContent(selectedFile.value, {
+    const data = await getLogContent(selectedFile.value, {
       lines: lines.value,
       filter: filter.value,
       level: logLevel.value,
@@ -46,7 +47,7 @@ async function loadContent() {
     logLines.value = data.lines || []
     totalLines.value = data.total_lines || 0
   } catch {
-    window.$message?.error('加载日志内容失败')
+    msg.error('加载日志内容失败')
     logLines.value = []
     totalLines.value = 0
   } finally {
@@ -56,10 +57,10 @@ async function loadContent() {
 
 async function loadDebug() {
   try {
-    const { data } = await getDebugInfo()
+    const data = await getDebugInfo()
     debugInfo.value = data
   } catch {
-    window.$message?.error('加载 Debug 信息失败')
+    msg.error('加载 Debug 信息失败')
   }
 }
 
@@ -76,8 +77,8 @@ function toggleDebug() {
 
 function copyLog() {
   navigator.clipboard?.writeText(logLines.value.join('\n'))
-    .then(() => window.$message?.success('已复制到剪贴板'))
-    .catch(() => window.$message?.error('复制失败'))
+    .then(() => msg.success('已复制到剪贴板'))
+    .catch(() => msg.error('复制失败'))
 }
 
 function formatSize(bytes: number): string {

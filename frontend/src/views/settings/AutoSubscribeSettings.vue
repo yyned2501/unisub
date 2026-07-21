@@ -12,6 +12,7 @@ import {
 import { DEFAULT_CONFIG, DEFAULT_META } from '@/components/auto-subscribe/defaults'
 import SourceConfigPanel from '@/components/auto-subscribe/SourceConfigPanel.vue'
 import HistoryTable from '@/components/auto-subscribe/HistoryTable.vue'
+import { msg } from '@/utils/message'
 import type { AutoSubConfig, AutoSubMetaResponse, AutoSubHistoryItem, SelectOption } from '@/types'
 
 defineOptions({ name: 'AutoSubscribeSettings' })
@@ -44,12 +45,12 @@ function toggleArray(key: string, val: string) {
 async function load() {
   loading.value = true
   try {
-    const [cfgRes, metaRes, histRes] = await Promise.all([
+    const [cfg, remoteMeta, hist] = await Promise.all([
       getAutoSubConfig(),
       getAutoSubMeta(),
       getAutoSubHistory(),
     ])
-    Object.assign(config, DEFAULT_CONFIG, cfgRes.data.config || {})
+    Object.assign(config, DEFAULT_CONFIG, cfg.config || {})
     for (const key of [
       'douban_ranks',
       'maoyan_web_platforms',
@@ -57,24 +58,24 @@ async function load() {
     ] as const) {
       if (!Array.isArray(config[key])) config[key] = [...DEFAULT_CONFIG[key]]
     }
-    statusLabels.value = cfgRes.data.status_labels || {}
-    sourceNames.value = cfgRes.data.source_names || {}
-    lastRun.value = cfgRes.data.last_run ?? ''
-    lastStats.value = cfgRes.data.last_stats
-    scheduleRunning.value = Boolean(cfgRes.data.running)
-    scheduleError.value = cfgRes.data.last_error || ''
-    const remoteMeta = metaRes.data || {}
+    statusLabels.value = cfg.status_labels || {}
+    sourceNames.value = cfg.source_names || {}
+    lastRun.value = cfg.last_run ?? ''
+    lastStats.value = cfg.last_stats
+    scheduleRunning.value = Boolean(cfg.running)
+    scheduleError.value = cfg.last_error || ''
+    const metaPayload = remoteMeta || {}
     meta.value = {
       ...DEFAULT_META,
-      ...remoteMeta,
-      douban_ranks: remoteMeta.douban_ranks?.length ? remoteMeta.douban_ranks : DEFAULT_META.douban_ranks,
-      maoyan_platforms: remoteMeta.maoyan_platforms?.length ? remoteMeta.maoyan_platforms : DEFAULT_META.maoyan_platforms,
-      maoyan_media_types: remoteMeta.maoyan_media_types?.length ? remoteMeta.maoyan_media_types : DEFAULT_META.maoyan_media_types,
-      seasons: remoteMeta.seasons?.length ? remoteMeta.seasons : DEFAULT_META.seasons,
+      ...metaPayload,
+      douban_ranks: metaPayload.douban_ranks?.length ? metaPayload.douban_ranks : DEFAULT_META.douban_ranks,
+      maoyan_platforms: metaPayload.maoyan_platforms?.length ? metaPayload.maoyan_platforms : DEFAULT_META.maoyan_platforms,
+      maoyan_media_types: metaPayload.maoyan_media_types?.length ? metaPayload.maoyan_media_types : DEFAULT_META.maoyan_media_types,
+      seasons: metaPayload.seasons?.length ? metaPayload.seasons : DEFAULT_META.seasons,
     }
-    history.value = histRes.data.items || []
+    history.value = hist.items || []
   } catch (error: unknown) {
-    window.$message?.error((error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '自动订阅配置加载失败')
+    msg.error((error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '自动订阅配置加载失败')
   } finally {
     loading.value = false
   }
@@ -85,9 +86,9 @@ async function handleSave() {
   saving.value = true
   try {
     await updateAutoSubConfig({ config: { ...config } })
-    window.$message?.success('配置已保存')
+    msg.success('配置已保存')
   } catch (error: unknown) {
-    window.$message?.error((error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '保存失败')
+    msg.error((error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '保存失败')
   } finally {
     saving.value = false
   }
@@ -96,11 +97,11 @@ async function handleSave() {
 async function handleRun() {
   running.value = true
   try {
-    const { data } = await triggerAutoSubRun()
-    window.$message?.success(data.message || '自动订阅已启动')
+    const data = await triggerAutoSubRun()
+    msg.success(data.message || '自动订阅已启动')
     await load()
   } catch (e: unknown) {
-    window.$message?.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '启动失败')
+    msg.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '启动失败')
   } finally {
     running.value = false
   }
@@ -110,9 +111,9 @@ async function handleClearHistory() {
   try {
     await clearAutoSubHistory()
     history.value = []
-    window.$message?.success('历史已清空')
+    msg.success('历史已清空')
   } catch {
-    window.$message?.error('清空失败')
+    msg.error('清空失败')
   }
 }
 

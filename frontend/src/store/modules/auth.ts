@@ -10,7 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => !!token.value)
 
   async function doLogin(user: string, pass: string) {
-    const { data } = await loginApi(user, pass)
+    const data = await loginApi(user, pass)
     token.value = data.access_token
     username.value = user
     localStorage.setItem('unisub_token', data.access_token)

@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { searchMedia } from '@/service/api/search'
 import { createSubscription } from '@/service/api/subscriptions'
+import { msg } from '@/utils/message'
 import type { SearchResultItem, MediaType } from '@/types'
 
 /**
@@ -39,14 +40,14 @@ export function useSearch() {
 
   async function handleSearch() {
     if (!keyword.value.trim()) {
-      window.$message?.warning('请输入搜索关键词')
+      msg.warning('请输入搜索关键词')
       return
     }
     loading.value = true
     searched.value = true
     currentPage.value = 1
     try {
-      const { data } = await searchMedia(keyword.value.trim(), searchType.value)
+      const data = await searchMedia(keyword.value.trim(), searchType.value)
       results.value = Array.isArray(data) ? data : data?.items || []
     } catch {
       results.value = []
@@ -65,7 +66,7 @@ export function useSearch() {
         year: media.year || null,
       })
       subscribedIds.value.add(media.tmdb_id)
-      window.$message?.success(`已订阅「${media.title}」`)
+      msg.success(`已订阅「${media.title}」`)
       done(true)
     } catch {
       done(false)

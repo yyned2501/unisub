@@ -15,7 +15,7 @@ const successMsg = ref('')
 
 onMounted(async () => {
   try {
-    const { data } = await getAuthInfo()
+    const data = await getAuthInfo()
     username.value = data.username || ''
   } catch {
     errorMsg.value = '获取账号信息失败'
@@ -41,7 +41,7 @@ async function handleSave() {
 
   saving.value = true
   try {
-    const { data } = await updateAuth(username.value.trim(), password.value)
+    const data = await updateAuth(username.value.trim(), password.value)
     if (data.success) {
       successMsg.value = '账号密码已更新，请重新登录'
       // 3 秒后跳转登录页

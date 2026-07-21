@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { getPlatforms, updatePlatform, deletePlatform, testPlatform } from '@/service/api/platforms'
 import { getNextFindQuota } from '@/service/api/dashboard'
+import { msg, confirmDialog } from '@/utils/message'
 import type { PlatformConfig } from '@/types'
 
 defineOptions({ name: 'PlatformSettings' })
@@ -37,7 +38,7 @@ const sortedPlatforms = computed(() => {
 async function loadPlatforms() {
   loading.value = true
   try {
-    const { data } = await getPlatforms()
+    const data = await getPlatforms()
     platforms.value = Array.isArray(data) ? data : []
   } finally {
     loading.value = false
@@ -46,7 +47,7 @@ async function loadPlatforms() {
 
 async function loadQuota() {
   try {
-    const { data } = await getNextFindQuota()
+    const data = await getNextFindQuota()
     nfQuota.value = (data?.remaining ?? data?.quota ?? null) as number | null
   } catch { nfQuota.value = null }
 }
@@ -59,9 +60,9 @@ async function handleSave(p: PlatformConfig) {
   savingId.value = p.id
   try {
     await updatePlatform(p.id, { base_url: p.base_url, api_key: p.api_key, enabled: p.enabled })
-    window.$message?.success(`${meta(p).label} 已保存`)
+    msg.success(`${meta(p).label} 已保存`)
   } catch {
-    window.$message?.error(`${meta(p).label} 保存失败`)
+    msg.error(`${meta(p).label} 保存失败`)
   } finally {
     savingId.value = null
   }
@@ -71,9 +72,9 @@ async function handleTest(p: PlatformConfig) {
   testingId.value = p.id
   try {
     await testPlatform(p.id)
-    window.$message?.success(`${meta(p).label} 连接成功`)
+    msg.success(`${meta(p).label} 连接成功`)
   } catch {
-    window.$message?.error(`${meta(p).label} 连接失败`)
+    msg.error(`${meta(p).label} 连接失败`)
   } finally {
     testingId.value = null
   }
@@ -83,33 +84,23 @@ async function handleToggle(p: PlatformConfig, enabled: boolean) {
   p.enabled = enabled
   try {
     await updatePlatform(p.id, { enabled })
-    window.$message?.success(`${meta(p).label} 已${enabled ? '启用' : '禁用'}`)
+    msg.success(`${meta(p).label} 已${enabled ? '启用' : '禁用'}`)
   } catch {
     p.enabled = !enabled
-    window.$message?.error(`${meta(p).label} ${enabled ? '启用' : '禁用'}失败`)
+    msg.error(`${meta(p).label} ${enabled ? '启用' : '禁用'}失败`)
   }
 }
 
 async function handleDelete(p: PlatformConfig) {
   try {
-    await new Promise((resolve, reject) => {
-      window.$dialog?.warning({
-        title: '确认操作',
-        content: `确定删除${meta(p).label}配置？`,
-        positiveText: '确认',
-        negativeText: '取消',
-        onPositiveClick: resolve,
-        onNegativeClick: reject,
-        onClose: reject,
-      })
-    })
+    await confirmDialog({ content: `确定删除${meta(p).label}配置？` })
   } catch { return }
   try {
     await deletePlatform(p.id)
-    window.$message?.success(`${meta(p).label} 已删除`)
+    msg.success(`${meta(p).label} 已删除`)
     platforms.value = platforms.value.filter(i => i.id !== p.id)
   } catch {
-    window.$message?.error(`${meta(p).label} 删除失败`)
+    msg.error(`${meta(p).label} 删除失败`)
   }
 }
 

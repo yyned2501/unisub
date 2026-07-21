@@ -1,5 +1,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { getSubscriptions, deleteSubscription, syncSubscriptions } from '@/service/api/subscriptions'
+import { msg } from '@/utils/message'
 import type { Subscription } from '@/types'
 
 /**
@@ -44,7 +45,7 @@ export function useSubscriptions() {
   async function loadList() {
     loading.value = true
     try {
-      const { data } = await getSubscriptions()
+      const data = await getSubscriptions()
       list.value = Array.isArray(data) ? data : []
     } finally { loading.value = false }
   }
@@ -56,20 +57,19 @@ export function useSubscriptions() {
   async function handleSync() {
     syncing.value = true
     try {
-      const { data } = await syncSubscriptions()
+      await syncSubscriptions()
       await loadList()
-      window.$message?.success(`同步完成，共 ${list.value.length} 条订阅`)
-      await loadList()
+      msg.success(`同步完成，共 ${list.value.length} 条订阅`)
     } finally { syncing.value = false }
   }
 
   async function handleDelete(row: Subscription) {
     try {
       await deleteSubscription(row.id)
-      window.$message?.success(`已取消订阅「${row.title}」`)
+      msg.success(`已取消订阅「${row.title}」`)
       list.value = list.value.filter(i => i.id !== row.id)
     } catch {
-      window.$message?.error(`取消订阅「${row.title}」失败`)
+      msg.error(`取消订阅「${row.title}」失败`)
     }
   }
 

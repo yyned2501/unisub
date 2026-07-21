@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { getTaskStatus, updateTaskConfig } from '@/service/api/tasks'
+import { msg } from '@/utils/message'
 
 defineOptions({ name: 'TaskSettings' })
 
@@ -22,7 +23,7 @@ function formatInterval(seconds: number): string {
 async function load() {
   loading.value = true
   try {
-    const { data } = await getTaskStatus()
+    const data = await getTaskStatus()
     if (data) {
       config.interval = data.config?.interval || 1800
       if (data.config) {
@@ -31,7 +32,7 @@ async function load() {
       }
     }
   } catch {
-    window.$message?.error('加载任务配置失败')
+    msg.error('加载任务配置失败')
   } finally { loading.value = false }
 }
 
@@ -43,9 +44,9 @@ async function handleSave() {
       auto_fill_enabled: config.auto_fill_enabled,
       auto_fill_interval_seconds: config.auto_fill_interval_secs,
     })
-    window.$message?.success('任务配置已保存')
+    msg.success('任务配置已保存')
   } catch {
-    window.$message?.error('保存任务配置失败')
+    msg.error('保存任务配置失败')
   } finally { saving.value = false }
 }
 
