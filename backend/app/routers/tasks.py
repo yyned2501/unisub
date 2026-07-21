@@ -1,32 +1,29 @@
 """定时任务路由 — 任务状态、手动触发、配置管理。"""
 
-import asyncio
+import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
 from app.models.activity_log import ActivityLog
 from app.services import get_mp_service, get_nf_service
 from app.services.orchestrator import OrchestratorService
+from app.services import scheduler as _sched_mod
+from app.services.scheduler import TaskConfigUpdate, _task_config, _auto_fill_progress, save_state
 
-router = APIRouter(prefix="/api/tasks", tags=["定时任务"])
+router = APIRouter(prefix="/api/tasks", tags=["定时任务"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
 
-# 简单的内存任务状态与配置
+# 简单的内存任务状态
 _task_status: dict = {
     "last_run": None,
     "last_result": None,
     "running": False,
-}
-
-_task_config: dict = {
-    "interval_minutes": 30,
-    "mp_supplement_enabled": True,
-    "auto_sync_enabled": True,
 }
 
 
@@ -37,14 +34,9 @@ class TaskStatusResponse(BaseModel):
     last_run: str | None = None
     last_result: dict | None = None
     config: dict
-
-
-class TaskConfigUpdate(BaseModel):
-    """定时任务配置更新请求。"""
-
-    interval_minutes: int | None = Field(None, ge=5, le=1440, description="轮询间隔（分钟）")
-    mp_supplement_enabled: bool | None = Field(None, description="是否启用 MP 补充搜索")
-    auto_sync_enabled: bool | None = Field(None, description="是否启用自动同步")
+    auto_fill_cursor: int | None = None
+    auto_fill_last_run: str | None = None
+    auto_fill_progress: dict | None = None
 
 
 class TaskTriggerResponse(BaseModel):
@@ -64,6 +56,9 @@ async def get_task_status():
         last_run=_task_status["last_run"],
         last_result=_task_status["last_result"],
         config=_task_config,
+        auto_fill_cursor=_sched_mod._auto_fill_cursor,
+        auto_fill_last_run=_sched_mod._auto_fill_last_run,
+        auto_fill_progress=_auto_fill_progress,
     )
 
 
@@ -100,7 +95,6 @@ async def trigger_task(db: AsyncSession = Depends(get_db)):
             logger.info("MP 补充搜索跳过: MoviePilot 未配置")
 
         # 记录系统活动
-        import uuid
         log_entry = ActivityLog(
             id=str(uuid.uuid4()),
             action="system",
@@ -142,5 +136,6 @@ async def update_task_config(body: TaskConfigUpdate):
     update_data = body.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         _task_config[key] = value
+    save_state()
     logger.info(f"任务配置已更新: {_task_config}")
     return {"success": True, "config": _task_config}
