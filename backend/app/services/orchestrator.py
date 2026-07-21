@@ -300,10 +300,17 @@ class OrchestratorService:
                 local_sub.nf_subscribed = True
                 local_sub.nf_status = str(nf_status) if nf_status else None
                 local_sub.nf_missing_eps = nf_missing
-                # 电影无缺集 → 标记已完成（电影只有一集，入库即完成）
-                if local_sub.media_type == "movie" and nf_missing == 0 and not local_sub.completed:
-                    local_sub.completed = True
-                    logger.info(f"电影已入库，标记完成: {local_sub.title} (tmdb_id={tid})")
+                # 电影：以 NF is_in_library 为准双向同步完成状态
+                # ⚠️ 不能用 nf_missing==0 判断：NF 对电影恒返回 total_episodes=0，
+                # 导致 nf_missing 永远为 0，会把所有电影误标完成。
+                if local_sub.media_type == "movie":
+                    in_library = bool(nf_sub.get("is_in_library")) or int(nf_sub.get("local_episodes") or 0) > 0
+                    if in_library and not local_sub.completed:
+                        local_sub.completed = True
+                        logger.info(f"电影已入库，标记完成: {local_sub.title} (tmdb_id={tid})")
+                    elif not in_library and local_sub.completed:
+                        local_sub.completed = False
+                        logger.info(f"电影不在本地库，取消完成标记: {local_sub.title} (tmdb_id={tid})")
                 if not local_sub.year:
                     local_sub.year = _parse_year(nf_sub.get("year"))
                 if not local_sub.poster_url:
@@ -381,11 +388,11 @@ class OrchestratorService:
                 local_sub.completed = True
                 local_sub.updated_at = datetime.now(UTC)
 
-        # === Phase 4: 基于本地 Emby/TMDB 缓存判断入库完成 ===
-        # 电影：emby 有记录即完成
+        # === Phase 4: 基于本地 Emby/TMDB 缓存判断剧集入库完成 ===
         # 完结剧（tmdb_aired_eps 为 None）：emby >= tmdb_total_eps → completed
         # 在播剧（tmdb_aired_eps 有值）：emby >= tmdb_aired_eps → aired_complete（不标 completed）
-        unfinished_tids = [s.tmdb_id for s in local_all if not s.completed]
+        # ⚠️ 电影不走这里：emby_cache 只存剧集，电影完成状态由 Phase 1 的 NF is_in_library 判断
+        unfinished_tids = [s.tmdb_id for s in local_all if not s.completed and s.media_type == "tv"]
         if unfinished_tids:
             emby_rows = (
                 (await db.execute(select(EmbyCache).where(EmbyCache.tmdb_id.in_(unfinished_tids)))).scalars().all()
@@ -397,16 +404,10 @@ class OrchestratorService:
             tmdb_map = {t.tmdb_id: t for t in tmdb_rows}
 
             for sub in local_all:
-                if sub.completed:
+                if sub.completed or sub.media_type != "tv":
                     continue
                 ec = emby_map.get(sub.tmdb_id)
                 if not ec or not ec.emby_episode_count:
-                    continue
-
-                if sub.media_type == "movie":
-                    sub.completed = True
-                    sub.updated_at = datetime.now(UTC)
-                    logger.info(f"本地数据判定电影已入库: {sub.title} (emby={ec.emby_episode_count})")
                     continue
 
                 tc = tmdb_map.get(sub.tmdb_id)
