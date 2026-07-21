@@ -8,14 +8,14 @@ FastAPI + Vue 3 + Naive UI + PostgreSQL 的项目，详见 `ARCHITECTURE.md`。
 
 - **Python**: 3.13+, uv 管理
 - **Backend**: FastAPI + SQLAlchemy async + asyncpg + PostgreSQL
-- **Frontend**: Vue 3 + Naive UI + Pinia + Vue Router + Vite + UnoCSS
+- **Frontend**: Vue 3 + TypeScript + Naive UI + Pinia + Vue Router + Vite + UnoCSS
 - **External APIs**: NextFind OpenAPI (192.168.31.10:8092), MoviePilot REST API (192.168.31.10:3000)
 - **Cache**: Memory cache for platform configs (no Redis)
 
 ## Coding Standards
 
 > **所有后端修改必须遵守 `backend/app/STANDARDS.md`**（含架构铁律、三层解耦、Python 规范、外部 API 对接规则）。
-> **所有前端修改必须遵守 `frontend/STANDARDS.md`**（含组件规范、目录结构、路由/API 约定）。
+> **所有前端修改必须遵守 `frontend/STANDARDS.md`**（TypeScript 约定、通用抽象层、组件规范、目录结构、路由/API 约定）。
 > 本文档只列摘要，完整规范以对应文件为准。
 
 ### Python
@@ -134,40 +134,29 @@ Note: MoviePilot returns 307 redirects on API calls — always follow with -L or
 ├── frontend/
 │   ├── src/
 │   │   ├── App.vue               # 入口页面（含侧边栏 + 导航栏 + 布局）
-│   │   ├── main.js
+│   │   ├── main.ts
+│   │   ├── env.d.ts              # 全局类型声明
 │   │   ├── plugins/               # 插件初始化
 │   │   │   ├── assets.ts
 │   │   │   └── index.ts
 │   │   ├── router/
-│   │   │   └── index.js
-│   │   ├── service/               # API 层
-│   │   │   ├── request.js         # Axios 实例
-│   │   │   └── api/
-│   │   │       ├── dashboard.js
-│   │   │       ├── emby.js
-│   │   │       ├── platforms.js
-│   │   │       ├── search.js
-│   │   │       ├── subscriptions.js
-│   │   │       └── tasks.js
+│   │   │   └── index.ts
+│   │   ├── service/               # API 层（响应已解包，返回业务数据）
+│   │   │   ├── request.ts         # Axios 实例 + http 客户端
+│   │   │   └── api/*.ts           # 每个后端 router 一个文件
 │   │   ├── store/                 # Pinia 仓库
-│   │   │   └── modules/
-│   │   │       ├── app.js
-│   │   │       └── theme.js
+│   │   │   └── modules/*.ts
+│   │   ├── composables/           # 业务逻辑 + 通用 composable
+│   │   │   ├── useAction.ts       # loading 包装
+│   │   │   ├── usePolling.ts      # 轮询（自动清理）
+│   │   │   ├── useIdSet.ts        # 行级 loading 集合
+│   │   │   └── use*.ts            # 各页面业务逻辑
+│   │   ├── utils/
+│   │   │   ├── message.ts         # msg + confirmDialog
+│   │   │   └── format.ts
+│   │   ├── types/                 # 领域类型（镜像后端 schemas）
 │   │   ├── components/            # 可复用组件
-│   │   │   ├── common/
-│   │   │   │   └── app-provider.vue
-│   │   │   ├── MediaCard.vue
-│   │   │   ├── PlatformStatus.vue
-│   │   │   ├── StatusBadge.vue
-│   │   │   └── SubDialog.vue
 │   │   ├── views/                 # 页面组件
-│   │   │   ├── DashboardView.vue
-│   │   │   ├── SearchView.vue
-│   │   │   ├── SubscriptionsView.vue
-│   │   │   └── settings/
-│   │   │       ├── PlatformSettings.vue
-│   │   │       ├── TaskSettings.vue
-│   │   │       └── EmbyAnalysis.vue
 │   │   └── styles/
 │   │       └── css/
 │   │           └── reset.css
@@ -247,10 +236,11 @@ GET    /api/emby/library
 2. `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000` — verify server starts
 3. `curl http://localhost:8000/api/platforms` — returns [] (empty list)
 4. test NextFind connection with configured API key
+5. **Frontend** → `cd frontend && npm run build && npm run type-check` — build 通过且类型零错误
 
 ## Deployment
 
 After any code change:
-- **Frontend changed** → `cd frontend && npm run build`
+- **Frontend changed** → `cd frontend && npm run build && npm run type-check`
 - **Backend changed** → `sudo systemctl restart unisub-backend`
 - After restart, wait 3s then verify: `sleep 3 && curl http://localhost:8002/api/platforms`
