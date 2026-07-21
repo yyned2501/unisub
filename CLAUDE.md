@@ -2,17 +2,21 @@
 
 ## Architecture
 
-FastAPI + Vue 3 + Element Plus + PostgreSQL 的项目，详见 `ARCHITECTURE.md`。
+FastAPI + Vue 3 + Naive UI + PostgreSQL 的项目，详见 `ARCHITECTURE.md`。
 
 ## Technical Stack
 
 - **Python**: 3.13+, uv 管理
 - **Backend**: FastAPI + SQLAlchemy async + asyncpg + PostgreSQL
-- **Frontend**: Vue 3 + Element Plus + Pinia + Vue Router + Vite
+- **Frontend**: Vue 3 + Naive UI + Pinia + Vue Router + Vite + UnoCSS
 - **External APIs**: NextFind OpenAPI (192.168.31.10:8092), MoviePilot REST API (192.168.31.10:3000)
 - **Cache**: Memory cache for platform configs (no Redis)
 
 ## Coding Standards
+
+> **所有后端修改必须遵守 `backend/app/STANDARDS.md`**（含架构铁律、三层解耦、Python 规范、外部 API 对接规则）。
+> **所有前端修改必须遵守 `frontend/STANDARDS.md`**（含组件规范、目录结构、路由/API 约定）。
+> 本文档只列摘要，完整规范以对应文件为准。
 
 ### Python
 - 严格三层解耦：routers → services → core/ (第三方库隔离)
@@ -45,30 +49,21 @@ FastAPI + Vue 3 + Element Plus + PostgreSQL 的项目，详见 `ARCHITECTURE.md`
 
 ## External API Details
 
-### NextFind OpenAPI
-```
-Base: http://192.168.31.10:8092/api/openapi
-Auth: Header X-API-Key: {api_key}
+### NextFind API
 
-GET  /search?query={keyword}&type={movie|tv}
-POST /subscriptions/add    Body: {"tmdb_id": int}
-POST /subscriptions/remove Body: {"tmdb_id": int}
-GET  /subscriptions
-GET  /quota
-GET  /history
-POST /transfer Body: {"tmdb_id": int, "target_folder": str}
-GET  /directories?cid={parent_id}
-```
+> ⚠️ 详细文档（含所有端点实测、参数坑、缺集逻辑）见：
+> **`backend/app/references/nextfind-api-v2.md`**
 
-### NextFind Web API (for missing episodes)
+OpenAPI 基础：
 ```
-Base: https://nf.js.248226785.xyz:8443
-Auth: nextmedia_session cookie (via POST login)
-
-POST /login Body: username=yangyang&password=yy920120
-GET  /api/discover?type=全部&sort=更新&region=全部&year=全部&genre=全部&status=缺失集&channel=全部&page=1&page_size=400
+Base:  http://192.168.31.10:8092/api/openapi
+Auth:  Header X-API-Key: {api_key}
 ```
-Returns NDJSON: type=initial (basic data), type=update (detailed data with fillable_episodes), type=done
+Web API（本地库详情/缺集）：
+```
+Base:  https://nf.js.248226785.xyz:8443
+Auth:  Cookie nextmedia_session (POST /login → username=yangyang&password=yy920120)
+```
 
 ### MoviePilot REST API
 ```
@@ -98,37 +93,84 @@ Note: MoviePilot returns 307 redirects on API calls — always follow with -L or
 │   │   │   ├── __init__.py
 │   │   │   ├── platform_config.py
 │   │   │   ├── subscription.py
-│   │   │   └── activity_log.py
+│   │   │   ├── activity_log.py
+│   │   │   ├── emby_cache.py
+│   │   │   └── emby_blacklist.py
 │   │   ├── schemas/
 │   │   │   ├── __init__.py
 │   │   │   ├── platform.py
 │   │   │   ├── subscription.py
 │   │   │   ├── search.py
-│   │   │   └── dashboard.py
+│   │   │   ├── dashboard.py
+│   │   │   ├── emby.py
+│   │   │   └── emby_cache.py
 │   │   ├── services/
 │   │   │   ├── __init__.py
 │   │   │   ├── nextfind.py
+│   │   │   ├── nextfind_admin.py
 │   │   │   ├── moviepilot.py
-│   │   │   └── orchestrator.py
-│   │   └── routers/
-│   │       ├── __init__.py
-│   │       ├── platforms.py
-│   │       ├── search.py
-│   │       ├── subscriptions.py
-│   │       ├── dashboard.py
-│   │       └── tasks.py
+│   │   │   ├── orchestrator.py
+│   │   │   ├── tmdb.py
+│   │   │   ├── emby.py
+│   │   │   ├── emby_scan.py
+│   │   │   ├── emby_db.py
+│   │   │   ├── subscription.py
+│   │   │   ├── dashboard.py
+│   │   │   ├── platform.py
+│   │   │   └── scheduler.py
+│   │   ├── routers/
+│   │   │   ├── __init__.py
+│   │   │   ├── platforms.py
+│   │   │   ├── search.py
+│   │   │   ├── subscriptions.py
+│   │   │   ├── dashboard.py
+│   │   │   ├── emby.py
+│   │   │   └── tasks.py
+│   │   └── references/
+│   │       └── nextfind-api-v2.md
 │   ├── Dockerfile
 │   ├── pyproject.toml
 │   └── .env.example
 ├── frontend/
 │   ├── src/
-│   │   ├── App.vue
+│   │   ├── App.vue               # 入口页面（含侧边栏 + 导航栏 + 布局）
 │   │   ├── main.js
-│   │   ├── api/
+│   │   ├── plugins/               # 插件初始化
+│   │   │   ├── assets.ts
+│   │   │   └── index.ts
 │   │   ├── router/
-│   │   ├── stores/
-│   │   ├── views/
-│   │   └── components/
+│   │   │   └── index.js
+│   │   ├── service/               # API 层
+│   │   │   ├── request.js         # Axios 实例
+│   │   │   └── api/
+│   │   │       ├── dashboard.js
+│   │   │       ├── emby.js
+│   │   │       ├── platforms.js
+│   │   │       ├── search.js
+│   │   │       ├── subscriptions.js
+│   │   │       └── tasks.js
+│   │   ├── store/                 # Pinia 仓库
+│   │   │   └── modules/
+│   │   │       ├── app.js
+│   │   │       └── theme.js
+│   │   ├── components/            # 可复用组件
+│   │   │   ├── common/
+│   │   │   │   └── app-provider.vue
+│   │   │   ├── MediaCard.vue
+│   │   │   ├── PlatformStatus.vue
+│   │   │   ├── StatusBadge.vue
+│   │   │   └── SubDialog.vue
+│   │   ├── views/                 # 页面组件
+│   │   │   ├── DashboardView.vue
+│   │   │   ├── SearchView.vue
+│   │   │   ├── SubscriptionsView.vue
+│   │   │   └── settings/
+│   │   │       ├── PlatformSettings.vue
+│   │   │       ├── TaskSettings.vue
+│   │   │       └── EmbyAnalysis.vue
+│   │   └── styles/
+│   │       └── css/
+│   │           └── reset.css
 │   ├── Dockerfile
 │   └── nginx.conf
 ├── docker-compose.yml
@@ -196,6 +238,8 @@ GET    /api/dashboard/nextfind-quota
 GET    /api/tasks/status
 POST   /api/tasks/trigger
 PUT    /api/tasks/config
+
+GET    /api/emby/library
 ```
 
 ## Verification
@@ -203,3 +247,10 @@ PUT    /api/tasks/config
 2. `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000` — verify server starts
 3. `curl http://localhost:8000/api/platforms` — returns [] (empty list)
 4. test NextFind connection with configured API key
+
+## Deployment
+
+After any code change:
+- **Frontend changed** → `cd frontend && npm run build`
+- **Backend changed** → `sudo systemctl restart unisub-backend`
+- After restart, wait 3s then verify: `sleep 3 && curl http://localhost:8002/api/platforms`

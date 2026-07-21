@@ -37,3 +37,6 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# 第三方参考代码（插件源码等，仅供查阅不入库）
+/references/

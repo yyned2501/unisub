@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NConfigProvider, zhCN } from 'naive-ui'
+import { NConfigProvider, zhCN, useMessage } from 'naive-ui'
 import AppProvider from '@/components/common/app-provider.vue'
 import { useThemeStore } from '@/store/modules/theme'
+import { useAuthStore } from '@/store/modules/auth'
 
 defineOptions({ name: 'App' })
 
@@ -12,6 +13,8 @@ const router = useRouter()
 const route = useRoute()
 
 const collapsed = ref(false)
+const auth = useAuthStore()
+const isLoginPage = computed(() => route.path === '/login')
 
 function riIcon(className) {
   return () => h('i', { class: className })
@@ -21,13 +24,19 @@ const menuOptions = [
   { label: '看板', key: '/', icon: riIcon('ri-dashboard-line text-lg') },
   { label: '搜索', key: '/search', icon: riIcon('ri-search-line text-lg') },
   { label: '订阅', key: '/subscriptions', icon: riIcon('ri-rss-line text-lg') },
+  { label: '媒体库', key: '/emby', icon: riIcon('ri-tv-2-line text-lg') },
+  { label: '自动订阅', key: '/settings/auto-subscribe', icon: riIcon('ri-sparkling-2-line text-lg') },
+  { label: '无 TMDB 媒体', key: '/emby/tmdb-404', icon: riIcon('ri-error-warning-line text-lg') },
   {
     label: '设置',
     key: 'settings-group',
     icon: riIcon('ri-settings-3-line text-lg'),
     children: [
       { label: '平台配置', key: '/settings/platforms', icon: riIcon('ri-database-2-line') },
+      { label: 'CloudDrive2', key: '/settings/cd2', icon: riIcon('ri-cloud-line') },
       { label: '定时任务', key: '/settings/tasks', icon: riIcon('ri-time-line') },
+      { label: '日志查看', key: '/settings/logs', icon: riIcon('ri-file-list-3-line') },
+      { label: '账号设置', key: '/settings/account', icon: riIcon('ri-user-settings-line') },
     ],
   },
 ]
@@ -51,7 +60,10 @@ function handleMenuSelect(key) {
 <template>
   <NConfigProvider :theme="themeStore.naiveTheme" :locale="zhCN" class="h-full">
     <AppProvider>
-      <div style="position: relative; height: 100%;">
+      <!-- 登录页 — 不显示侧边栏 -->
+      <router-view v-if="isLoginPage" />
+      <!-- 主布局 — 侧边栏 + 内容区 -->
+      <div v-else style="position: relative; height: 100%;">
         <n-layout has-sider position="absolute">
           <!-- 侧边栏 -->
           <n-layout-sider
@@ -94,11 +106,19 @@ function handleMenuSelect(key) {
                 <span class="text-sm opacity-60 hidden sm:inline">统一媒体订阅聚合器</span>
               </div>
 
-              <n-button quaternary size="small" @click="themeStore.toggleDarkMode()">
-                <template #icon>
-                  <i :class="themeStore.darkMode ? 'ri-sun-line' : 'ri-moon-line'" class="text-lg"></i>
-                </template>
-              </n-button>
+              <div class="flex items-center gap-2">
+                <span class="text-xs opacity-50 hidden sm:inline">{{ auth.username }}</span>
+                <n-button quaternary size="small" @click="themeStore.toggleDarkMode()">
+                  <template #icon>
+                    <i :class="themeStore.darkMode ? 'ri-sun-line' : 'ri-moon-line'" class="text-lg"></i>
+                  </template>
+                </n-button>
+                <n-button quaternary size="small" @click="auth.logout(); router.push('/login')">
+                  <template #icon>
+                    <i class="ri-logout-box-r-line text-lg"></i>
+                  </template>
+                </n-button>
+              </div>
             </n-layout-header>
 
             <n-layout-content :native-scrollbar="false">
