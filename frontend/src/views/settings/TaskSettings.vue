@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { getTaskStatus, updateTaskConfig } from '@/service/api/tasks'
 
@@ -13,7 +13,7 @@ const config = reactive({
   auto_fill_interval_secs: 30,
 })
 
-function formatInterval(seconds) {
+function formatInterval(seconds: number): string {
   if (seconds < 60) return `${seconds}秒`
   if (seconds < 3600) return `${Math.round(seconds / 60)}分钟`
   return `${(seconds / 3600).toFixed(1)}小时`
@@ -24,7 +24,7 @@ async function load() {
   try {
     const { data } = await getTaskStatus()
     if (data) {
-      config.interval = data.interval || 1800
+      config.interval = data.config?.interval || 1800
       if (data.config) {
         config.auto_fill_enabled = data.config.auto_fill_enabled || false
         config.auto_fill_interval_secs = data.config.auto_fill_interval_seconds || 30

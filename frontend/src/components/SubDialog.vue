@@ -1,13 +1,17 @@
-<script setup>
+<script setup lang="ts">
 import { ref, watch } from 'vue'
 import { onImgError } from '@/utils/format'
+import type { SearchResultItem } from '@/types'
 
-const props = defineProps({
-  modelValue: { type: Boolean, default: false },
-  media: { type: Object, default: null },
-})
+const props = defineProps<{
+  modelValue: boolean
+  media: SearchResultItem | null
+}>()
 
-const emit = defineEmits(['update:modelValue', 'confirm'])
+const emit = defineEmits<{
+  'update:modelValue': [val: boolean]
+  confirm: [media: SearchResultItem, done: (success: boolean) => void]
+}>()
 
 const show = ref(props.modelValue)
 const loading = ref(false)
@@ -18,7 +22,7 @@ watch(show, (val) => { emit('update:modelValue', val) })
 function handleConfirm() {
   if (!props.media) return
   loading.value = true
-  emit('confirm', props.media, (success) => {
+  emit('confirm', props.media, (success: boolean) => {
     loading.value = false
     if (success) show.value = false
   })

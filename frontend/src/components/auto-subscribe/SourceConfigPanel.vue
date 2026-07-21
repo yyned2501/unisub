@@ -1,27 +1,24 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { NCard, NSwitch, NInput, NInputNumber, NSelect } from 'naive-ui'
+import type { AutoSubConfig, AutoSubMetaResponse } from '@/types'
 
 defineOptions({ name: 'SourceConfigPanel' })
 
-const props = defineProps({
-  /** 'douban' | 'mikan' | 'maoyan' */
-  source: {
-    type: String,
-    required: true,
-    validator: (v) => ['douban', 'mikan', 'maoyan'].includes(v),
-  },
-  /** 全局配置对象（reactive），子组件直接绑定其属性 */
-  config: { type: Object, required: true },
-  /** 元数据（榜单选项、平台列表等） */
-  meta: { type: Object, required: true },
-  /** 卡片标题 */
-  title: { type: String, required: true },
-})
+const props = defineProps<{
+  source: 'douban' | 'mikan' | 'maoyan'
+  config: AutoSubConfig
+  meta: AutoSubMetaResponse
+  title: string
+}>()
 
-const emit = defineEmits(['toggle-array'])
+const emit = defineEmits<{
+  'toggle-array': [key: string, val: string]
+}>()
 
-const enabledKey = computed(() => `${props.source}_enabled`)
+const enabledKey = computed(
+  () => `${props.source}_enabled` as 'douban_enabled' | 'mikan_enabled' | 'maoyan_enabled'
+)
 </script>
 
 <template>
@@ -62,7 +59,7 @@ const enabledKey = computed(() => `${props.source}_enabled`)
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-1.5">
             <span class="text-xs opacity-50">季度</span>
-            <n-select v-model:value="config.mikan_season" :options="meta?.seasons || []" size="small" style="width: 110px;" />
+            <n-select v-model:value="config.mikan_season" :options="(meta?.seasons || []) as any" size="small" style="width: 110px;" />
           </div>
           <div class="flex items-center gap-1.5">
             <span class="text-xs opacity-50">年份（0=自动）</span>

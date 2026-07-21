@@ -2,8 +2,10 @@
  * 自动订阅 — 默认配置与元数据常量。
  * 从 AutoSubscribeSettings.vue 抽离，避免内联在组件中。
  */
+import type { AutoSubConfig, SelectOption } from '@/types'
 
-export const DEFAULT_CONFIG = {
+/** 自动订阅默认配置 */
+export const DEFAULT_CONFIG: AutoSubConfig = {
   enabled: false,
   min_year: 0,
   min_vote: 0,
@@ -25,7 +27,13 @@ export const DEFAULT_CONFIG = {
   proxy_url: '',
 }
 
-export const DEFAULT_META = {
+/** 自动订阅默认元数据（下拉选项） */
+export const DEFAULT_META: {
+  douban_ranks: SelectOption[]
+  maoyan_platforms: SelectOption[]
+  maoyan_media_types: SelectOption[]
+  seasons: SelectOption[]
+} = {
   douban_ranks: [
     { value: 'movie-ustop', label: '北美票房榜' },
     { value: 'movie-weekly', label: '一周口碑榜' },

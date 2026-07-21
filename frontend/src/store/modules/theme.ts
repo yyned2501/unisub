@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { darkTheme, lightTheme } from 'naive-ui'
+import { darkTheme } from 'naive-ui'
 
 /**
  * 主题管理 store

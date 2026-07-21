@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NConfigProvider, zhCN, useMessage } from 'naive-ui'
@@ -16,7 +16,7 @@ const collapsed = ref(false)
 const auth = useAuthStore()
 const isLoginPage = computed(() => route.path === '/login')
 
-function riIcon(className) {
+function riIcon(className: string) {
   return () => h('i', { class: className })
 }
 
@@ -44,7 +44,7 @@ const menuOptions = [
 const activeKey = computed(() => route.path)
 
 /** 自动展开设置子菜单 */
-const expandedKeys = ref([])
+const expandedKeys = ref<string[]>([])
 
 watch(() => route.path, (path) => {
   if (path.startsWith('/settings') && !expandedKeys.value.includes('settings-group')) {
@@ -52,7 +52,7 @@ watch(() => route.path, (path) => {
   }
 }, { immediate: true })
 
-function handleMenuSelect(key) {
+function handleMenuSelect(key: string) {
   router.push(key)
 }
 </script>

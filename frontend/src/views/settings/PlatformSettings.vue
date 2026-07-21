@@ -1,28 +1,29 @@
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { getPlatforms, updatePlatform, deletePlatform, testPlatform } from '@/service/api/platforms'
 import { getNextFindQuota } from '@/service/api/dashboard'
+import type { PlatformConfig } from '@/types'
 
 defineOptions({ name: 'PlatformSettings' })
 
-const platforms = ref([])
-const nfQuota = ref(null)
-const testingId = ref(null)
+const platforms = ref<PlatformConfig[]>([])
+const nfQuota = ref<number | null>(null)
+const testingId = ref<string | null>(null)
 const loading = ref(false)
-const savingId = ref(null)
+const savingId = ref<string | null>(null)
 
-const platformMeta = {
+const platformMeta: Record<string, { icon: string; label: string; color: string }> = {
   nextfind: { icon: 'ri-radar-line', label: 'NextFind', color: 'rgb(96,165,250)' },
   moviepilot: { icon: 'ri-movie-2-line', label: 'MoviePilot', color: 'rgb(251,146,60)' },
   emby: { icon: 'ri-tv-2-line', label: 'Emby', color: 'rgb(129,140,248)' },
   tmdb: { icon: 'ri-database-2-line', label: 'TMDB', color: 'rgb(52,211,153)' },
 }
 
-function meta(p) {
+function meta(p: PlatformConfig) {
   return platformMeta[p.name] || { icon: 'ri-apps-line', label: p.name, color: 'var(--n-text-color)' }
 }
 
-function maskKey(key) {
+function maskKey(key: string) {
   if (!key) return ''
   if (key.length <= 8) return '*'.repeat(key.length)
   return key.slice(0, 4) + '****' + key.slice(-4)
@@ -46,15 +47,15 @@ async function loadPlatforms() {
 async function loadQuota() {
   try {
     const { data } = await getNextFindQuota()
-    nfQuota.value = data?.remaining ?? data?.quota ?? null
+    nfQuota.value = (data?.remaining ?? data?.quota ?? null) as number | null
   } catch { nfQuota.value = null }
 }
 
-function updateLocal(p, field, value) {
-  p[field] = value
+function updateLocal(p: PlatformConfig, field: keyof PlatformConfig, value: string | boolean) {
+  ;(p as unknown as Record<string, unknown>)[field] = value
 }
 
-async function handleSave(p) {
+async function handleSave(p: PlatformConfig) {
   savingId.value = p.id
   try {
     await updatePlatform(p.id, { base_url: p.base_url, api_key: p.api_key, enabled: p.enabled })
@@ -66,7 +67,7 @@ async function handleSave(p) {
   }
 }
 
-async function handleTest(p) {
+async function handleTest(p: PlatformConfig) {
   testingId.value = p.id
   try {
     await testPlatform(p.id)
@@ -78,7 +79,7 @@ async function handleTest(p) {
   }
 }
 
-async function handleToggle(p, enabled) {
+async function handleToggle(p: PlatformConfig, enabled: boolean) {
   p.enabled = enabled
   try {
     await updatePlatform(p.id, { enabled })
@@ -89,7 +90,7 @@ async function handleToggle(p, enabled) {
   }
 }
 
-async function handleDelete(p) {
+async function handleDelete(p: PlatformConfig) {
   try {
     await new Promise((resolve, reject) => {
       window.$dialog?.warning({

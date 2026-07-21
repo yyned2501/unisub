@@ -1,13 +1,19 @@
-<script setup>
-defineProps({
-  media: { type: Object, required: true },
-  subscribed: { type: Boolean, default: false },
-})
+<script setup lang="ts">
+import type { SearchResultItem } from '@/types'
 
-defineEmits(['click', 'subscribe'])
+defineProps<{
+  media: SearchResultItem
+  subscribed: boolean
+}>()
 
-function onImgError(e) {
-  e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect fill="%2327272a" width="200" height="300"/><text fill="%236b7280" font-size="30" x="50%" y="50%" text-anchor="middle" dy=".3em">?</text></svg>'
+defineEmits<{
+  click: [media: SearchResultItem]
+  subscribe: [media: SearchResultItem]
+}>()
+
+function onImgError(e: Event) {
+  const img = e.target as HTMLImageElement
+  img.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect fill="%2327272a" width="200" height="300"/><text fill="%236b7280" font-size="30" x="50%" y="50%" text-anchor="middle" dy=".3em">?</text></svg>'
 }
 </script>
 

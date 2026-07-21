@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
@@ -23,8 +23,8 @@ async function handleLogin() {
   try {
     await auth.doLogin(username.value, password.value)
     router.push('/')
-  } catch (e) {
-    errorMsg.value = e.response?.data?.detail || '登录失败，请重试'
+  } catch (e: unknown) {
+    errorMsg.value = (e as Record<string, any>)?.response?.data?.detail || '登录失败，请重试'
   } finally {
     loading.value = false
   }

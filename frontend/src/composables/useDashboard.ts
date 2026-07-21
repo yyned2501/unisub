@@ -2,37 +2,45 @@ import { reactive, ref, onMounted, onUnmounted } from 'vue'
 import { getStats, getPlatformStatus, getActivities, getNextFindQuota } from '@/service/api/dashboard'
 import { getTaskStatus } from '@/service/api/tasks'
 import { getEmbyScanStatus } from '@/service/api/emby'
+import type { DashboardStats, PlatformStatus, ActivityLog, EmbyScanStatus, AutoFillProgress } from '@/types'
 
 /**
  * 看板页面数据管理
  * - 统计卡片、平台状态、活动列表、扫描进度、自动补缺状态
  */
 export function useDashboard() {
-  const stats = reactive({
+  const stats = reactive<DashboardStats>({
     total_subscriptions: 0,
+    movie_count: 0,
+    tv_count: 0,
     missing_count: 0,
     completed_count: 0,
     tmdb_cached_total: 0,
     tmdb_data_filled: 0,
   })
 
-  const platforms = ref([])
-  const activities = ref([])
-  const nfQuota = ref(null)
+  const platforms = ref<PlatformStatus[]>([])
+  const activities = ref<ActivityLog[]>([])
+  const nfQuota = ref<number | null>(null)
   const loading = reactive({ platforms: false, activities: false })
 
   // 扫描进度
-  const scanStatus = ref(null)
-  let scanPollTimer = null
+  const scanStatus = ref<EmbyScanStatus | null>(null)
+  let scanPollTimer: ReturnType<typeof setInterval> | null = null
 
   // 自动补缺状态
-  const autoFillStatus = reactive({
+  const autoFillStatus = reactive<{
+    enabled: boolean
+    lastRun: string | null
+    cursor: number | null
+    progress: AutoFillProgress | null
+  }>({
     enabled: false,
     lastRun: null,
     cursor: null,
     progress: null,
   })
-  let autoFillPollTimer = null
+  let autoFillPollTimer: ReturnType<typeof setInterval> | null = null
 
   async function loadStats() {
     try {
@@ -54,7 +62,7 @@ export function useDashboard() {
         platforms.value = platformRes.value.data ?? []
       }
       if (quotaRes.status === 'fulfilled') {
-        nfQuota.value = quotaRes.value.data?.remaining ?? quotaRes.value.data?.quota ?? null
+        nfQuota.value = (quotaRes.value.data?.remaining ?? quotaRes.value.data?.quota ?? null) as number | null
       }
     } finally {
       loading.platforms = false

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { NButton, NCard, NSwitch, NInput, NInputNumber, NSelect, NSpin, NTabs, NTabPane } from 'naive-ui'
 import {
@@ -12,6 +12,7 @@ import {
 import { DEFAULT_CONFIG, DEFAULT_META } from '@/components/auto-subscribe/defaults'
 import SourceConfigPanel from '@/components/auto-subscribe/SourceConfigPanel.vue'
 import HistoryTable from '@/components/auto-subscribe/HistoryTable.vue'
+import type { AutoSubConfig, AutoSubMetaResponse, AutoSubHistoryItem, SelectOption } from '@/types'
 
 defineOptions({ name: 'AutoSubscribeSettings' })
 
@@ -19,19 +20,19 @@ defineOptions({ name: 'AutoSubscribeSettings' })
 const loading = ref(false)
 const saving = ref(false)
 const running = ref(false)
-const config = reactive({ ...DEFAULT_CONFIG })
-const meta = ref(DEFAULT_META)
-const history = ref([])
+const config = reactive<AutoSubConfig>({ ...DEFAULT_CONFIG } as AutoSubConfig)
+const meta = ref<AutoSubMetaResponse>(DEFAULT_META as AutoSubMetaResponse)
+const history = ref<AutoSubHistoryItem[]>([])
 const lastRun = ref('')
-const lastStats = ref(null)
-const statusLabels = ref({})
-const sourceNames = ref({})
+const lastStats = ref<Record<string, unknown> | null>(null)
+const statusLabels = ref<Record<string, string>>({})
+const sourceNames = ref<Record<string, string>>({})
 const scheduleRunning = ref(false)
 const scheduleError = ref('')
 const activeTab = ref('config')
 
 /* ---------- helpers ---------- */
-function toggleArray(key, val) {
+function toggleArray(key: string, val: string) {
   const arr = config[key]
   if (!Array.isArray(arr)) return
   const idx = arr.indexOf(val)
@@ -53,12 +54,12 @@ async function load() {
       'douban_ranks',
       'maoyan_web_platforms',
       'maoyan_web_types',
-    ]) {
+    ] as const) {
       if (!Array.isArray(config[key])) config[key] = [...DEFAULT_CONFIG[key]]
     }
     statusLabels.value = cfgRes.data.status_labels || {}
     sourceNames.value = cfgRes.data.source_names || {}
-    lastRun.value = cfgRes.data.last_run
+    lastRun.value = cfgRes.data.last_run ?? ''
     lastStats.value = cfgRes.data.last_stats
     scheduleRunning.value = Boolean(cfgRes.data.running)
     scheduleError.value = cfgRes.data.last_error || ''
@@ -72,8 +73,8 @@ async function load() {
       seasons: remoteMeta.seasons?.length ? remoteMeta.seasons : DEFAULT_META.seasons,
     }
     history.value = histRes.data.items || []
-  } catch (error) {
-    window.$message?.error(error.response?.data?.detail || '自动订阅配置加载失败')
+  } catch (error: unknown) {
+    window.$message?.error((error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '自动订阅配置加载失败')
   } finally {
     loading.value = false
   }
@@ -85,8 +86,8 @@ async function handleSave() {
   try {
     await updateAutoSubConfig({ config: { ...config } })
     window.$message?.success('配置已保存')
-  } catch (error) {
-    window.$message?.error(error.response?.data?.detail || '保存失败')
+  } catch (error: unknown) {
+    window.$message?.error((error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '保存失败')
   } finally {
     saving.value = false
   }
@@ -98,8 +99,8 @@ async function handleRun() {
     const { data } = await triggerAutoSubRun()
     window.$message?.success(data.message || '自动订阅已启动')
     await load()
-  } catch (e) {
-    window.$message?.error(e.response?.data?.detail || '启动失败')
+  } catch (e: unknown) {
+    window.$message?.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '启动失败')
   } finally {
     running.value = false
   }

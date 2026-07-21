@@ -1,20 +1,21 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { getLogFiles, getLogContent, getDebugInfo } from '@/service/api/logs'
+import type { LogFileInfo, DebugInfo } from '@/types'
 
 defineOptions({ name: 'LogViewer' })
 
 const loading = ref(false)
-const files = ref([])
+const files = ref<LogFileInfo[]>([])
 const selectedFile = ref('unisub.log')
 const lines = ref(200)
 const filter = ref('')
 const logLevel = ref('DEBUG')
 const isTail = ref(true)
 const reverseOrder = ref(false)
-const logLines = ref([])
+const logLines = ref<string[]>([])
 const totalLines = ref(0)
-const debugInfo = ref(null)
+const debugInfo = ref<DebugInfo | null>(null)
 const showDebug = ref(false)
 
 const LEVEL_OPTIONS = [
@@ -79,13 +80,13 @@ function copyLog() {
     .catch(() => window.$message?.error('复制失败'))
 }
 
-function formatSize(bytes) {
+function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function levelClass(line) {
+function levelClass(line: string): string {
   if (line.includes('[ERROR]')) return 'log-error'
   if (line.includes('[WARNING]')) return 'log-warn'
   if (line.includes('[DEBUG]')) return 'log-debug'

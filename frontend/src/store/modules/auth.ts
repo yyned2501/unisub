@@ -1,5 +1,7 @@
+import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { login as loginApi } from '@/service/api/auth'
+import type { LoginResponse } from '@/types'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('unisub_token') || '')
@@ -7,7 +9,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isLoggedIn = computed(() => !!token.value)
 
-  async function doLogin(user, pass) {
+  async function doLogin(user: string, pass: string) {
     const { data } = await loginApi(user, pass)
     token.value = data.access_token
     username.value = user
@@ -23,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('unisub_username')
   }
 
-  function checkAuth() {
+  function checkAuth(): boolean {
     if (!token.value) return false
     // 简单 JWT 过期检查（解码 payload 看 exp）
     try {
