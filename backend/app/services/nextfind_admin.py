@@ -44,9 +44,7 @@ class NextFindAdminService:
         Returns:
             API 响应字典
         """
-        params = urlencode(
-            {"tmdb_id": tmdb_id, "season": season, "episode": episode}
-        )
+        params = urlencode({"tmdb_id": tmdb_id, "season": season, "episode": episode})
         url = f"{self.base_url}/api/openapi/media/episode?{params}"
         result = await http_client.delete(url, headers=self._headers)
         if "error" in result:
@@ -128,7 +126,9 @@ class NextFindAdminService:
         return result
 
     async def delete_history_item(
-        self, tmdb_id: int | None = None, title: str | None = None,
+        self,
+        tmdb_id: int | None = None,
+        title: str | None = None,
     ) -> dict:
         """删除特定历史记录。
 
@@ -183,9 +183,7 @@ class NextFindAdminService:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/settings/tg_channels"
-        result = await http_client.post(
-            url, headers=self._headers, json=data
-        )
+        result = await http_client.post(url, headers=self._headers, json=data)
         if "error" in result:
             logger.error(f"NextFind 修改 TG 频道失败: {result}")
             return {}
@@ -220,9 +218,7 @@ class NextFindAdminService:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/settings/rss"
-        result = await http_client.post(
-            url, headers=self._headers, json=data
-        )
+        result = await http_client.post(url, headers=self._headers, json=data)
         if "error" in result:
             logger.error(f"NextFind 修改 RSS 失败: {result}")
             return {}
@@ -240,9 +236,7 @@ class NextFindAdminService:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/settings/rules"
-        result = await http_client.post(
-            url, headers=self._headers, json=data
-        )
+        result = await http_client.post(url, headers=self._headers, json=data)
         if "error" in result:
             logger.error(f"NextFind 修改规则失败: {result}")
             return {}
@@ -259,7 +253,8 @@ class NextFindAdminService:
         """
         url = f"{self.base_url}/api/openapi/settings/transfer_folder"
         result = await http_client.post(
-            url, headers=self._headers,
+            url,
+            headers=self._headers,
             json={"folder": folder},
         )
         if "error" in result:

@@ -1,10 +1,10 @@
 """定时任务路由 — 任务状态、手动触发、配置管理。"""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
@@ -12,9 +12,9 @@ from app.core.database import get_db
 from app.core.logger import init_logger
 from app.models.activity_log import ActivityLog
 from app.services import get_mp_service, get_nf_service
-from app.services.orchestrator import OrchestratorService
 from app.services import scheduler as _sched_mod
-from app.services.scheduler import TaskConfigUpdate, _task_config, _auto_fill_progress, save_state
+from app.services.orchestrator import OrchestratorService
+from app.services.scheduler import TaskConfigUpdate, _auto_fill_progress, _task_config, save_state
 
 router = APIRouter(prefix="/api/tasks", tags=["定时任务"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
@@ -99,16 +99,13 @@ async def trigger_task(db: AsyncSession = Depends(get_db)):
             id=str(uuid.uuid4()),
             action="system",
             tmdb_id=None,
-            message=(
-                f"定时任务完成: 同步 {sync_count} 条, "
-                f"MP 补充搜索 {mp_search_count} 条"
-            ),
-            created_at=datetime.now(timezone.utc),
+            message=(f"定时任务完成: 同步 {sync_count} 条, MP 补充搜索 {mp_search_count} 条"),
+            created_at=datetime.now(UTC),
         )
         db.add(log_entry)
         await db.commit()
 
-        _task_status["last_run"] = datetime.now(timezone.utc).isoformat()
+        _task_status["last_run"] = datetime.now(UTC).isoformat()
         _task_status["last_result"] = {
             "sync_count": sync_count,
             "mp_search_count": mp_search_count,

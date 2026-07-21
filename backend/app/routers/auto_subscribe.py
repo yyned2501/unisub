@@ -12,9 +12,6 @@ from app.schemas.auto_subscribe import (
     AutoSubMetaResponse,
     AutoSubRunResponse,
 )
-from app.services.auto_subscribe.config_store import (
-    get_config_store,
-)
 from app.services.auto_subscribe.models import SOURCE_NAMES, STATUS_LABELS
 from app.services.auto_subscribe.service import get_auto_subscribe_service
 
@@ -54,8 +51,13 @@ async def get_history() -> AutoSubHistoryResponse:
     """获取自动订阅处理历史。"""
     history = get_auto_subscribe_service().get_history()
     items = [
-        {"key": key, "status": value.get("status", ""), "time": value.get("time"),
-         "tmdb_id": value.get("tmdb_id"), "media_type": value.get("media_type")}
+        {
+            "key": key,
+            "status": value.get("status", ""),
+            "time": value.get("time"),
+            "tmdb_id": value.get("tmdb_id"),
+            "media_type": value.get("media_type"),
+        }
         for key, value in history.get("handled", {}).items()
     ]
     items.sort(key=lambda item: item.get("time") or "", reverse=True)
@@ -80,9 +82,19 @@ async def get_meta() -> AutoSubMetaResponse:
 
     return AutoSubMetaResponse(
         douban_ranks=[{"value": key, "label": value["label"]} for key, value in douban.DOUBAN_RANKS.items()],
-        maoyan_platforms=[{"value": value, "label": value} for value in ["腾讯视频", "爱奇艺", "优酷", "芒果TV", "哔哩哔哩", "抖音", "快手", "西瓜视频"]],
-        maoyan_media_types=[{"value": "tv", "label": "电视剧"}, {"value": "movie", "label": "电影"}, {"value": "动漫", "label": "动漫"}],
-        seasons=[{"value": value, "label": label} for value, label in [("当前", "当前季"), ("春", "春季"), ("夏", "夏季"), ("秋", "秋季"), ("冬", "冬季")]],
+        maoyan_platforms=[
+            {"value": value, "label": value}
+            for value in ["腾讯视频", "爱奇艺", "优酷", "芒果TV", "哔哩哔哩", "抖音", "快手", "西瓜视频"]
+        ],
+        maoyan_media_types=[
+            {"value": "tv", "label": "电视剧"},
+            {"value": "movie", "label": "电影"},
+            {"value": "动漫", "label": "动漫"},
+        ],
+        seasons=[
+            {"value": value, "label": label}
+            for value, label in [("当前", "当前季"), ("春", "春季"), ("夏", "夏季"), ("秋", "秋季"), ("冬", "冬季")]
+        ],
         source_names=SOURCE_NAMES,
         status_labels=STATUS_LABELS,
     )

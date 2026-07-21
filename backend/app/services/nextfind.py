@@ -3,10 +3,22 @@
 封装 NextFind 的搜索、订阅、转存、额度查询等 OpenAPI 接口。
 """
 
+from dataclasses import dataclass
+
 from app.core.http_client import http_client
 from app.core.logger import init_logger
 
 logger = init_logger()
+
+
+@dataclass(frozen=True)
+class SubscriptionCreateResult:
+    """NextFind 创建订阅的语义化结果。"""
+
+    outcome: str
+    subscription_id: str | None = None
+    message: str = ""
+
 
 # NextFind type 映射：前端传的英文类型 → NextFind 中文类型
 _TYPE_MAP = {
@@ -57,33 +69,84 @@ class NextFindService:
             return result.get("data", result.get("results", []))
         return []
 
-    async def add_subscription(self, tmdb_id: int) -> dict:
+    async def add_subscription(self, tmdb_id: int, media_type: str = "tv") -> dict:
         """向 NextFind 添加订阅。
 
         Args:
             tmdb_id: TMDB ID
+            media_type: 媒体类型（movie / tv）
 
         Returns:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/subscriptions/add"
         result = await http_client.post(
-            url, headers=self._headers, json={"tmdb_id": tmdb_id}
+            url,
+            headers=self._headers,
+            json={"tmdb_id": str(tmdb_id), "media_type": media_type},
         )
         return result
 
-    async def remove_subscription(self, tmdb_id: int) -> dict:
+    async def create_subscription(self, tmdb_id: int, media_type: str = "tv") -> SubscriptionCreateResult:
+        """创建订阅并严格校验 NextFind 的业务响应。
+
+        Args:
+            tmdb_id: TMDB ID。
+            media_type: 媒体类型（movie / tv）。
+
+        Returns:
+            语义化的创建结果；仅明确成功或已存在才返回成功 outcome。
+        """
+        result = await self.add_subscription(tmdb_id, media_type)
+        if not isinstance(result, dict):
+            return SubscriptionCreateResult("failed", message="NextFind 返回格式无效")
+
+        if result.get("error"):
+            return SubscriptionCreateResult("failed", message=str(result.get("detail") or result["error"]))
+
+        status = str(result.get("status", "")).lower()
+        message = str(result.get("message") or result.get("detail") or "")
+        subscription_id = result.get("id") or result.get("sub_id")
+        normalized_message = message.lower()
+        if status in {"success", "ok", "created"}:
+            return SubscriptionCreateResult(
+                "created",
+                subscription_id=str(subscription_id) if subscription_id else None,
+                message=message,
+            )
+        if status in {"exists", "already_exists", "already_subscribed"} or any(
+            token in normalized_message for token in ("already", "exists", "已存在", "已订阅")
+        ):
+            return SubscriptionCreateResult(
+                "already_exists",
+                subscription_id=str(subscription_id) if subscription_id else None,
+                message=message,
+            )
+
+        logger.error(
+            "NextFind 创建订阅业务失败: tmdb_id=%s, media_type=%s, status=%s, message=%s",
+            tmdb_id,
+            media_type,
+            status or "missing",
+            message or "响应缺少成功状态",
+        )
+        return SubscriptionCreateResult("failed", message=message or "NextFind 未确认订阅成功")
+
+    async def remove_subscription(self, tmdb_id: int, media_type: str = "tv") -> dict:
         """从 NextFind 取消订阅。
 
         Args:
             tmdb_id: TMDB ID
+            media_type: 媒体类型（movie / tv）
 
         Returns:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/subscriptions/remove"
         result = await http_client.post(
-            url, headers=self._headers, json={"tmdb_id": tmdb_id}
+            url,
+            headers=self._headers,
+            json={"tmdb_id": str(tmdb_id), "media_type": media_type},
         )
         return result
 
@@ -173,8 +236,11 @@ class NextFindService:
         return []
 
     async def search_resources(
-        self, tmdb_id: int, media_type: str = "movie",
-        season: int | None = None, episode: int | None = None,
+        self,
+        tmdb_id: int,
+        media_type: str = "movie",
+        season: int | None = None,
+        episode: int | None = None,
     ) -> list[dict]:
         """搜索网盘与种子资源，获取标签、神盾标志、洗版权重等属性。
 
@@ -213,9 +279,7 @@ class NextFindService:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/preview"
-        result = await http_client.post(
-            url, headers=self._headers, json={"slug": slug}
-        )
+        result = await http_client.post(url, headers=self._headers, json={"slug": slug})
         if "error" in result:
             logger.error(f"NextFind 探针解包失败: {result}")
             return {}
@@ -233,7 +297,8 @@ class NextFindService:
         """
         url = f"{self.base_url}/api/openapi/hdhive/unlock"
         result = await http_client.post(
-            url, headers=self._headers,
+            url,
+            headers=self._headers,
             json={"id": resource_id, "type": resource_type},
         )
         if "error" in result:
@@ -253,7 +318,8 @@ class NextFindService:
         """
         url = f"{self.base_url}/api/openapi/directories"
         result = await http_client.post(
-            url, headers=self._headers,
+            url,
+            headers=self._headers,
             json={"parent_cid": parent_cid, "name": name},
         )
         if "error" in result:
@@ -292,9 +358,7 @@ class NextFindService:
             订阅详情字典
         """
         url = f"{self.base_url}/api/openapi/subscriptions/info"
-        result = await http_client.post(
-            url, headers=self._headers, json={"ids": subscription_ids}
-        )
+        result = await http_client.post(url, headers=self._headers, json={"ids": subscription_ids})
         if "error" in result:
             logger.error(f"NextFind 查询订阅详情失败: {result}")
             return {}
@@ -312,8 +376,9 @@ class NextFindService:
         """
         url = f"{self.base_url}/api/openapi/media/fill_missing"
         result = await http_client.post(
-            url, headers=self._headers,
-            json={"tmdb_id": tmdb_id, "media_type": media_type},
+            url,
+            headers=self._headers,
+            json={"tmdb_id": str(tmdb_id), "media_type": media_type},
         )
         if "error" in result:
             logger.error(f"NextFind 补缺集搜索失败: {result}")
@@ -332,7 +397,8 @@ class NextFindService:
         """
         url = f"{self.base_url}/api/openapi/ignored_episodes/toggle"
         result = await http_client.post(
-            url, headers=self._headers,
+            url,
+            headers=self._headers,
             json={"tmdb_id": tmdb_id, "season": season},
         )
         if "error" in result:

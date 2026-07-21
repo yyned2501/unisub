@@ -5,17 +5,16 @@ Emby API 通过 X-Emby-Token 头鉴权。
 """
 
 import asyncio
-from datetime import date, datetime, timezone
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.http_client import http_client
 from app.core.logger import init_logger
-from app.services.tmdb import TMDBService
 from app.models.emby_cache import EmbyCache
 from app.models.tmdb_cache import TmdbCache
-from app.models.subscription import Subscription
+from app.services.tmdb import TMDBService
 
 logger = init_logger()
 
@@ -84,9 +83,7 @@ class EmbyService:
             return result
         return []
 
-    async def get_episodes(
-        self, series_id: str, season_id: str | None = None
-    ) -> list[dict]:
+    async def get_episodes(self, series_id: str, season_id: str | None = None) -> list[dict]:
         """获取剧集的所有集。
 
         Args:
@@ -172,11 +169,7 @@ class EmbyService:
         url = f"{self.base_url}/Library/MediaFolders"
         result = await http_client.get(url, headers=self._headers)
         if isinstance(result, dict) and result.get("Items"):
-            return {
-                item["Id"]: item["Name"]
-                for item in result["Items"]
-                if item.get("Id")
-            }
+            return {item["Id"]: item["Name"] for item in result["Items"] if item.get("Id")}
         return {}
 
     def _get_library_for_item(self, item: dict, library_map: dict[str, str]) -> str | None:
@@ -199,9 +192,7 @@ class EmbyService:
                 return fname
         return None
 
-    async def sync_cache(
-        self, db: AsyncSession
-    ) -> dict:
+    async def sync_cache(self, db: AsyncSession) -> dict:
         """同步 Emby 剧集数据到本地 emby_cache 表 — 只拉 Emby 数据。
 
         从 Emby 拉取所有带 TMDB ID 的剧集，批量分页查询每部剧集的实际集数，
@@ -273,10 +264,7 @@ class EmbyService:
             library_name = self._get_library_for_item(item, library_map)
 
             emby_image_url = (
-                f"{self.base_url}/Items/{emby_id}/Images/Primary?"
-                f"api_key={self.api_key}"
-                if emby_id
-                else None
+                f"{self.base_url}/Items/{emby_id}/Images/Primary?api_key={self.api_key}" if emby_id else None
             )
             emby_path = item.get("Path")
 
@@ -321,17 +309,16 @@ class EmbyService:
             logger.warning("Emby 缓存同步未获取到数据，跳过删除旧记录")
 
         await db.commit()
-        logger.info(
-            f"Emby 缓存同步完成: 更新 {len(synced_tmdb_ids)} 条, "
-            f"删除 {deleted} 条"
-        )
+        logger.info(f"Emby 缓存同步完成: 更新 {len(synced_tmdb_ids)} 条, 删除 {deleted} 条")
         return {
             "synced": len(synced_tmdb_ids),
             "deleted": deleted,
         }
 
     async def _update_tmdb_data_internal(
-        self, db: AsyncSession, tmdb_service: TMDBService,
+        self,
+        db: AsyncSession,
+        tmdb_service: TMDBService,
         mode: str = "all",
         progress_callback=None,
     ) -> dict:
@@ -352,6 +339,7 @@ class EmbyService:
         subscribed_ids: set[int] = set()
         if mode == "subscribed":
             from app.models.subscription import Subscription
+
             sub_stmt = select(Subscription.tmdb_id).where(
                 Subscription.media_type == "tv",
                 Subscription.nf_subscribed == True,
@@ -408,9 +396,7 @@ class EmbyService:
                     aired = await tmdb_service.get_aired_episode_count(tid)
                     next_date = await tmdb_service.get_next_air_date(tid)
                     poster = detail.get("poster_path")
-                    poster_url = (
-                        f"https://image.tmdb.org/t/p/w500{poster}" if poster else None
-                    )
+                    poster_url = f"https://image.tmdb.org/t/p/w500{poster}" if poster else None
                     return tid, {
                         "total_eps": detail.get("number_of_episodes"),
                         "aired_eps": aired,
@@ -456,7 +442,7 @@ class EmbyService:
 
         updated = 0
         for i in range(0, total, batch_size):
-            batch = to_update[i:i + batch_size]
+            batch = to_update[i : i + batch_size]
             tasks = [_fetch(c.tmdb_id) for c in batch]
             results = await asyncio.gather(*tasks)
             tmdb_map = dict(results)
@@ -482,23 +468,28 @@ class EmbyService:
         logger.info(f"TMDB {log_label} 完成: 更新 {updated}/{total} 条")
         return {"updated": updated, "total": total}
 
-    async def update_tmdb_data(
-        self, db: AsyncSession, tmdb_service: TMDBService
-    ) -> dict:
+    async def update_tmdb_data(self, db: AsyncSession, tmdb_service: TMDBService) -> dict:
         """补充 emby_cache 表的 TMDB 数据 — 只更新已订阅的连载剧集。"""
         return await self._update_tmdb_data_internal(db, tmdb_service, mode="subscribed")
 
     async def update_tmdb_data_all(
-        self, db: AsyncSession, tmdb_service: TMDBService,
+        self,
+        db: AsyncSession,
+        tmdb_service: TMDBService,
         progress_callback=None,
     ) -> dict:
         """补充 TMDB 数据到 tmdb_cache（不限已订阅，慢速批量）。"""
         return await self._update_tmdb_data_internal(
-            db, tmdb_service, mode="all", progress_callback=progress_callback,
+            db,
+            tmdb_service,
+            mode="all",
+            progress_callback=progress_callback,
         )
 
     async def update_tmdb_data_missing(
-        self, db: AsyncSession, tmdb_service: TMDBService,
+        self,
+        db: AsyncSession,
+        tmdb_service: TMDBService,
     ) -> dict:
         """补充 tmdb_cache 缺失 TMDB 数据的记录 — 轻量增量。"""
         return await self._update_tmdb_data_internal(db, tmdb_service, mode="missing")

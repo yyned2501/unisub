@@ -13,10 +13,10 @@ from app.schemas.platform import (
     PlatformConfigUpdate,
     PlatformTestResult,
 )
+from app.services.emby import EmbyService
 from app.services.moviepilot import MoviePilotService
 from app.services.nextfind import NextFindService
-from app.services.emby import EmbyService
-from app.services.platform import list_platforms, create_platform, update_platform, delete_platform
+from app.services.platform import create_platform, delete_platform, list_platforms, update_platform
 
 router = APIRouter(prefix="/api/platforms", tags=["平台配置"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
@@ -29,17 +29,18 @@ async def list_platforms_endpoint(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", response_model=PlatformConfigResponse, status_code=201)
-async def create_platform_endpoint(
-    body: PlatformConfigCreate, db: AsyncSession = Depends(get_db)
-):
+async def create_platform_endpoint(body: PlatformConfigCreate, db: AsyncSession = Depends(get_db)):
     """添加新的平台配置。
 
     平台名称必须唯一（nextfind / moviepilot）。
     """
     try:
         config = await create_platform(
-            db, name=body.name, base_url=body.base_url,
-            api_key=body.api_key, enabled=body.enabled,
+            db,
+            name=body.name,
+            base_url=body.base_url,
+            api_key=body.api_key,
+            enabled=body.enabled,
         )
         logger.info(f"平台配置已创建: {body.name}")
         return config
@@ -63,9 +64,7 @@ async def update_platform_endpoint(
 
 
 @router.delete("/{platform_id}", status_code=204)
-async def delete_platform_endpoint(
-    platform_id: str, db: AsyncSession = Depends(get_db)
-):
+async def delete_platform_endpoint(platform_id: str, db: AsyncSession = Depends(get_db)):
     """删除平台配置。"""
     success = await delete_platform(db, platform_id)
     if not success:
@@ -74,9 +73,7 @@ async def delete_platform_endpoint(
 
 
 @router.post("/{platform_id}/test", response_model=PlatformTestResult)
-async def test_platform_connection(
-    platform_id: str, db: AsyncSession = Depends(get_db)
-):
+async def test_platform_connection(platform_id: str, db: AsyncSession = Depends(get_db)):
     """测试平台连接 — 对 NextFind 调 /quota，对 MoviePilot 调 /site/statistic。"""
     config = await db.get(PlatformConfig, platform_id)
     if not config:
