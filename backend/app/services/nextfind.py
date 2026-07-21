@@ -45,6 +45,22 @@ class NextFindService:
         self.api_key = api_key
         self._headers = {"X-API-Key": api_key, "accept": "application/json"}
 
+    def _check(self, result: dict, empty: list | dict, context: str) -> list | dict | None:
+        """检查 http_client 返回是否包含错误，出错时记录日志并返回空值。
+
+        Args:
+            result: http_client 返回的字典
+            empty: 出错时的默认返回（[] 或 {}）
+            context: 日志上下文描述（如"搜索"、"获取订阅列表"）
+
+        Returns:
+            empty 表示出错，None 表示正常
+        """
+        if isinstance(result, dict) and "error" in result:
+            logger.error("NextFind %s 失败: %s", context, result)
+            return empty
+        return None
+
     async def search_tmdb(self, query: str, media_type: str = "all") -> list[dict]:
         """搜索 TMDB 资源。
 
@@ -60,9 +76,8 @@ class NextFindService:
         url = f"{self.base_url}/api/openapi/search"
         params = {"query": query, "type": mapped_type}
         result = await http_client.get(url, headers=self._headers, params=params)
-        if "error" in result:
-            logger.error(f"NextFind 搜索失败: {result}")
-            return []
+        if (ret := self._check(result, [], "搜索")) is not None:
+            return ret
         if isinstance(result, list):
             return result
         if isinstance(result, dict):
@@ -158,9 +173,8 @@ class NextFindService:
         """
         url = f"{self.base_url}/api/openapi/subscriptions"
         result = await http_client.get(url, headers=self._headers)
-        if "error" in result:
-            logger.error(f"NextFind 获取订阅列表失败: {result}")
-            return []
+        if (ret := self._check(result, [], "获取订阅列表")) is not None:
+            return ret
         if isinstance(result, list):
             return result
         if isinstance(result, dict):
@@ -203,9 +217,8 @@ class NextFindService:
         """
         url = f"{self.base_url}/api/openapi/history"
         result = await http_client.get(url, headers=self._headers)
-        if "error" in result:
-            logger.error(f"NextFind 获取历史失败: {result}")
-            return []
+        if (ret := self._check(result, [], "获取历史")) is not None:
+            return ret
         if isinstance(result, list):
             return result
         if isinstance(result, dict):
@@ -226,9 +239,8 @@ class NextFindService:
         if cid:
             params["cid"] = cid
         result = await http_client.get(url, headers=self._headers, params=params)
-        if "error" in result:
-            logger.error(f"NextFind 获取目录失败: {result}")
-            return []
+        if (ret := self._check(result, [], "获取目录")) is not None:
+            return ret
         if isinstance(result, list):
             return result
         if isinstance(result, dict):
@@ -260,9 +272,8 @@ class NextFindService:
         if episode is not None:
             params["episode"] = episode
         result = await http_client.get(url, headers=self._headers, params=params)
-        if "error" in result:
-            logger.error(f"NextFind 资源搜索失败: {result}")
-            return []
+        if (ret := self._check(result, [], "资源搜索")) is not None:
+            return ret
         if isinstance(result, list):
             return result
         if isinstance(result, dict):
@@ -280,9 +291,8 @@ class NextFindService:
         """
         url = f"{self.base_url}/api/openapi/preview"
         result = await http_client.post(url, headers=self._headers, json={"slug": slug})
-        if "error" in result:
-            logger.error(f"NextFind 探针解包失败: {result}")
-            return {}
+        if (ret := self._check(result, {}, "探针解包")) is not None:
+            return ret
         return result
 
     async def hdhive_unlock(self, resource_id: str, resource_type: str) -> dict:
@@ -301,9 +311,8 @@ class NextFindService:
             headers=self._headers,
             json={"id": resource_id, "type": resource_type},
         )
-        if "error" in result:
-            logger.error(f"NextFind HDHive 解锁失败: {result}")
-            return {}
+        if (ret := self._check(result, {}, "HDHive 解锁")) is not None:
+            return ret
         return result
 
     async def create_directory(self, parent_cid: str, name: str) -> dict:
@@ -322,9 +331,8 @@ class NextFindService:
             headers=self._headers,
             json={"parent_cid": parent_cid, "name": name},
         )
-        if "error" in result:
-            logger.error(f"NextFind 创建目录失败: {result}")
-            return {}
+        if (ret := self._check(result, {}, "创建目录")) is not None:
+            return ret
         return result
 
     async def filter_local_library(self, status_filter: str = "missing") -> list[dict]:
@@ -339,9 +347,8 @@ class NextFindService:
         url = f"{self.base_url}/api/openapi/local_library/filter"
         params = {"status_filter": status_filter}
         result = await http_client.get(url, headers=self._headers, params=params)
-        if "error" in result:
-            logger.error(f"NextFind 本地库过滤失败: {result}")
-            return []
+        if (ret := self._check(result, [], "本地库过滤")) is not None:
+            return ret
         if isinstance(result, list):
             return result
         if isinstance(result, dict):
@@ -359,9 +366,8 @@ class NextFindService:
         """
         url = f"{self.base_url}/api/openapi/subscriptions/info"
         result = await http_client.post(url, headers=self._headers, json={"ids": subscription_ids})
-        if "error" in result:
-            logger.error(f"NextFind 查询订阅详情失败: {result}")
-            return {}
+        if (ret := self._check(result, {}, "查询订阅详情")) is not None:
+            return ret
         return result
 
     async def fill_missing(self, tmdb_id: int, media_type: str = "tv") -> dict:
@@ -380,9 +386,8 @@ class NextFindService:
             headers=self._headers,
             json={"tmdb_id": str(tmdb_id), "media_type": media_type},
         )
-        if "error" in result:
-            logger.error(f"NextFind 补缺集搜索失败: {result}")
-            return {}
+        if (ret := self._check(result, {}, "补缺集搜索")) is not None:
+            return ret
         return result
 
     async def toggle_ignored_episode(self, tmdb_id: int, season: int) -> dict:
@@ -401,7 +406,6 @@ class NextFindService:
             headers=self._headers,
             json={"tmdb_id": tmdb_id, "season": season},
         )
-        if "error" in result:
-            logger.error(f"NextFind 切换忽略季失败: {result}")
-            return {}
+        if (ret := self._check(result, {}, "切换忽略季")) is not None:
+            return ret
         return result

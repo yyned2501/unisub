@@ -75,11 +75,6 @@ async def _fetch_rss(url: str, type_hint: str | None = None) -> list[RankMediaIt
     except Exception:
         return []
 
-    try:
-        dom = parseString(raw)
-    except Exception:
-        return []
-
     items: list[RankMediaItem] = []
     for entry in dom.getElementsByTagName("item"):
         try:
