@@ -30,6 +30,7 @@ class SubscriptionResponse(BaseModel):
     nf_missing_eps: int = 0
     nf_sub_id: str | None = None
     completed: bool = False
+    aired_complete: bool = False
     source: str | None = None
     created_at: datetime
     updated_at: datetime
