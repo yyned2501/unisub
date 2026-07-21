@@ -1,7 +1,10 @@
 """CloudDrive2 gRPC 客户端封装。"""
 
 import grpc
-from google.protobuf import descriptor_pb2, empty_pb2, timestamp_pb2
+
+# 副作用导入：必须在 clouddrive_pb2 之前加载 protobuf well-known types 到 descriptor pool，
+# 否则 clouddrive_pb2 会报 "Depends on file 'google/protobuf/timestamp.proto', but it has not been loaded"
+from google.protobuf import descriptor_pb2, empty_pb2, timestamp_pb2  # noqa: F401
 
 from app.core import clouddrive_pb2, clouddrive_pb2_grpc
 
