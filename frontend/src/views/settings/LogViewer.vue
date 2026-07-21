@@ -28,7 +28,9 @@ async function loadFiles() {
   try {
     const { data } = await getLogFiles()
     files.value = data.files || []
-  } catch {}
+  } catch {
+    window.$message?.error('加载日志文件列表失败')
+  }
 }
 
 async function loadContent() {
@@ -43,6 +45,7 @@ async function loadContent() {
     logLines.value = data.lines || []
     totalLines.value = data.total_lines || 0
   } catch {
+    window.$message?.error('加载日志内容失败')
     logLines.value = []
     totalLines.value = 0
   } finally {
@@ -54,7 +57,9 @@ async function loadDebug() {
   try {
     const { data } = await getDebugInfo()
     debugInfo.value = data
-  } catch {}
+  } catch {
+    window.$message?.error('加载 Debug 信息失败')
+  }
 }
 
 function refresh() {

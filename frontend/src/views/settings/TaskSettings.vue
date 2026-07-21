@@ -30,7 +30,9 @@ async function load() {
         config.auto_fill_interval_secs = data.config.auto_fill_interval_seconds || 30
       }
     }
-  } catch {} finally { loading.value = false }
+  } catch {
+    window.$message?.error('加载任务配置失败')
+  } finally { loading.value = false }
 }
 
 async function handleSave() {
@@ -42,7 +44,9 @@ async function handleSave() {
       auto_fill_interval_seconds: config.auto_fill_interval_secs,
     })
     window.$message?.success('任务配置已保存')
-  } catch {} finally { saving.value = false }
+  } catch {
+    window.$message?.error('保存任务配置失败')
+  } finally { saving.value = false }
 }
 
 onMounted(() => load())
