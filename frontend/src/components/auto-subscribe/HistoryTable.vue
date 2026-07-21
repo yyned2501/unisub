@@ -75,6 +75,7 @@ const columns = [
         :data="history"
         :bordered="false"
         :single-line="false"
+        :scroll-x="660"
         size="small"
         :row-key="rowKey"
       />

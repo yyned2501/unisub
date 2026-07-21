@@ -42,6 +42,8 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
     title: '海报',
     key: 'poster_url',
     width: 60,
+    className: 'hidden sm:table-cell',
+    titleClassName: 'hidden sm:table-cell',
     render(row) {
       if (row.poster_url)
         return h('img', { src: row.poster_url, class: 'w-10 h-14 rounded object-cover block', onError: onImgError })
@@ -65,6 +67,8 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
     title: '类型',
     key: 'media_type',
     width: 70,
+    className: 'hidden sm:table-cell',
+    titleClassName: 'hidden sm:table-cell',
     render(row) {
       return h(
         NTag,
@@ -77,6 +81,8 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
     title: '年份',
     key: 'year',
     width: 54,
+    className: 'hidden sm:table-cell',
+    titleClassName: 'hidden sm:table-cell',
     render(row) {
       return h('span', { class: 'opacity-50' }, row.year || '-')
     },
@@ -85,6 +91,8 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
     title: 'TMDB',
     key: 'tmdb_id',
     width: 90,
+    className: 'hidden sm:table-cell',
+    titleClassName: 'hidden sm:table-cell',
     render(row) {
       if (!row.tmdb_id) return h('span', { class: 'opacity-30' }, '-')
       return h(
@@ -120,6 +128,8 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
     title: '来源',
     key: 'source',
     width: 80,
+    className: 'hidden sm:table-cell',
+    titleClassName: 'hidden sm:table-cell',
     render(row) {
       if (!row.source) return '-'
       const labels: Record<string, string> = {
@@ -166,7 +176,7 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
             <n-radio-button value="unsynced">未同步</n-radio-button>
             <n-radio-button value="all">全部</n-radio-button>
           </n-radio-group>
-          <n-input v-model:value="searchText" placeholder="搜索标题..." size="small" clearable style="width: 200px">
+          <n-input v-model:value="searchText" placeholder="搜索标题..." size="small" clearable class="w-full sm:w-50">
             <template #prefix><i class="ri-search-line opacity-40"></i></template>
           </n-input>
         </div>
@@ -187,6 +197,7 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
           :data="pagedList"
           :bordered="false"
           :single-line="false"
+          :scroll-x="900"
           size="small"
           :row-key="(row) => row.id"
         />

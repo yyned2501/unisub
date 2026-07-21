@@ -35,7 +35,7 @@ const cards = [
 </script>
 
 <template>
-  <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4">
     <n-card v-for="c in cards" :key="c.key" size="small" :bordered="true">
       <div class="flex items-center gap-3">
         <div class="flex items-center justify-center w-10 h-10 rounded-lg shrink-0" :style="{ background: c.bg }">

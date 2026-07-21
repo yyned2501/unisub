@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch, h } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useMediaQuery } from '@vueuse/core'
 import { NConfigProvider, zhCN } from 'naive-ui'
 import AppProvider from '@/components/common/app-provider.vue'
+import AppMenu from '@/components/common/AppMenu.vue'
 import { useThemeStore } from '@/store/modules/theme'
 import { useAuthStore } from '@/store/modules/auth'
 
@@ -13,52 +15,12 @@ const router = useRouter()
 const route = useRoute()
 
 const collapsed = ref(false)
+/** 小屏（<768px）：侧边栏改为抽屉式导航 */
+const isMobile = useMediaQuery('(max-width: 767px)')
+const drawerVisible = ref(false)
+
 const auth = useAuthStore()
 const isLoginPage = computed(() => route.path === '/login')
-
-function riIcon(className: string) {
-  return () => h('i', { class: className })
-}
-
-const menuOptions = [
-  { label: '看板', key: '/', icon: riIcon('ri-dashboard-line text-lg') },
-  { label: '搜索', key: '/search', icon: riIcon('ri-search-line text-lg') },
-  { label: '订阅', key: '/subscriptions', icon: riIcon('ri-rss-line text-lg') },
-  { label: '媒体库', key: '/emby', icon: riIcon('ri-tv-2-line text-lg') },
-  { label: '自动订阅', key: '/settings/auto-subscribe', icon: riIcon('ri-sparkling-2-line text-lg') },
-  { label: '无 TMDB 媒体', key: '/emby/tmdb-404', icon: riIcon('ri-error-warning-line text-lg') },
-  {
-    label: '设置',
-    key: 'settings-group',
-    icon: riIcon('ri-settings-3-line text-lg'),
-    children: [
-      { label: '平台配置', key: '/settings/platforms', icon: riIcon('ri-database-2-line') },
-      { label: 'CloudDrive2', key: '/settings/cd2', icon: riIcon('ri-cloud-line') },
-      { label: '定时任务', key: '/settings/tasks', icon: riIcon('ri-time-line') },
-      { label: '日志查看', key: '/settings/logs', icon: riIcon('ri-file-list-3-line') },
-      { label: '账号设置', key: '/settings/account', icon: riIcon('ri-user-settings-line') },
-    ],
-  },
-]
-
-const activeKey = computed(() => route.path)
-
-/** 自动展开设置子菜单 */
-const expandedKeys = ref<string[]>([])
-
-watch(
-  () => route.path,
-  (path) => {
-    if (path.startsWith('/settings') && !expandedKeys.value.includes('settings-group')) {
-      expandedKeys.value = [...expandedKeys.value, 'settings-group']
-    }
-  },
-  { immediate: true }
-)
-
-function handleMenuSelect(key: string) {
-  router.push(key)
-}
 
 function handleLogout() {
   auth.logout()
@@ -74,8 +36,9 @@ function handleLogout() {
       <!-- 主布局 — 侧边栏 + 内容区 -->
       <div v-else style="position: relative; height: 100%">
         <n-layout has-sider position="absolute">
-          <!-- 侧边栏 -->
+          <!-- 侧边栏（仅桌面端） -->
           <n-layout-sider
+            v-if="!isMobile"
             bordered
             :collapsed="collapsed"
             collapse-mode="width"
@@ -101,23 +64,21 @@ function handleLogout() {
               <span v-show="!collapsed" class="text-base font-bold tracking-wide whitespace-nowrap">UniSub</span>
             </div>
 
-            <n-menu
-              :value="activeKey"
-              :collapsed="collapsed"
-              :collapsed-width="64"
-              :collapsed-icon-size="20"
-              :options="menuOptions"
-              v-model:expanded-keys="expandedKeys"
-              @update:value="handleMenuSelect"
-              class="pt-2"
-            />
+            <AppMenu :collapsed="collapsed" />
           </n-layout-sider>
 
           <!-- 右侧区域 -->
           <n-layout>
-            <n-layout-header bordered class="h-14 flex items-center justify-between px-4">
-              <div class="flex items-center gap-3">
-                <n-button quaternary size="small" @click="collapsed = !collapsed">
+            <n-layout-header bordered class="h-14 flex items-center justify-between px-3 sm:px-4">
+              <div class="flex items-center gap-2 sm:gap-3">
+                <!-- 移动端：打开抽屉导航 -->
+                <n-button v-if="isMobile" quaternary size="small" @click="drawerVisible = true">
+                  <template #icon>
+                    <i class="ri-menu-line text-lg"></i>
+                  </template>
+                </n-button>
+                <!-- 桌面端：折叠侧边栏 -->
+                <n-button v-else quaternary size="small" @click="collapsed = !collapsed">
                   <template #icon>
                     <i :class="collapsed ? 'ri-menu-unfold-line' : 'ri-menu-fold-line'" class="text-lg"></i>
                   </template>
@@ -141,7 +102,7 @@ function handleLogout() {
             </n-layout-header>
 
             <n-layout-content :native-scrollbar="false">
-              <div class="p-5 mx-auto" style="max-width: 1400px">
+              <div class="p-3 sm:p-5 mx-auto" style="max-width: 1400px">
                 <router-view v-slot="{ Component }">
                   <transition name="fade" mode="out-in">
                     <component :is="Component" />
@@ -151,6 +112,32 @@ function handleLogout() {
             </n-layout-content>
           </n-layout>
         </n-layout>
+
+        <!-- 移动端抽屉导航 -->
+        <n-drawer v-model:show="drawerVisible" :width="260" placement="left">
+          <n-drawer-content :native-scrollbar="false" body-content-style="padding: 0">
+            <template #header>
+              <div class="flex items-center gap-2.5">
+                <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 shrink-0">
+                  <rect width="32" height="32" rx="8" fill="#3b82f6" />
+                  <text
+                    x="16"
+                    y="22"
+                    text-anchor="middle"
+                    fill="white"
+                    font-size="18"
+                    font-weight="bold"
+                    font-family="Arial"
+                  >
+                    U
+                  </text>
+                </svg>
+                <span class="text-base font-bold tracking-wide">UniSub</span>
+              </div>
+            </template>
+            <AppMenu @navigate="drawerVisible = false" />
+          </n-drawer-content>
+        </n-drawer>
       </div>
     </AppProvider>
   </NConfigProvider>
