@@ -13,7 +13,7 @@ import { DEFAULT_CONFIG, DEFAULT_META } from '@/components/auto-subscribe/defaul
 import SourceConfigPanel from '@/components/auto-subscribe/SourceConfigPanel.vue'
 import HistoryTable from '@/components/auto-subscribe/HistoryTable.vue'
 import { msg } from '@/utils/message'
-import type { AutoSubConfig, AutoSubMetaResponse, AutoSubHistoryItem, SelectOption } from '@/types'
+import type { AutoSubConfig, AutoSubMetaResponse, AutoSubHistoryItem } from '@/types'
 
 defineOptions({ name: 'AutoSubscribeSettings' })
 
@@ -45,17 +45,9 @@ function toggleArray(key: string, val: string) {
 async function load() {
   loading.value = true
   try {
-    const [cfg, remoteMeta, hist] = await Promise.all([
-      getAutoSubConfig(),
-      getAutoSubMeta(),
-      getAutoSubHistory(),
-    ])
+    const [cfg, remoteMeta, hist] = await Promise.all([getAutoSubConfig(), getAutoSubMeta(), getAutoSubHistory()])
     Object.assign(config, DEFAULT_CONFIG, cfg.config || {})
-    for (const key of [
-      'douban_ranks',
-      'maoyan_web_platforms',
-      'maoyan_web_types',
-    ] as const) {
+    for (const key of ['douban_ranks', 'maoyan_web_platforms', 'maoyan_web_types'] as const) {
       if (!Array.isArray(config[key])) config[key] = [...DEFAULT_CONFIG[key]]
     }
     statusLabels.value = cfg.status_labels || {}
@@ -69,13 +61,19 @@ async function load() {
       ...DEFAULT_META,
       ...metaPayload,
       douban_ranks: metaPayload.douban_ranks?.length ? metaPayload.douban_ranks : DEFAULT_META.douban_ranks,
-      maoyan_platforms: metaPayload.maoyan_platforms?.length ? metaPayload.maoyan_platforms : DEFAULT_META.maoyan_platforms,
-      maoyan_media_types: metaPayload.maoyan_media_types?.length ? metaPayload.maoyan_media_types : DEFAULT_META.maoyan_media_types,
+      maoyan_platforms: metaPayload.maoyan_platforms?.length
+        ? metaPayload.maoyan_platforms
+        : DEFAULT_META.maoyan_platforms,
+      maoyan_media_types: metaPayload.maoyan_media_types?.length
+        ? metaPayload.maoyan_media_types
+        : DEFAULT_META.maoyan_media_types,
       seasons: metaPayload.seasons?.length ? metaPayload.seasons : DEFAULT_META.seasons,
     }
     history.value = hist.items || []
   } catch (error: unknown) {
-    msg.error((error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '自动订阅配置加载失败')
+    msg.error(
+      (error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '自动订阅配置加载失败'
+    )
   } finally {
     loading.value = false
   }
@@ -137,26 +135,54 @@ onMounted(() => load())
 
               <div class="flex flex-wrap items-center gap-2">
                 <span class="text-xs opacity-50">最小年份</span>
-                <n-input-number v-model:value="config.min_year" :min="0" :max="2100" size="small" style="width: 110px;" />
+                <n-input-number
+                  v-model:value="config.min_year"
+                  :min="0"
+                  :max="2100"
+                  size="small"
+                  style="width: 110px"
+                />
                 <span class="text-xs opacity-50">最小评分</span>
-                <n-input-number v-model:value="config.min_vote" :min="0" :max="10" :step="0.5" size="small" style="width: 110px;" />
+                <n-input-number
+                  v-model:value="config.min_vote"
+                  :min="0"
+                  :max="10"
+                  :step="0.5"
+                  size="small"
+                  style="width: 110px"
+                />
                 <span class="text-xs opacity-50">类型</span>
-                <n-select v-model:value="config.media_type" :options="[
-                  { value: 'all', label: '全部' },
-                  { value: 'movie', label: '电影' },
-                  { value: 'tv', label: '剧集' },
-                ]" size="small" style="width: 100px;" />
+                <n-select
+                  v-model:value="config.media_type"
+                  :options="[
+                    { value: 'all', label: '全部' },
+                    { value: 'movie', label: '电影' },
+                    { value: 'tv', label: '剧集' },
+                  ]"
+                  size="small"
+                  style="width: 100px"
+                />
               </div>
 
               <div class="flex flex-col gap-1.5">
                 <label class="text-xs opacity-50 font-medium">定时表达式 (Cron)</label>
-                <n-input v-model:value="config.schedule_cron" placeholder="0 8 * * *" size="small" style="max-width: 200px;" />
+                <n-input
+                  v-model:value="config.schedule_cron"
+                  placeholder="0 8 * * *"
+                  size="small"
+                  style="max-width: 200px"
+                />
                 <span v-if="scheduleRunning" class="text-xs text-warning">自动订阅正在运行</span>
                 <span v-else-if="scheduleError" class="text-xs text-error">上次运行异常: {{ scheduleError }}</span>
               </div>
               <div class="flex flex-col gap-1.5">
                 <label class="text-xs opacity-50 font-medium">代理地址（可选，如 http://192.168.31.10:7890）</label>
-                <n-input v-model:value="config.proxy_url" placeholder="http://192.168.31.10:7890" size="small" style="max-width: 300px;" />
+                <n-input
+                  v-model:value="config.proxy_url"
+                  placeholder="http://192.168.31.10:7890"
+                  size="small"
+                  style="max-width: 300px"
+                />
               </div>
             </div>
           </n-card>

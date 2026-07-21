@@ -1,6 +1,7 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { searchMedia } from '@/service/api/search'
 import { createSubscription } from '@/service/api/subscriptions'
+import { usePagedList } from '@/composables/usePagedList'
 import { msg } from '@/utils/message'
 import type { SearchResultItem, MediaType } from '@/types'
 
@@ -17,15 +18,14 @@ export function useSearch() {
 
   const subscribedIds = ref<Set<number>>(new Set())
 
-  const currentPage = ref(1)
-  const pageSize = 20
-
-  const totalPages = computed(() => Math.ceil(results.value.length / pageSize))
-
-  const pagedResults = computed(() => {
-    const start = (currentPage.value - 1) * pageSize
-    return results.value.slice(start, start + pageSize)
-  })
+  // 前端分页
+  const {
+    page: currentPage,
+    totalPages,
+    pagedList: pagedResults,
+    setPage,
+    reset: resetPage,
+  } = usePagedList(results, 20)
 
   function isSubscribed(tmdbId: number): boolean {
     return subscribedIds.value.has(tmdbId)
@@ -35,7 +35,7 @@ export function useSearch() {
     keyword.value = ''
     results.value = []
     searched.value = false
-    currentPage.value = 1
+    resetPage()
   }
 
   async function handleSearch() {
@@ -45,7 +45,7 @@ export function useSearch() {
     }
     loading.value = true
     searched.value = true
-    currentPage.value = 1
+    resetPage()
     try {
       const data = await searchMedia(keyword.value.trim(), searchType.value)
       results.value = Array.isArray(data) ? data : data?.items || []
@@ -87,5 +87,6 @@ export function useSearch() {
     clearSearch,
     handleSearch,
     handleSubscribe,
+    setPage,
   }
 }

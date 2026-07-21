@@ -13,7 +13,9 @@ defineProps<{
         <div class="flex items-center gap-2">
           <n-spin size="small" />
           <span class="opacity-70">{{ scanStatus.step_name }}</span>
-          <span v-if="scanStatus.current_item" class="opacity-40">({{ scanStatus.current_item }}/{{ scanStatus.total_items }})</span>
+          <span v-if="scanStatus.current_item" class="opacity-40"
+            >({{ scanStatus.current_item }}/{{ scanStatus.total_items }})</span
+          >
         </div>
         <span class="font-medium">{{ Math.round(scanStatus.progress) }}%</span>
       </div>

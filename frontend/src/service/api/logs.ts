@@ -5,7 +5,10 @@ export function getLogFiles() {
   return request.get<LogFilesResponse>('/logs/files')
 }
 
-export function getLogContent(file: string, { lines = 200, filter = '', level = 'DEBUG', tail = true }: LogContentParams = {}) {
+export function getLogContent(
+  file: string,
+  { lines = 200, filter = '', level = 'DEBUG', tail = true }: LogContentParams = {}
+) {
   return request.get<LogContentResponse>('/logs/content', {
     params: { file, lines, filter, level, tail },
   })

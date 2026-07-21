@@ -22,13 +22,13 @@ defineProps<{
           <span v-else class="opacity-40">等待运行...</span>
         </div>
         <span v-if="autoFillProgress && autoFillProgress.total > 0" class="font-medium">
-          {{ Math.round(autoFillProgress.current / autoFillProgress.total * 100) }}%
+          {{ Math.round((autoFillProgress.current / autoFillProgress.total) * 100) }}%
         </span>
       </div>
       <n-progress
         v-if="autoFillProgress && autoFillProgress.total > 0"
         type="line"
-        :percentage="Math.round(autoFillProgress.current / autoFillProgress.total * 100)"
+        :percentage="Math.round((autoFillProgress.current / autoFillProgress.total) * 100)"
         :height="16"
         :processing="true"
         color="#8b5cf6"

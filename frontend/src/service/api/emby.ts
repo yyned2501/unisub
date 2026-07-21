@@ -1,5 +1,14 @@
 import apiClient from '../request'
-import type { EmbyMissingAnalysis, EmbySyncResult, EmbyBlacklistEntry, EmbyScanStatus, Tmdb404Item, Tmdb404ResolveResult, ActionResponse, MediaType } from '@/types'
+import type {
+  EmbyMissingAnalysis,
+  EmbySyncResult,
+  EmbyBlacklistEntry,
+  EmbyScanStatus,
+  Tmdb404Item,
+  Tmdb404ResolveResult,
+  ActionResponse,
+  MediaType,
+} from '@/types'
 
 export function getEmbyLibraryAnalysis(params: { page?: number; page_size?: number; library?: string } = {}) {
   return apiClient.get<EmbyMissingAnalysis>('/emby/library-analysis', { params })
@@ -33,8 +42,20 @@ export function getEmbyScanStatus() {
   return apiClient.get<EmbyScanStatus>('/emby/scan-status')
 }
 
-export function subscribeFromEmby(tmdbId: number, title: string, mediaType: MediaType = 'tv', posterUrl: string | null = null, year: number | null = null) {
-  return apiClient.post<ActionResponse>('/emby/subscribe', { tmdb_id: tmdbId, title, media_type: mediaType, poster_url: posterUrl, year })
+export function subscribeFromEmby(
+  tmdbId: number,
+  title: string,
+  mediaType: MediaType = 'tv',
+  posterUrl: string | null = null,
+  year: number | null = null
+) {
+  return apiClient.post<ActionResponse>('/emby/subscribe', {
+    tmdb_id: tmdbId,
+    title,
+    media_type: mediaType,
+    poster_url: posterUrl,
+    year,
+  })
 }
 
 export function fillMissingFromEmby(tmdbId: number) {

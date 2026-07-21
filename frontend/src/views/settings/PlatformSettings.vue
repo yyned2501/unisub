@@ -24,12 +24,6 @@ function meta(p: PlatformConfig) {
   return platformMeta[p.name] || { icon: 'ri-apps-line', label: p.name, color: 'var(--n-text-color)' }
 }
 
-function maskKey(key: string) {
-  if (!key) return ''
-  if (key.length <= 8) return '*'.repeat(key.length)
-  return key.slice(0, 4) + '****' + key.slice(-4)
-}
-
 const sortedPlatforms = computed(() => {
   const order = ['nextfind', 'moviepilot', 'emby', 'tmdb']
   return [...platforms.value].sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name))
@@ -49,11 +43,9 @@ async function loadQuota() {
   try {
     const data = await getNextFindQuota()
     nfQuota.value = (data?.remaining ?? data?.quota ?? null) as number | null
-  } catch { nfQuota.value = null }
-}
-
-function updateLocal(p: PlatformConfig, field: keyof PlatformConfig, value: string | boolean) {
-  ;(p as unknown as Record<string, unknown>)[field] = value
+  } catch {
+    nfQuota.value = null
+  }
 }
 
 async function handleSave(p: PlatformConfig) {
@@ -94,17 +86,22 @@ async function handleToggle(p: PlatformConfig, enabled: boolean) {
 async function handleDelete(p: PlatformConfig) {
   try {
     await confirmDialog({ content: `确定删除${meta(p).label}配置？` })
-  } catch { return }
+  } catch {
+    return
+  }
   try {
     await deletePlatform(p.id)
     msg.success(`${meta(p).label} 已删除`)
-    platforms.value = platforms.value.filter(i => i.id !== p.id)
+    platforms.value = platforms.value.filter((i) => i.id !== p.id)
   } catch {
     msg.error(`${meta(p).label} 删除失败`)
   }
 }
 
-onMounted(() => { loadPlatforms(); loadQuota() })
+onMounted(() => {
+  loadPlatforms()
+  loadQuota()
+})
 </script>
 
 <template>
@@ -116,17 +113,24 @@ onMounted(() => { loadPlatforms(); loadQuota() })
     <n-spin :show="loading">
       <!-- 平铺卡片网格 -->
       <div v-if="sortedPlatforms.length > 0" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div v-for="p in sortedPlatforms" :key="p.id"
+        <div
+          v-for="p in sortedPlatforms"
+          :key="p.id"
           class="rounded-xl p-5 transition-shadow"
-          :style="{ border: '1px solid var(--n-border-color)', background: 'var(--n-card-color)' }">
-
+          :style="{ border: '1px solid var(--n-border-color)', background: 'var(--n-card-color)' }"
+        >
           <!-- 卡片头部 -->
           <div class="flex items-start justify-between mb-4">
             <div class="flex items-center gap-3">
-              <div class="flex items-center justify-center w-11 h-11 rounded-xl shrink-0"
-                :style="{ background: p.enabled ? 'rgba(59,130,246,0.12)' : 'var(--n-action-color)' }">
-                <i :class="meta(p).icon" class="text-xl"
-                  :style="{ color: p.enabled ? meta(p).color : 'var(--n-text-color)' }"></i>
+              <div
+                class="flex items-center justify-center w-11 h-11 rounded-xl shrink-0"
+                :style="{ background: p.enabled ? 'rgba(59,130,246,0.12)' : 'var(--n-action-color)' }"
+              >
+                <i
+                  :class="meta(p).icon"
+                  class="text-xl"
+                  :style="{ color: p.enabled ? meta(p).color : 'var(--n-text-color)' }"
+                ></i>
               </div>
               <div>
                 <h3 class="text-sm font-semibold">{{ meta(p).label }}</h3>
@@ -147,11 +151,17 @@ onMounted(() => { loadPlatforms(); loadQuota() })
             </div>
             <div>
               <label class="text-xs opacity-50 mb-1 block">API Key</label>
-              <n-input v-model:value="p.api_key" size="small" placeholder="API Key" type="password" show-password-on="click" />
+              <n-input
+                v-model:value="p.api_key"
+                size="small"
+                placeholder="API Key"
+                type="password"
+                show-password-on="click"
+              />
             </div>
             <div v-if="p.name === 'nextfind' && nfQuota !== null" class="flex items-center gap-2 text-xs">
               <span class="opacity-40">额度</span>
-              <span class="font-semibold" style="color: rgb(96,165,250);">{{ nfQuota }}</span>
+              <span class="font-semibold" style="color: rgb(96, 165, 250)">{{ nfQuota }}</span>
             </div>
           </div>
 
@@ -161,7 +171,13 @@ onMounted(() => { loadPlatforms(); loadQuota() })
               <template #icon><i class="ri-save-line"></i></template>
               保存
             </n-button>
-            <n-button v-if="p.name !== 'tmdb'" size="tiny" quaternary :loading="testingId === p.id" @click="handleTest(p)">
+            <n-button
+              v-if="p.name !== 'tmdb'"
+              size="tiny"
+              quaternary
+              :loading="testingId === p.id"
+              @click="handleTest(p)"
+            >
               <template #icon><i class="ri-plug-line"></i></template>
               测试
             </n-button>

@@ -80,6 +80,12 @@ const routes: RouteRecordRaw[] = [
     path: '/settings',
     redirect: '/settings/platforms',
   },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    component: () => import('../views/NotFoundView.vue'),
+    meta: { title: '页面不存在', noAuth: true },
+  },
 ]
 
 const router = createRouter({

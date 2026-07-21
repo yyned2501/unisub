@@ -64,18 +64,12 @@ async function handleSave() {
 <template>
   <div>
     <h2 class="text-lg font-bold mb-4">账号设置</h2>
-    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-      修改登录账号密码后需要重新登录。
-    </p>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">修改登录账号密码后需要重新登录。</p>
 
     <n-card :bordered="true" style="max-width: 480px">
       <n-form @submit.prevent="handleSave">
         <n-form-item label="用户名">
-          <n-input
-            v-model:value="username"
-            placeholder="请输入用户名"
-            :disabled="saving"
-          />
+          <n-input v-model:value="username" placeholder="请输入用户名" :disabled="saving" />
         </n-form-item>
 
         <n-form-item label="新密码">
@@ -98,30 +92,10 @@ async function handleSave() {
           />
         </n-form-item>
 
-        <n-alert
-          v-if="errorMsg"
-          type="error"
-          :title="errorMsg"
-          closable
-          class="mb-4"
-          @close="errorMsg = ''"
-        />
-        <n-alert
-          v-if="successMsg"
-          type="success"
-          :title="successMsg"
-          class="mb-4"
-        />
+        <n-alert v-if="errorMsg" type="error" :title="errorMsg" closable class="mb-4" @close="errorMsg = ''" />
+        <n-alert v-if="successMsg" type="success" :title="successMsg" class="mb-4" />
 
-        <n-button
-          type="primary"
-          block
-          :loading="saving"
-          attr-type="submit"
-          size="large"
-        >
-          保存
-        </n-button>
+        <n-button type="primary" block :loading="saving" attr-type="submit" size="large"> 保存 </n-button>
       </n-form>
     </n-card>
   </div>

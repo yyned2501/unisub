@@ -59,17 +59,17 @@ const {
 
     <!-- 工具栏 -->
     <div v-if="analysis" class="flex items-center gap-3 mb-4 flex-wrap">
-      <n-input v-model:value="searchText" placeholder="搜索剧集名称..." clearable size="small" style="max-width: 300px;">
+      <n-input v-model:value="searchText" placeholder="搜索剧集名称..." clearable size="small" style="max-width: 300px">
         <template #prefix><i class="ri-search-line opacity-40"></i></template>
       </n-input>
 
       <n-select
         v-model:value="libraryFilter"
-        :options="libraries.map(l => ({ label: l, value: l }))"
+        :options="libraries.map((l) => ({ label: l, value: l }))"
         placeholder="全部媒体库"
         clearable
         size="small"
-        style="max-width: 180px;"
+        style="max-width: 180px"
         @update:value="handleLibraryChange"
       />
 
@@ -78,9 +78,7 @@ const {
         <span>显示已隐藏</span>
       </div>
 
-      <div class="text-xs opacity-40 ml-auto">
-        共 {{ analysis.missing_count }} 条缺集记录
-      </div>
+      <div class="text-xs opacity-40 ml-auto">共 {{ analysis.missing_count }} 条缺集记录</div>
     </div>
 
     <!-- 扫描进度条 -->
@@ -93,8 +91,12 @@ const {
 
     <n-spin :show="loading || syncing">
       <!-- 缓存为空时的提示 -->
-      <n-empty v-if="analysis && analysis.total_series === 0 && !loading"
-        description="缓存为空，请先同步 Emby 数据" size="small" class="py-12">
+      <n-empty
+        v-if="analysis && analysis.total_series === 0 && !loading"
+        description="缓存为空，请先同步 Emby 数据"
+        size="small"
+        class="py-12"
+      >
         <template #extra>
           <n-button size="small" :loading="syncing" @click="handleSync">
             <template #icon><i class="ri-download-line"></i></template>
@@ -104,8 +106,12 @@ const {
       </n-empty>
 
       <!-- 无缺集 -->
-      <n-empty v-else-if="analysis && filteredSeries.length === 0 && !loading"
-        description="没有缺集的剧集" size="small" class="py-8" />
+      <n-empty
+        v-else-if="analysis && filteredSeries.length === 0 && !loading"
+        description="没有缺集的剧集"
+        size="small"
+        class="py-8"
+      />
 
       <!-- 剧集列表 -->
       <n-card v-else-if="analysis && analysis.total_series > 0" size="small" :bordered="true" class="mb-4">
@@ -136,11 +142,14 @@ const {
       </div>
 
       <!-- 未配置 Emby -->
-      <n-empty v-if="!analysis && !loading && !syncing" description="Emby 平台未配置，请在平台配置中添加 Emby" size="small" class="py-12">
+      <n-empty
+        v-if="!analysis && !loading && !syncing"
+        description="Emby 平台未配置，请在平台配置中添加 Emby"
+        size="small"
+        class="py-12"
+      >
         <template #extra>
-          <n-button size="small" @click="$router.push('/settings/platforms')">
-            前往配置
-          </n-button>
+          <n-button size="small" @click="$router.push('/settings/platforms')"> 前往配置 </n-button>
         </template>
       </n-empty>
     </n-spin>

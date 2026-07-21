@@ -1,5 +1,11 @@
 import apiClient from '../request'
-import type { AutoSubConfigResponse, AutoSubConfigUpdate, AutoSubRunResponse, AutoSubHistoryResponse, AutoSubMetaResponse } from '@/types'
+import type {
+  AutoSubConfigResponse,
+  AutoSubConfigUpdate,
+  AutoSubRunResponse,
+  AutoSubHistoryResponse,
+  AutoSubMetaResponse,
+} from '@/types'
 
 export function getAutoSubConfig() {
   return apiClient.get<AutoSubConfigResponse>('/auto-subscribe/config')

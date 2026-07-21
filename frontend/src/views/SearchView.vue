@@ -19,6 +19,7 @@ const {
   clearSearch,
   handleSearch,
   handleSubscribe,
+  setPage,
 } = useSearch()
 
 const subDialogVisible = ref(false)
@@ -42,7 +43,9 @@ function openSubDialog(media: SearchResultItem) {
     <n-card :bordered="true" size="small" class="!rounded-2xl mb-6">
       <div class="flex gap-2 mb-3">
         <n-button
-          v-for="t in typeOptions" :key="t.value" size="tiny"
+          v-for="t in typeOptions"
+          :key="t.value"
+          size="tiny"
           :type="searchType === t.value ? 'primary' : 'default'"
           :secondary="searchType !== t.value"
           @click="searchType = t.value"
@@ -59,7 +62,13 @@ function openSubDialog(media: SearchResultItem) {
         @clear="clearSearch"
       >
         <template #suffix>
-          <n-button size="small" :type="loading ? 'default' : 'primary'" :loading="loading" @click="handleSearch" class="!rounded-lg">
+          <n-button
+            size="small"
+            :type="loading ? 'default' : 'primary'"
+            :loading="loading"
+            @click="handleSearch"
+            class="!rounded-lg"
+          >
             <template #icon><i :class="loading ? 'ri-loader-4-line animate-spin' : 'ri-search-line'"></i></template>
           </n-button>
         </template>
@@ -74,9 +83,12 @@ function openSubDialog(media: SearchResultItem) {
       </n-empty>
 
       <template v-else>
-        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2.5">
+        <div
+          class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-2.5"
+        >
           <MediaCard
-            v-for="item in pagedResults" :key="item.tmdb_id"
+            v-for="item in pagedResults"
+            :key="item.tmdb_id"
             :media="item"
             :subscribed="isSubscribed(item.tmdb_id)"
             @click="openSubDialog"
@@ -86,7 +98,13 @@ function openSubDialog(media: SearchResultItem) {
 
         <div v-if="pagedResults.length > 0 && totalPages > 1" class="flex items-center justify-center gap-4 mt-7 py-3">
           <span class="text-xs opacity-50">{{ pagedResults.length }} 条结果</span>
-          <n-pagination :page="currentPage" :page-count="totalPages" :page-slot="5" size="small" @update:page="currentPage = $event" />
+          <n-pagination
+            :page="currentPage"
+            :page-count="totalPages"
+            :page-slot="5"
+            size="small"
+            @update:page="setPage"
+          />
         </div>
       </template>
     </n-spin>

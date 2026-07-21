@@ -83,6 +83,7 @@ frontend/src/
 | `useAction(fn)` | 包装 async fn → `{ loading, run }` | 手写 `loading.value = true/finally false` |
 | `usePolling(fn, ms, {immediate})` | 轮询，自动 onUnmounted 清理 | 手写 `setInterval` + `clearInterval` |
 | `useIdSet()` | 行级 loading → `{ add, remove, has }` | `new Set([...set, id])` 展开样板 |
+| `usePagedList(source, size)` | 前端分页 → `{ page, totalPages, pagedList, setPage, reset }` | 手写 page/slice/totalPages |
 | `msg.success/error/warning/info` | 消息提示 | `window.$message?.xxx` |
 | `confirmDialog({content})` | Promise 化确认框 | 手写 `window.$dialog` Promise |
 
@@ -147,7 +148,10 @@ export function updatePlatform(id: string, data: PlatformConfigUpdate) {
 cd frontend
 npm run build        # 构建通过
 npm run type-check   # 类型零错误
+npm run lint         # eslint 零错误（自动 --fix）
 ```
 
-- 改了前端 → `npm run build`。
+- 代码风格由 **Prettier** 统一（`.prettierrc`）：无分号、单引号、printWidth 120。改完可跑 `npm run format`。
+- ESLint（flat config，`eslint.config.js`）：TS + Vue 推荐规则；视图层允许 `any`；模板排版规则交给 Prettier。
+- 改了前端 → `npm run build && npm run type-check`。
 - 改了后端 → `sudo systemctl restart unisub-backend`，`sleep 3 && curl http://localhost:8002/api/platforms`。

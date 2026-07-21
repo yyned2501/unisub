@@ -75,7 +75,7 @@ export function useTmdb404() {
       const data = await moveTmdb404Item(item.tmdb_id)
       if (data?.success) {
         msg.success(data.message || '移动成功')
-        items.value = items.value.filter(i => i.tmdb_id !== item.tmdb_id)
+        items.value = items.value.filter((i) => i.tmdb_id !== item.tmdb_id)
       } else {
         msg.error(data?.message || '移动失败')
       }
@@ -87,7 +87,10 @@ export function useTmdb404() {
     }
   }
 
-  onMounted(() => { loadList(); loadCd2Config() })
+  onMounted(() => {
+    loadList()
+    loadCd2Config()
+  })
 
   return {
     items,

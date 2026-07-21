@@ -23,7 +23,11 @@ const emit = defineEmits<{
 
     <n-spin :show="loading">
       <template v-if="platforms.length > 0">
-        <div v-for="p in platforms" :key="p.name" class="flex items-center justify-between py-2.5 border-b last:border-b-0 border-[var(--n-border-color)]">
+        <div
+          v-for="p in platforms"
+          :key="p.name"
+          class="flex items-center justify-between py-2.5 border-b last:border-b-0 border-[var(--n-border-color)]"
+        >
           <div>
             <div class="text-sm font-medium capitalize">{{ p.name === 'nextfind' ? 'NextFind' : 'MoviePilot' }}</div>
             <div class="text-xs opacity-50 font-mono">{{ p.message }}</div>

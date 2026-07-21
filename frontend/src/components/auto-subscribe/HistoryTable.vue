@@ -35,16 +35,20 @@ const columns = [
           type: row.status === 'subscribed' ? 'success' : 'default',
           round: true,
         },
-        { default: () => props.statusLabels[row.status] || row.status },
+        { default: () => props.statusLabels[row.status] || row.status }
       ),
   },
-  { title: 'TMDB ID', key: 'tmdb_id', width: 100, render: (row: AutoSubHistoryItem) => row.tmdb_id != null ? String(row.tmdb_id) : '-' },
+  {
+    title: 'TMDB ID',
+    key: 'tmdb_id',
+    width: 100,
+    render: (row: AutoSubHistoryItem) => (row.tmdb_id != null ? String(row.tmdb_id) : '-'),
+  },
   {
     title: '类别',
     key: 'media_type',
     width: 80,
-    render: (row: AutoSubHistoryItem) =>
-      row.media_type === 'movie' ? '电影' : row.media_type === 'tv' ? '剧集' : '-',
+    render: (row: AutoSubHistoryItem) => (row.media_type === 'movie' ? '电影' : row.media_type === 'tv' ? '剧集' : '-'),
   },
   { title: '时间', key: 'time', width: 180, render: (row: AutoSubHistoryItem) => formatDateTime(row.time) },
 ]

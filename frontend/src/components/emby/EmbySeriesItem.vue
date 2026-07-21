@@ -20,12 +20,24 @@ defineEmits<{
 <template>
   <div class="flex items-start gap-3 py-2.5 px-1" :class="{ 'opacity-50': s.is_blacklisted }">
     <!-- 海报 -->
-    <img v-if="s.emby_image_url" :src="s.emby_image_url" :alt="s.emby_series_name ?? undefined"
-      class="w-10 h-14 rounded object-cover shrink-0" @error="onImgError" />
-    <img v-else-if="s.poster_url" :src="s.poster_url" :alt="s.emby_series_name ?? undefined"
-      class="w-10 h-14 rounded object-cover shrink-0" />
-    <div v-else class="w-10 h-14 rounded flex items-center justify-center shrink-0"
-      :style="{ background: 'var(--n-action-color)' }">
+    <img
+      v-if="s.emby_image_url"
+      :src="s.emby_image_url"
+      :alt="s.emby_series_name ?? undefined"
+      class="w-10 h-14 rounded object-cover shrink-0"
+      @error="onImgError"
+    />
+    <img
+      v-else-if="s.poster_url"
+      :src="s.poster_url"
+      :alt="s.emby_series_name ?? undefined"
+      class="w-10 h-14 rounded object-cover shrink-0"
+    />
+    <div
+      v-else
+      class="w-10 h-14 rounded flex items-center justify-center shrink-0"
+      :style="{ background: 'var(--n-action-color)' }"
+    >
       <i class="ri-film-line opacity-40"></i>
     </div>
 
@@ -34,7 +46,9 @@ defineEmits<{
       <div class="flex items-center gap-2 mb-0.5">
         <span class="text-sm font-medium truncate">{{ s.emby_series_name || '未知' }}</span>
         <span v-if="s.emby_year" class="text-xs opacity-40 shrink-0">({{ s.emby_year }})</span>
-        <n-tag v-if="s.emby_library_name" size="tiny" type="info" round class="shrink-0">{{ s.emby_library_name }}</n-tag>
+        <n-tag v-if="s.emby_library_name" size="tiny" type="info" round class="shrink-0">{{
+          s.emby_library_name
+        }}</n-tag>
       </div>
 
       <div class="flex items-center gap-2 text-xs">
@@ -65,22 +79,32 @@ defineEmits<{
 
     <!-- 操作按钮 -->
     <div class="flex items-center gap-1 shrink-0">
-      <n-button v-if="!s.is_subscribed" size="tiny" type="primary" secondary
-        :loading="subscribing" @click="$emit('subscribe', s)">
+      <n-button
+        v-if="!s.is_subscribed"
+        size="tiny"
+        type="primary"
+        secondary
+        :loading="subscribing"
+        @click="$emit('subscribe', s)"
+      >
         <template #icon><i class="ri-add-line"></i></template>
         添加订阅
       </n-button>
-      <n-button v-if="(s.adjusted_missing ?? 0) > 0" size="tiny" type="warning" secondary
-        :loading="filling" @click="$emit('fill', s.tmdb_id)">
+      <n-button
+        v-if="(s.adjusted_missing ?? 0) > 0"
+        size="tiny"
+        type="warning"
+        secondary
+        :loading="filling"
+        @click="$emit('fill', s.tmdb_id)"
+      >
         <template #icon><i class="ri-refresh-line"></i></template>
         立即补缺
       </n-button>
-      <n-button v-if="!s.is_blacklisted" size="tiny" quaternary
-        :loading="hiding" @click="$emit('hide', s.tmdb_id)">
+      <n-button v-if="!s.is_blacklisted" size="tiny" quaternary :loading="hiding" @click="$emit('hide', s.tmdb_id)">
         <template #icon><i class="ri-eye-off-line"></i></template>
       </n-button>
-      <n-button v-else size="tiny" quaternary type="warning"
-        :loading="hiding" @click="$emit('unhide', s.tmdb_id)">
+      <n-button v-else size="tiny" quaternary type="warning" :loading="hiding" @click="$emit('unhide', s.tmdb_id)">
         <template #icon><i class="ri-eye-line"></i></template>
       </n-button>
     </div>

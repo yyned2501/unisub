@@ -50,13 +50,22 @@ const actionLabelMap: Record<string, string> = {
 
     <n-spin :show="loading">
       <template v-if="activities.length > 0">
-        <div v-for="a in activities" :key="a.id" class="flex gap-3 py-2.5 border-b last:border-b-0 border-[var(--n-border-color)]">
-          <div class="flex items-center justify-center w-8 h-8 rounded-lg shrink-0" style="background: rgba(59,130,246,0.1);">
-            <i :class="iconMap[a.action] || 'ri-information-line'" class="text-sm" style="color: rgb(96,165,250);"></i>
+        <div
+          v-for="a in activities"
+          :key="a.id"
+          class="flex gap-3 py-2.5 border-b last:border-b-0 border-[var(--n-border-color)]"
+        >
+          <div
+            class="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+            style="background: rgba(59, 130, 246, 0.1)"
+          >
+            <i :class="iconMap[a.action] || 'ri-information-line'" class="text-sm" style="color: rgb(96, 165, 250)"></i>
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center justify-between gap-2">
-              <n-tag :type="tagTypeMap[a.action] || 'default'" size="tiny">{{ actionLabelMap[a.action] || a.action }}</n-tag>
+              <n-tag :type="tagTypeMap[a.action] || 'default'" size="tiny">{{
+                actionLabelMap[a.action] || a.action
+              }}</n-tag>
               <span class="text-xs opacity-50 shrink-0">{{ formatTime(a.created_at) }}</span>
             </div>
             <div class="text-xs opacity-60 truncate mt-0.5">{{ a.message }}</div>

@@ -16,12 +16,11 @@ const emit = defineEmits<{
   'toggle-array': [key: string, val: string]
 }>()
 
-const enabledKey = computed(
-  () => `${props.source}_enabled` as 'douban_enabled' | 'mikan_enabled' | 'maoyan_enabled'
-)
+const enabledKey = computed(() => `${props.source}_enabled` as 'douban_enabled' | 'mikan_enabled' | 'maoyan_enabled')
 </script>
 
 <template>
+  <!-- eslint-disable vue/no-mutating-props — config 是父组件传入的共享 reactive 对象，本子组件直接编辑（有意设计） -->
   <n-card :title="title" size="small" :bordered="true" class="mb-4">
     <div class="flex flex-col gap-4">
       <div class="flex items-center justify-between">
@@ -35,9 +34,12 @@ const enabledKey = computed(
           <label class="text-xs opacity-50 font-medium">榜单类型</label>
           <div class="flex flex-wrap gap-2">
             <label
-              v-for="r in (meta?.douban_ranks || [])" :key="r.value"
+              v-for="r in meta?.douban_ranks || []"
+              :key="r.value"
               class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded cursor-pointer"
-              :class="config.douban_ranks?.includes(r.value) ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800'"
+              :class="
+                config.douban_ranks?.includes(r.value) ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800'
+              "
               @click="emit('toggle-array', 'douban_ranks', r.value)"
             >
               {{ r.label }}
@@ -46,11 +48,23 @@ const enabledKey = computed(
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-xs opacity-50 font-medium">RSSHub 地址</label>
-          <n-input v-model:value="config.douban_rsshub" placeholder="https://rsshub.app" size="small" style="max-width: 300px;" />
+          <n-input
+            v-model:value="config.douban_rsshub"
+            placeholder="https://rsshub.app"
+            size="small"
+            style="max-width: 300px"
+          />
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-xs opacity-50 font-medium">自定义 RSS（可选，每行一个）</label>
-          <n-input v-model:value="config.douban_rss_custom" type="textarea" :rows="2" placeholder="可选" size="small" style="max-width: 400px;" />
+          <n-input
+            v-model:value="config.douban_rss_custom"
+            type="textarea"
+            :rows="2"
+            placeholder="可选"
+            size="small"
+            style="max-width: 400px"
+          />
         </div>
       </template>
 
@@ -59,11 +73,16 @@ const enabledKey = computed(
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-1.5">
             <span class="text-xs opacity-50">季度</span>
-            <n-select v-model:value="config.mikan_season" :options="(meta?.seasons || []) as any" size="small" style="width: 110px;" />
+            <n-select
+              v-model:value="config.mikan_season"
+              :options="(meta?.seasons || []) as any"
+              size="small"
+              style="width: 110px"
+            />
           </div>
           <div class="flex items-center gap-1.5">
             <span class="text-xs opacity-50">年份（0=自动）</span>
-            <n-input-number v-model:value="config.mikan_year" :min="0" :max="2100" size="small" style="width: 110px;" />
+            <n-input-number v-model:value="config.mikan_year" :min="0" :max="2100" size="small" style="width: 110px" />
           </div>
           <div class="flex items-center gap-2">
             <n-switch v-model:value="config.mikan_resolve_detail" size="small" />
@@ -80,15 +99,20 @@ const enabledKey = computed(
         </div>
         <div class="flex items-center gap-1.5">
           <span class="text-xs opacity-50">网播榜条数</span>
-          <n-input-number v-model:value="config.maoyan_num" :min="1" :max="50" size="small" style="width: 100px;" />
+          <n-input-number v-model:value="config.maoyan_num" :min="1" :max="50" size="small" style="width: 100px" />
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-xs opacity-50 font-medium">平台</label>
           <div class="flex flex-wrap gap-2">
             <label
-              v-for="p in (meta?.maoyan_platforms || [])" :key="p.value"
+              v-for="p in meta?.maoyan_platforms || []"
+              :key="p.value"
               class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded cursor-pointer"
-              :class="config.maoyan_web_platforms?.includes(p.value) ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800'"
+              :class="
+                config.maoyan_web_platforms?.includes(p.value)
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800'
+              "
               @click="emit('toggle-array', 'maoyan_web_platforms', p.value)"
             >
               {{ p.label }}
@@ -99,9 +123,12 @@ const enabledKey = computed(
           <label class="text-xs opacity-50 font-medium">媒体类型</label>
           <div class="flex flex-wrap gap-2">
             <label
-              v-for="t in (meta?.maoyan_media_types || [])" :key="t.value"
+              v-for="t in meta?.maoyan_media_types || []"
+              :key="t.value"
               class="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded cursor-pointer"
-              :class="config.maoyan_web_types?.includes(t.value) ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800'"
+              :class="
+                config.maoyan_web_types?.includes(t.value) ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800'
+              "
               @click="emit('toggle-array', 'maoyan_web_types', t.value)"
             >
               {{ t.label }}

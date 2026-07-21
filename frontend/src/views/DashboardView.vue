@@ -8,17 +8,8 @@ import AutoFillProgress from '@/components/dashboard/AutoFillProgress.vue'
 
 defineOptions({ name: 'DashboardView' })
 
-const {
-  stats,
-  platforms,
-  activities,
-  nfQuota,
-  loading,
-  scanStatus,
-  autoFillStatus,
-  loadPlatformData,
-  loadActivities,
-} = useDashboard()
+const { stats, platforms, activities, nfQuota, loading, scanStatus, autoFillStatus, loadPlatformData, loadActivities } =
+  useDashboard()
 </script>
 
 <template>
@@ -49,11 +40,7 @@ const {
     </div>
 
     <div class="grid grid-cols-1 gap-4 mt-4">
-      <ActivityList
-        :activities="activities"
-        :loading="loading.activities"
-        @refresh="loadActivities"
-      />
+      <ActivityList :activities="activities" :loading="loading.activities" @refresh="loadActivities" />
     </div>
   </div>
 </template>
