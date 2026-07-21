@@ -1,9 +1,11 @@
-<script setup>
-defineProps({
-  platform: { type: Object, required: true },
-  connected: { type: Boolean, default: false },
-  quota: { type: [Number, String], default: null },
-})
+<script setup lang="ts">
+import type { PlatformConfig } from '@/types'
+
+defineProps<{
+  platform: PlatformConfig
+  connected: boolean
+  quota: number | string | null
+}>()
 </script>
 
 <template>

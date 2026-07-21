@@ -1,7 +1,9 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '@/store/modules/auth'
+import type { RouteRecordRaw } from 'vue-router'
+import type { App } from 'vue'
 
-const routes = [
+const routes: RouteRecordRaw[] = [
   {
     path: '/login',
     name: 'Login',
@@ -106,7 +108,7 @@ router.afterEach((to) => {
   }
 })
 
-export async function setupRouter(app) {
+export async function setupRouter(app: App) {
   app.use(router)
   await router.isReady()
 }

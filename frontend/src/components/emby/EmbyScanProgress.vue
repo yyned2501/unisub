@@ -1,10 +1,11 @@
-<script setup>
-defineProps({
-  running: { type: Boolean, default: false },
-  progress: { type: Number, default: 0 },
-  stepName: { type: String, default: '' },
-  currentItem: { type: String, default: '' },
-})
+<script setup lang="ts">
+
+defineProps<{
+  running: boolean
+  progress: number
+  stepName: string
+  currentItem: string
+}>()
 </script>
 
 <template>

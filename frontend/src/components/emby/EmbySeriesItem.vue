@@ -1,22 +1,28 @@
-<script setup>
+<script setup lang="ts">
 import { onImgError } from '@/utils/format'
+import type { EmbyCacheResponse } from '@/types'
 
-defineProps({
-  s: { type: Object, required: true },
-  hiding: { type: Boolean, default: false },
-  subscribing: { type: Boolean, default: false },
-  filling: { type: Boolean, default: false },
-})
+defineProps<{
+  s: EmbyCacheResponse
+  hiding: boolean
+  subscribing: boolean
+  filling: boolean
+}>()
 
-defineEmits(['hide', 'unhide', 'subscribe', 'fill'])
+defineEmits<{
+  hide: [tmdbId: number]
+  unhide: [tmdbId: number]
+  subscribe: [s: EmbyCacheResponse]
+  fill: [tmdbId: number]
+}>()
 </script>
 
 <template>
   <div class="flex items-start gap-3 py-2.5 px-1" :class="{ 'opacity-50': s.is_blacklisted }">
     <!-- 海报 -->
-    <img v-if="s.emby_image_url" :src="s.emby_image_url" :alt="s.emby_series_name"
+    <img v-if="s.emby_image_url" :src="s.emby_image_url" :alt="s.emby_series_name ?? undefined"
       class="w-10 h-14 rounded object-cover shrink-0" @error="onImgError" />
-    <img v-else-if="s.poster_url" :src="s.poster_url" :alt="s.emby_series_name"
+    <img v-else-if="s.poster_url" :src="s.poster_url" :alt="s.emby_series_name ?? undefined"
       class="w-10 h-14 rounded object-cover shrink-0" />
     <div v-else class="w-10 h-14 rounded flex items-center justify-center shrink-0"
       :style="{ background: 'var(--n-action-color)' }">
@@ -64,7 +70,7 @@ defineEmits(['hide', 'unhide', 'subscribe', 'fill'])
         <template #icon><i class="ri-add-line"></i></template>
         添加订阅
       </n-button>
-      <n-button v-if="s.adjusted_missing > 0" size="tiny" type="warning" secondary
+      <n-button v-if="(s.adjusted_missing ?? 0) > 0" size="tiny" type="warning" secondary
         :loading="filling" @click="$emit('fill', s.tmdb_id)">
         <template #icon><i class="ri-refresh-line"></i></template>
         立即补缺

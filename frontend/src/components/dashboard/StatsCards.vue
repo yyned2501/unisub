@@ -1,11 +1,12 @@
-<script setup>
-defineProps({
-  totalSubscriptions: { type: Number, default: 0 },
-  missingCount: { type: Number, default: 0 },
-  completedCount: { type: Number, default: 0 },
-  tmdbCachedTotal: { type: Number, default: 0 },
-  tmdbDataFilled: { type: Number, default: 0 },
-})
+<script setup lang="ts">
+
+defineProps<{
+  totalSubscriptions: number
+  missingCount: number
+  completedCount: number
+  tmdbCachedTotal: number
+  tmdbDataFilled: number
+}>()
 </script>
 
 <template>

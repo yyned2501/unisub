@@ -1,15 +1,19 @@
-<script setup>
-defineProps({
-  analysis: { type: Object, required: true },
-})
+<script setup lang="ts">
+import type { EmbyMissingAnalysis } from '@/types'
 
-const hiddenCount = (analysis) => analysis.series.filter(s => s.is_blacklisted).length
+defineProps<{
+  analysis: EmbyMissingAnalysis
+}>()
+
+function hiddenCount(analysis: EmbyMissingAnalysis): number {
+  return analysis.series.filter(s => s.is_blacklisted).length
+}
 
 const cards = [
   { key: 'total_series', label: 'Emby 剧集总数', icon: 'ri-tv-2-line', bg: 'rgba(59,130,246,0.12)', color: 'rgb(96,165,250)' },
   { key: 'subscribed_count', label: '已订阅', icon: 'ri-rss-line', bg: 'rgba(34,197,94,0.12)', color: 'rgb(74,222,128)' },
   { key: 'missing_count', label: '缺集', icon: 'ri-error-warning-line', bg: 'rgba(251,146,60,0.12)', color: 'rgb(251,146,60)' },
-]
+] as const
 </script>
 
 <template>

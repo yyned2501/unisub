@@ -1,14 +1,17 @@
-<script setup>
+<script setup lang="ts">
 import { formatTime } from '@/utils/format'
+import type { ActivityLog } from '@/types'
 
-defineProps({
-  activities: { type: Array, default: () => [] },
-  loading: { type: Boolean, default: false },
-})
+defineProps<{
+  activities: ActivityLog[]
+  loading: boolean
+}>()
 
-defineEmits(['refresh'])
+defineEmits<{
+  refresh: []
+}>()
 
-const iconMap = {
+const iconMap: Record<string, string> = {
   subscribe: 'ri-rss-fill',
   unsubscribe: 'ri-close-circle-line',
   mp_search: 'ri-search-eye-line',
@@ -17,7 +20,7 @@ const iconMap = {
   system: 'ri-settings-3-line',
 }
 
-const tagTypeMap = {
+const tagTypeMap: Record<string, 'default' | 'error' | 'warning' | 'success' | 'info' | 'primary'> = {
   subscribe: 'success',
   unsubscribe: 'error',
   mp_search: 'warning',
@@ -26,7 +29,7 @@ const tagTypeMap = {
   system: 'default',
 }
 
-const actionLabelMap = {
+const actionLabelMap: Record<string, string> = {
   subscribe: '订阅',
   unsubscribe: '取消订阅',
   mp_search: 'MP 搜索',

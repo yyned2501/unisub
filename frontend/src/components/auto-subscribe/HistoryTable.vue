@@ -1,20 +1,23 @@
-<script setup>
+<script setup lang="ts">
 import { h } from 'vue'
 import { NCard, NButton, NTag, NDataTable, NEmpty, NSpin } from 'naive-ui'
 import { formatDateTime } from '@/utils/format'
+import type { AutoSubHistoryItem } from '@/types'
 
 defineOptions({ name: 'HistoryTable' })
 
-const props = defineProps({
-  history: { type: Array, required: true },
-  loading: { type: Boolean, default: false },
-  lastRun: { type: String, default: '' },
-  statusLabels: { type: Object, default: () => ({}) },
-})
+const props = defineProps<{
+  history: AutoSubHistoryItem[]
+  loading: boolean
+  lastRun: string
+  statusLabels: Record<string, string>
+}>()
 
-const emit = defineEmits(['clear-history'])
+const emit = defineEmits<{
+  'clear-history': []
+}>()
 
-function rowKey(row) {
+function rowKey(row: AutoSubHistoryItem): string {
   return row.key
 }
 
@@ -24,7 +27,7 @@ const columns = [
     title: '状态',
     key: 'status',
     width: 100,
-    render: (row) =>
+    render: (row: AutoSubHistoryItem) =>
       h(
         NTag,
         {
@@ -35,15 +38,15 @@ const columns = [
         { default: () => props.statusLabels[row.status] || row.status },
       ),
   },
-  { title: 'TMDB ID', key: 'tmdb_id', width: 100, render: (row) => row.tmdb_id || '-' },
+  { title: 'TMDB ID', key: 'tmdb_id', width: 100, render: (row: AutoSubHistoryItem) => row.tmdb_id != null ? String(row.tmdb_id) : '-' },
   {
     title: '类别',
     key: 'media_type',
     width: 80,
-    render: (row) =>
+    render: (row: AutoSubHistoryItem) =>
       row.media_type === 'movie' ? '电影' : row.media_type === 'tv' ? '剧集' : '-',
   },
-  { title: '时间', key: 'time', width: 180, render: (row) => formatDateTime(row.time) },
+  { title: '时间', key: 'time', width: 180, render: (row: AutoSubHistoryItem) => formatDateTime(row.time) },
 ]
 </script>
 

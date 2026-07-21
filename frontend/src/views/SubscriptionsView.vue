@@ -1,20 +1,22 @@
-<script setup>
+<script setup lang="ts">
 import { computed, ref, h } from 'vue'
 import { NTag, NButton, NPopconfirm } from 'naive-ui'
 import { useSubscriptions } from '@/composables/useSubscriptions'
 import { onImgError } from '@/utils/format'
+import type { Subscription } from '@/types'
+import type { DataTableColumns } from 'naive-ui'
 
 defineOptions({ name: 'SubscriptionsView' })
 
-function subStatus(row) {
-  if (!row.nf_subscribed) return { label: '未同步', type: 'warning' }
-  return { label: '订阅中', type: 'primary' }
+function subStatus(row: Subscription) {
+  if (!row.nf_subscribed) return { label: '未同步', type: 'warning' as const }
+  return { label: '订阅中', type: 'primary' as const }
 }
 
-function embyStatus(row) {
-  if (row.completed) return { label: '已完成', type: 'success' }
-  if (row.media_type === 'tv' && row.nf_missing_eps > 0) return { label: `缺 ${row.nf_missing_eps} 集`, type: 'info' }
-  return { label: '未入库', type: 'default' }
+function embyStatus(row: Subscription) {
+  if (row.completed) return { label: '已完成', type: 'success' as const }
+  if (row.media_type === 'tv' && row.nf_missing_eps > 0) return { label: `缺 ${row.nf_missing_eps} 集`, type: 'info' as const }
+  return { label: '未入库', type: 'default' as const }
 }
 
 const {
@@ -32,7 +34,7 @@ const {
   handlePageChange,
 } = useSubscriptions()
 
-const columns = computed(() => [
+const columns = computed<DataTableColumns<Subscription>>(() => [
   {
     title: '海报', key: 'poster_url', width: 60,
     render(row) {
@@ -82,7 +84,7 @@ const columns = computed(() => [
     title: '来源', key: 'source', width: 80,
     render(row) {
       if (!row.source) return '-'
-      const labels = { manual: '手动', forward: 'Forward', auto_subscribe: '自动订阅', nextfind: 'NF同步' }
+      const labels: Record<string, string> = { manual: '手动', forward: 'Forward', auto_subscribe: '自动订阅', nextfind: 'NF同步' }
       return h('span', { class: 'text-xs opacity-50' }, labels[row.source] || row.source)
     },
   },

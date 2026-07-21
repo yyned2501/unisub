@@ -1,21 +1,22 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { getEmbyLibraryAnalysis, syncEmbyCache, triggerEmbyScan, getEmbyScanStatus, addToBlacklist, removeFromBlacklist, subscribeFromEmby, fillMissingFromEmby } from '@/service/api/emby'
 import { onImgError } from '@/utils/format'
 import EmbyStatsCards from '@/components/emby/EmbyStatsCards.vue'
 import EmbyScanProgress from '@/components/emby/EmbyScanProgress.vue'
 import EmbySeriesItem from '@/components/emby/EmbySeriesItem.vue'
+import type { EmbyMissingAnalysis, EmbyCacheResponse } from '@/types'
 
 defineOptions({ name: 'EmbyAnalysis' })
 
 const loading = ref(false)
 const syncing = ref(false)
-const analysis = ref(null)
+const analysis = ref<EmbyMissingAnalysis | null>(null)
 const searchText = ref('')
 const showHidden = ref(false)
-const hidingIds = ref(new Set())
-const subscribingIds = ref(new Set())
-const fillingIds = ref(new Set())
+const hidingIds = ref<Set<number>>(new Set())
+const subscribingIds = ref<Set<number>>(new Set())
+const fillingIds = ref<Set<number>>(new Set())
 
 // 分页
 const page = ref(1)
@@ -27,7 +28,7 @@ const scanRunning = ref(false)
 const scanProgress = ref(0)
 const scanStepName = ref('')
 const scanItem = ref('')
-let pollTimer = null
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const libraries = computed(() => {
   if (!analysis.value) return []
@@ -57,7 +58,7 @@ const filteredSeries = computed(() => {
 async function load() {
   loading.value = true
   try {
-    const params = {
+    const params: { page: number; page_size: number; library?: string } = {
       page: page.value,
       page_size: pageSize.value,
     }
@@ -73,12 +74,12 @@ async function load() {
   }
 }
 
-function handlePageChange(p) {
+function handlePageChange(p: number) {
   page.value = p
   load()
 }
 
-function handleLibraryChange(val) {
+function handleLibraryChange(val: string | null) {
   libraryFilter.value = val || ''
   page.value = 1
   load()
@@ -105,8 +106,8 @@ async function handleFullScan() {
     scanStepName.value = '正在启动扫描...'
     startPolling()
     window.$message?.success('全量扫描已启动')
-  } catch (e) {
-    window.$message?.error(e.response?.data?.detail || '启动扫描失败')
+  } catch (e: unknown) {
+    window.$message?.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '启动扫描失败')
   }
 }
 
@@ -119,7 +120,7 @@ function startPolling() {
         scanRunning.value = data.running
         scanProgress.value = data.progress || 0
         scanStepName.value = data.step_name || ''
-        scanItem.value = data.current_item || ''
+        scanItem.value = String(data.current_item || '')
         if (data.error) {
           window.$message?.error(`扫描出错: ${data.error}`)
           stopPolling()
@@ -147,7 +148,7 @@ function stopPolling() {
   }
 }
 
-async function handleHide(tmdbId) {
+async function handleHide(tmdbId: number) {
   hidingIds.value = new Set([...hidingIds.value, tmdbId])
   try {
     await addToBlacklist(tmdbId)
@@ -165,7 +166,7 @@ async function handleHide(tmdbId) {
   }
 }
 
-async function handleUnhide(tmdbId) {
+async function handleUnhide(tmdbId: number) {
   hidingIds.value = new Set([...hidingIds.value, tmdbId])
   try {
     await removeFromBlacklist(tmdbId)
@@ -183,10 +184,10 @@ async function handleUnhide(tmdbId) {
   }
 }
 
-async function handleSubscribe(s) {
+async function handleSubscribe(s: EmbyCacheResponse) {
   subscribingIds.value = new Set([...subscribingIds.value, s.tmdb_id])
   try {
-    const { data } = await subscribeFromEmby(s.tmdb_id, s.emby_series_name || s.title || '未知', 'tv', s.poster_url, s.emby_year)
+    const { data } = await subscribeFromEmby(s.tmdb_id, s.emby_series_name || '未知', 'tv', s.poster_url, s.emby_year)
     if (data?.success) {
       if (analysis.value) {
         const item = analysis.value.series.find(x => x.tmdb_id === s.tmdb_id)
@@ -196,8 +197,8 @@ async function handleSubscribe(s) {
     } else {
       window.$message?.error(data?.message || '订阅失败')
     }
-  } catch (e) {
-    window.$message?.error(e.response?.data?.detail || '订阅失败')
+  } catch (e: unknown) {
+    window.$message?.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '订阅失败')
   } finally {
     const next = new Set(subscribingIds.value)
     next.delete(s.tmdb_id)
@@ -205,7 +206,7 @@ async function handleSubscribe(s) {
   }
 }
 
-async function handleFillMissing(tmdbId) {
+async function handleFillMissing(tmdbId: number) {
   fillingIds.value = new Set([...fillingIds.value, tmdbId])
   try {
     const { data } = await fillMissingFromEmby(tmdbId)
@@ -214,8 +215,8 @@ async function handleFillMissing(tmdbId) {
     } else {
       window.$message?.error(data?.message || '补缺集失败')
     }
-  } catch (e) {
-    window.$message?.error(e.response?.data?.detail || '补缺集失败')
+  } catch (e: unknown) {
+    window.$message?.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '补缺集失败')
   } finally {
     const next = new Set(fillingIds.value)
     next.delete(tmdbId)

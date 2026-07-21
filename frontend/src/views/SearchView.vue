@@ -1,8 +1,9 @@
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { useSearch } from '@/composables/useSearch'
 import MediaCard from '@/components/MediaCard.vue'
 import SubDialog from '@/components/SubDialog.vue'
+import type { SearchResultItem } from '@/types'
 
 defineOptions({ name: 'SearchView' })
 
@@ -21,15 +22,15 @@ const {
 } = useSearch()
 
 const subDialogVisible = ref(false)
-const selectedMedia = ref(null)
+const selectedMedia = ref<SearchResultItem | null>(null)
 
 const typeOptions = [
   { label: '全部', value: 'all' },
   { label: '电影', value: 'movie' },
   { label: '剧集', value: 'tv' },
-]
+] as const
 
-function openSubDialog(media) {
+function openSubDialog(media: SearchResultItem) {
   selectedMedia.value = media
   subDialogVisible.value = true
 }

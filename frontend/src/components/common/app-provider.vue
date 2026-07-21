@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { defineComponent, createTextVNode } from 'vue'
 import { useDialog, useLoadingBar, useMessage, useNotification } from 'naive-ui'
 

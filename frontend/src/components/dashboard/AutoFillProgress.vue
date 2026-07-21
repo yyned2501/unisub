@@ -1,11 +1,12 @@
-<script setup>
+<script setup lang="ts">
 import { formatTime } from '@/utils/format'
+import type { AutoFillProgress } from '@/types'
 
-defineProps({
-  autoFillEnabled: { type: Boolean, default: false },
-  autoFillLastRun: { type: String, default: null },
-  autoFillProgress: { type: Object, default: null },
-})
+defineProps<{
+  autoFillEnabled: boolean
+  autoFillLastRun: string | null
+  autoFillProgress: AutoFillProgress | null
+}>()
 </script>
 
 <template>

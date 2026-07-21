@@ -1,11 +1,15 @@
-<script setup>
-defineProps({
-  platforms: { type: Array, default: () => [] },
-  nfQuota: { type: [Number, String], default: null },
-  loading: { type: Boolean, default: false },
-})
+<script setup lang="ts">
+import type { PlatformStatus } from '@/types'
 
-const emit = defineEmits(['refresh'])
+defineProps<{
+  platforms: PlatformStatus[]
+  nfQuota: number | string | null
+  loading: boolean
+}>()
+
+const emit = defineEmits<{
+  refresh: []
+}>()
 </script>
 
 <template>
@@ -19,10 +23,10 @@ const emit = defineEmits(['refresh'])
 
     <n-spin :show="loading">
       <template v-if="platforms.length > 0">
-        <div v-for="p in platforms" :key="p.id" class="flex items-center justify-between py-2.5 border-b last:border-b-0 border-[var(--n-border-color)]">
+        <div v-for="p in platforms" :key="p.name" class="flex items-center justify-between py-2.5 border-b last:border-b-0 border-[var(--n-border-color)]">
           <div>
             <div class="text-sm font-medium capitalize">{{ p.name === 'nextfind' ? 'NextFind' : 'MoviePilot' }}</div>
-            <div class="text-xs opacity-50 font-mono">{{ p.base_url }}</div>
+            <div class="text-xs opacity-50 font-mono">{{ p.message }}</div>
           </div>
           <div class="flex items-center gap-3">
             <span v-if="p.name === 'nextfind' && nfQuota !== null" class="text-xs opacity-60">

@@ -1,12 +1,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { getSubscriptions, deleteSubscription, syncSubscriptions } from '@/service/api/subscriptions'
+import type { Subscription } from '@/types'
 
 /**
  * 订阅列表业务逻辑
  * - 加载活跃订阅、同步、删除
  */
 export function useSubscriptions() {
-  const list = ref([])
+  const list = ref<Subscription[]>([])
   const loading = ref(false)
   const syncing = ref(false)
 
@@ -48,7 +49,7 @@ export function useSubscriptions() {
     } finally { loading.value = false }
   }
 
-  function handlePageChange(p) {
+  function handlePageChange(p: number) {
     page.value = p
   }
 
@@ -62,7 +63,7 @@ export function useSubscriptions() {
     } finally { syncing.value = false }
   }
 
-  async function handleDelete(row) {
+  async function handleDelete(row: Subscription) {
     try {
       await deleteSubscription(row.id)
       window.$message?.success(`已取消订阅「${row.title}」`)

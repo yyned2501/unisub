@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useCd2Settings } from '@/composables/useCd2Settings'
 
 defineOptions({ name: 'Cd2Settings' })

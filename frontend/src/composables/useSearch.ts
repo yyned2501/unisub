@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { searchMedia } from '@/service/api/search'
 import { createSubscription } from '@/service/api/subscriptions'
+import type { SearchResultItem, MediaType } from '@/types'
 
 /**
  * 搜索页面业务逻辑
@@ -8,12 +9,12 @@ import { createSubscription } from '@/service/api/subscriptions'
  */
 export function useSearch() {
   const keyword = ref('')
-  const searchType = ref('all')
-  const results = ref([])
+  const searchType = ref<'all' | MediaType>('all')
+  const results = ref<SearchResultItem[]>([])
   const loading = ref(false)
   const searched = ref(false)
 
-  const subscribedIds = ref(new Set())
+  const subscribedIds = ref<Set<number>>(new Set())
 
   const currentPage = ref(1)
   const pageSize = 20
@@ -25,7 +26,7 @@ export function useSearch() {
     return results.value.slice(start, start + pageSize)
   })
 
-  function isSubscribed(tmdbId) {
+  function isSubscribed(tmdbId: number): boolean {
     return subscribedIds.value.has(tmdbId)
   }
 
@@ -54,7 +55,7 @@ export function useSearch() {
     }
   }
 
-  async function handleSubscribe(media, done) {
+  async function handleSubscribe(media: SearchResultItem, done: (ok: boolean) => void) {
     try {
       await createSubscription({
         tmdb_id: media.tmdb_id,

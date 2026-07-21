@@ -1,7 +1,9 @@
-<script setup>
-defineProps({
-  scanStatus: { type: Object, default: null },
-})
+<script setup lang="ts">
+import type { EmbyScanStatus } from '@/types'
+
+defineProps<{
+  scanStatus: EmbyScanStatus | null
+}>()
 </script>
 
 <template>

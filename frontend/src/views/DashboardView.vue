@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useDashboard } from '@/composables/useDashboard'
 import StatsCards from '@/components/dashboard/StatsCards.vue'
 import ScanProgress from '@/components/dashboard/ScanProgress.vue'

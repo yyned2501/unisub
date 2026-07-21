@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
 import { getAuthInfo, updateAuth } from '@/service/api/auth'
@@ -53,8 +53,8 @@ async function handleSave() {
     } else {
       errorMsg.value = data.message || '保存失败'
     }
-  } catch (e) {
-    errorMsg.value = e.response?.data?.detail || '保存失败'
+  } catch (e: unknown) {
+    errorMsg.value = (e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '保存失败'
   } finally {
     saving.value = false
   }
