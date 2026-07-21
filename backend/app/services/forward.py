@@ -14,7 +14,7 @@ from app.schemas.forward import (
     ForwardActionResponse,
     ForwardSubscribeInput,
 )
-from app.services.auth_config import get_effective_auth, save_auth_config
+from app.services.auth_config import load_auth_config, save_auth_config
 from app.services.nextfind import NextFindService
 from app.services.orchestrator import OrchestratorService
 
@@ -86,20 +86,19 @@ class ForwardService:
     async def login(self, username: str, password: str, config_username: str, config_password: str) -> dict:
         """本地登录验证，返回 JWT token。
 
-        优先使用文件持久化的账号密码，fallback 到环境变量。
+        从 auth_config.json 文件读取账号密码验证。
 
         Args:
             username: 用户名
             password: 密码
-            config_username: 配置中的用户名
-            config_password: 配置中的密码
+            config_username: 保留参数（兼容旧调用）
+            config_password: 保留参数（兼容旧调用）
 
         Returns:
             MP 风格登录响应字典
         """
-        effective_username, effective_password = get_effective_auth(config_username, config_password)
-
-        if username != effective_username or password != effective_password:
+        auth = load_auth_config()
+        if username != auth.get("username") or password != auth.get("password"):
             logger.warning(f"Forward 登录失败: 用户名或密码错误 (username={username!r})")
             return {"success": False, "message": "用户名或密码错误", "data": None}
 
@@ -115,17 +114,17 @@ class ForwardService:
         }
 
     async def get_auth_info(self, config_username: str, config_password: str) -> dict:
-        """获取当前生效的账号信息（不返回密码明文）。
+        """获取当前登录账号信息。
 
         Args:
-            config_username: 配置中的用户名
-            config_password: 配置中的密码
+            config_username: 保留参数（兼容旧调用）
+            config_password: 保留参数（兼容旧调用）
 
         Returns:
             账号信息
         """
-        username, _ = get_effective_auth(config_username, config_password)
-        return {"username": username}
+        auth = load_auth_config()
+        return {"username": auth.get("username", "")}
 
     async def update_auth(self, username: str, password: str) -> bool:
         """更新 Forward 账号密码（持久化到文件）。

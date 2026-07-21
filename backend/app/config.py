@@ -14,8 +14,6 @@ class UniSubConfig:
     database_url: str = "postgresql+asyncpg://unisub:unisub@192.168.31.10:5432/unisub"
     cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173", "http://localhost:3000"])
     jwt_secret: str = "unisub-forward-jwt-secret"
-    forward_username: str = "admin"
-    forward_password: str = "password"
     proxy_url: str | None = None
 
 
@@ -50,8 +48,6 @@ def parse_config() -> UniSubConfig:
         cors_origins = ["http://localhost:5173", "http://localhost:3000"]
 
     jwt_secret = _ensure_env("UNISUB_JWT_SECRET", "unisub-forward-jwt-secret")
-    forward_username = _ensure_env("UNISUB_FORWARD_USERNAME", "admin")
-    forward_password = _ensure_env("UNISUB_FORWARD_PASSWORD", "password")
     proxy_url = os.getenv("UNISUB_PROXY_URL") or None
 
     return UniSubConfig(
@@ -59,7 +55,5 @@ def parse_config() -> UniSubConfig:
         database_url=database_url,
         cors_origins=cors_origins,
         jwt_secret=jwt_secret,
-        forward_username=forward_username,
-        forward_password=forward_password,
         proxy_url=proxy_url,
     )
