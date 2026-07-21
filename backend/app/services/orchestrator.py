@@ -266,9 +266,22 @@ class OrchestratorService:
         for tid, nf_sub in nf_by_tmdb.items():
             nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or nf_sub.get("nf_status")
 
-            # 跳过已取消的
+            # NF 已取消的订阅：本地有记录则重新订阅，否则跳过
             if nf_status and str(nf_status).lower() in ("cancelled", "canceled", "stopped"):
-                continue
+                local_sub = local_by_tmdb.get(tid)
+                if not local_sub:
+                    continue
+                # 本地有记录 → 重新订阅到 NF
+                nf_result = await self.nf.add_subscription(tid)
+                if "error" in nf_result:
+                    logger.warning(f"双向同步 — 重新订阅到 NF 失败: {local_sub.title}, {nf_result}")
+                    continue
+                logger.info(f"双向同步 — 重新订阅到 NF: {local_sub.title} (tmdb_id={tid})")
+                # 重新订阅成功 → 更新 sub_id，修正状态，fall through 到正常同步逻辑
+                nf_id = nf_result.get("id") or nf_result.get("sub_id") or ""
+                local_sub.nf_sub_id = str(nf_id) if nf_id else None
+                nf_sub["sub_status"] = "active"
+                nf_status = "active"
 
             total_eps = nf_sub.get("total_episodes", 0)
             local_eps = nf_sub.get("local_episodes", 0)
@@ -331,7 +344,10 @@ class OrchestratorService:
 
         # === Phase 2: 本地 → NF（推送未完成的本地订阅到 NF）===
         for local_sub in local_all:
-            if local_sub.nf_subscribed or local_sub.completed:
+            if local_sub.completed:
+                continue
+            # nf_subscribed=True 但 NF 全量列表中找不到 → 需要重新推送
+            if local_sub.nf_subscribed and local_sub.tmdb_id in nf_by_tmdb:
                 continue
             nf_result = await self.nf.add_subscription(local_sub.tmdb_id)
             if "error" not in nf_result:
