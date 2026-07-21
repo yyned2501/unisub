@@ -28,11 +28,11 @@ const emit = defineEmits<{
           :key="p.name"
           class="flex items-center justify-between py-2.5 border-b last:border-b-0 border-[var(--n-border-color)]"
         >
-          <div>
+          <div class="min-w-0 flex-1 mr-3">
             <div class="text-sm font-medium capitalize">{{ p.name === 'nextfind' ? 'NextFind' : 'MoviePilot' }}</div>
-            <div class="text-xs opacity-50 font-mono">{{ p.message }}</div>
+            <div class="text-xs opacity-50 font-mono truncate">{{ p.message }}</div>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 shrink-0">
             <span v-if="p.name === 'nextfind' && nfQuota !== null" class="text-xs opacity-60">
               剩余 <strong class="opacity-100">{{ nfQuota }}</strong>
             </span>

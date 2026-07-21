@@ -9,7 +9,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="grid grid-cols-4 gap-4 mb-5">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-5">
     <n-card :bordered="true" size="small">
       <div class="flex items-center gap-4">
         <div

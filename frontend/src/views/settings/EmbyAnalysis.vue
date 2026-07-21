@@ -36,7 +36,7 @@ const {
 
 <template>
   <div>
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
       <h2 class="text-lg font-bold">Emby 缺集分析</h2>
       <div class="flex items-center gap-2">
         <n-button size="small" secondary :loading="syncing" @click="handleSync">

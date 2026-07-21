@@ -101,7 +101,7 @@ const hasItems = computed(() => items.value.length > 0)
                   @click="handleResolve(s)"
                 >
                   <template #icon><i class="ri-search-line"></i></template>
-                  确认路径
+                  <span class="hidden sm:inline">确认路径</span>
                 </n-button>
                 <n-button
                   size="tiny"
@@ -112,7 +112,7 @@ const hasItems = computed(() => items.value.length > 0)
                   @click="confirmMove(s)"
                 >
                   <template #icon><i class="ri-folder-transfer-line"></i></template>
-                  移动回待整理
+                  <span class="hidden sm:inline">移动回待整理</span>
                 </n-button>
               </div>
             </div>

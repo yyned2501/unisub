@@ -8,6 +8,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     ActivityList: typeof import('./../components/dashboard/ActivityList.vue')['default']
+    AppMenu: typeof import('./../components/common/AppMenu.vue')['default']
     AppProvider: typeof import('./../components/common/app-provider.vue')['default']
     AutoFillProgress: typeof import('./../components/dashboard/AutoFillProgress.vue')['default']
     EmbyScanProgress: typeof import('./../components/emby/EmbyScanProgress.vue')['default']
@@ -23,6 +24,8 @@ declare module 'vue' {
     NDataTable: typeof import('naive-ui')['NDataTable']
     NDialogProvider: typeof import('naive-ui')['NDialogProvider']
     NDivider: typeof import('naive-ui')['NDivider']
+    NDrawer: typeof import('naive-ui')['NDrawer']
+    NDrawerContent: typeof import('naive-ui')['NDrawerContent']
     NEmpty: typeof import('naive-ui')['NEmpty']
     NForm: typeof import('naive-ui')['NForm']
     NFormItem: typeof import('naive-ui')['NFormItem']

@@ -41,7 +41,7 @@ function handleConfirm() {
     :show="show"
     preset="card"
     title="确认订阅"
-    style="max-width: 460px"
+    style="width: calc(100vw - 32px); max-width: 460px"
     :mask-closable="false"
     closable
     @update:show="
