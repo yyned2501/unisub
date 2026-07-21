@@ -1,16 +1,16 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { getTaskStatus, triggerTask, updateTaskConfig } from '@/service/api/tasks'
+import { getTaskStatus, updateTaskConfig } from '@/service/api/tasks'
 
 defineOptions({ name: 'TaskSettings' })
 
 const loading = ref(false)
 const saving = ref(false)
-const triggering = ref(false)
 
 const config = reactive({
   interval: 1800,
-  mp_enabled: true,
+  auto_fill_enabled: false,
+  auto_fill_interval_secs: 30,
 })
 
 function formatInterval(seconds) {
@@ -25,7 +25,10 @@ async function load() {
     const { data } = await getTaskStatus()
     if (data) {
       config.interval = data.interval || 1800
-      config.mp_enabled = data.mp_enabled !== false
+      if (data.config) {
+        config.auto_fill_enabled = data.config.auto_fill_enabled || false
+        config.auto_fill_interval_secs = data.config.auto_fill_interval_seconds || 30
+      }
     }
   } catch {} finally { loading.value = false }
 }
@@ -33,17 +36,13 @@ async function load() {
 async function handleSave() {
   saving.value = true
   try {
-    await updateTaskConfig({ interval: config.interval, mp_enabled: config.mp_enabled })
+    await updateTaskConfig({
+      interval: config.interval,
+      auto_fill_enabled: config.auto_fill_enabled,
+      auto_fill_interval_seconds: config.auto_fill_interval_secs,
+    })
     window.$message?.success('任务配置已保存')
   } catch {} finally { saving.value = false }
-}
-
-async function handleTrigger() {
-  triggering.value = true
-  try {
-    await triggerTask()
-    window.$message?.success('已触发编排任务')
-  } catch {} finally { triggering.value = false }
 }
 
 onMounted(() => load())
@@ -57,7 +56,7 @@ onMounted(() => load())
       <n-spin :show="loading">
         <div class="flex flex-col gap-5">
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs opacity-50 font-medium">轮询间隔</label>
+            <label class="text-xs opacity-50 font-medium">全量扫描间隔</label>
             <div class="flex items-center gap-2.5">
               <n-input-number v-model:value="config.interval" :min="60" :max="86400" :step="60" size="small" style="width: 140px;">
                 <template #suffix><span class="text-xs opacity-40">秒</span></template>
@@ -66,19 +65,27 @@ onMounted(() => load())
             </div>
           </div>
 
+          <div style="border-top: 1px solid var(--n-border-color);"></div>
+
           <div class="flex items-center justify-between">
-            <label class="text-xs opacity-50 font-medium">启用 MP 补充</label>
-            <n-switch v-model:value="config.mp_enabled" />
+            <label class="text-xs opacity-50 font-medium">启用自动补缺集</label>
+            <n-switch v-model:value="config.auto_fill_enabled" />
           </div>
 
-          <div class="flex gap-2 pt-2" style="border-top: 1px solid var(--n-border-color);">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs opacity-50 font-medium">补缺集间隔</label>
+            <div class="flex items-center gap-2.5">
+              <n-input-number v-model:value="config.auto_fill_interval_secs" :min="10" :max="86400" :step="10" size="small" style="width: 140px;">
+                <template #suffix><span class="text-xs opacity-40">秒</span></template>
+              </n-input-number>
+              <span class="text-xs opacity-50">{{ formatInterval(config.auto_fill_interval_secs) }}</span>
+            </div>
+          </div>
+
+          <div class="flex pt-2" style="border-top: 1px solid var(--n-border-color);">
             <n-button size="small" type="primary" :loading="saving" @click="handleSave">
               <template #icon><i class="ri-save-line"></i></template>
               保存配置
-            </n-button>
-            <n-button size="small" :loading="triggering" @click="handleTrigger">
-              <template #icon><i class="ri-flashlight-line"></i></template>
-              手动触发
             </n-button>
           </div>
         </div>
