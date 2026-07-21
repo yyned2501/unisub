@@ -2,7 +2,14 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
+
+
+def _mask_api_key(key: str) -> str:
+    """脱敏 API Key，只保留前 4 位和后 4 位，中间用 **** 替代。"""
+    if not key or len(key) <= 8:
+        return "****"
+    return f"{key[:4]}****{key[-4:]}"
 
 
 class PlatformConfigCreate(BaseModel):
@@ -24,7 +31,7 @@ class PlatformConfigUpdate(BaseModel):
 
 
 class PlatformConfigResponse(BaseModel):
-    """平台配置的响应体。"""
+    """平台配置的响应体（api_key 自动脱敏）。"""
 
     id: str
     name: str
@@ -35,6 +42,10 @@ class PlatformConfigResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("api_key")
+    def mask_api_key(self, value: str) -> str:
+        return _mask_api_key(value)
 
 
 class PlatformTestResult(BaseModel):
