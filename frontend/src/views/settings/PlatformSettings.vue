@@ -83,7 +83,10 @@ async function handleToggle(p, enabled) {
   try {
     await updatePlatform(p.id, { enabled })
     window.$message?.success(`${meta(p).label} 已${enabled ? '启用' : '禁用'}`)
-  } catch { p.enabled = !enabled }
+  } catch {
+    p.enabled = !enabled
+    window.$message?.error(`${meta(p).label} ${enabled ? '启用' : '禁用'}失败`)
+  }
 }
 
 async function handleDelete(p) {
@@ -104,7 +107,9 @@ async function handleDelete(p) {
     await deletePlatform(p.id)
     window.$message?.success(`${meta(p).label} 已删除`)
     platforms.value = platforms.value.filter(i => i.id !== p.id)
-  } catch {}
+  } catch {
+    window.$message?.error(`${meta(p).label} 删除失败`)
+  }
 }
 
 onMounted(() => { loadPlatforms(); loadQuota() })
