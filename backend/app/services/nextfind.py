@@ -84,25 +84,31 @@ class NextFindService:
             return result.get("data", result.get("results", []))
         return []
 
-    async def add_subscription(self, tmdb_id: int, media_type: str = "tv") -> dict:
+    async def add_subscription(self, tmdb_id: int, media_type: str = "tv", title: str | None = None) -> dict:
         """向 NextFind 添加订阅。
 
         Args:
             tmdb_id: TMDB ID
             media_type: 媒体类型（movie / tv）
+            title: 可选，辅助标题
 
         Returns:
             API 响应字典
         """
+        body: dict = {"tmdb_id": str(tmdb_id), "media_type": media_type}
+        if title:
+            body["title"] = title
         url = f"{self.base_url}/api/openapi/subscriptions/add"
         result = await http_client.post(
             url,
             headers=self._headers,
-            json={"tmdb_id": str(tmdb_id), "media_type": media_type},
+            json=body,
         )
         return result
 
-    async def create_subscription(self, tmdb_id: int, media_type: str = "tv") -> SubscriptionCreateResult:
+    async def create_subscription(
+        self, tmdb_id: int, media_type: str = "tv", title: str | None = None
+    ) -> SubscriptionCreateResult:
         """创建订阅并严格校验 NextFind 的业务响应。
 
         Args:
@@ -112,7 +118,7 @@ class NextFindService:
         Returns:
             语义化的创建结果；仅明确成功或已存在才返回成功 outcome。
         """
-        result = await self.add_subscription(tmdb_id, media_type)
+        result = await self.add_subscription(tmdb_id, media_type, title=title)
         if not isinstance(result, dict):
             return SubscriptionCreateResult("failed", message="NextFind 返回格式无效")
 

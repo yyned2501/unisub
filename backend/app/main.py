@@ -236,7 +236,7 @@ async def lifespan(app: FastAPI):
                 if not already_subscribed:
                     logger.info(f"自动补缺: 添加临时订阅 {picked.emby_series_name} (tmdb_id={picked.tmdb_id})")
                     try:
-                        await nf.add_subscription(picked.tmdb_id, media_type="tv")
+                        await nf.add_subscription(picked.tmdb_id, media_type="tv", title=picked.emby_series_name)
                         _scheduler_mod._auto_fill_current_sub = picked.tmdb_id
                     except Exception as e:
                         logger.error(f"添加临时订阅失败: {picked.emby_series_name}, {e}")
