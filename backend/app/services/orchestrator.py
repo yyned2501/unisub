@@ -291,8 +291,8 @@ class OrchestratorService:
             # NF 全部已取消：本地有记录且未完成则重新订阅
             if not has_active:
                 local_sub = local_by_tmdb.get(tid)
-                if not local_sub or local_sub.completed:
-                    continue  # 孤儿或已完成 → 跳过
+                if not local_sub or local_sub.completed or local_sub.blacklisted:
+                    continue  # 孤儿 / 已完成 / 已拉黑 → 跳过
 
                 # 用 NF 数据预判是否实际已完成，避免"重新订阅 → NF 取消"循环
                 nf_total = int(nf_sub.get("total_episodes") or 0)
@@ -388,9 +388,41 @@ class OrchestratorService:
                     )
                 )
 
+        # === Phase 1.5: 拉黑的订阅从 NF 取消 ===
+        for local_sub in local_all:
+            if not local_sub.blacklisted:
+                continue
+            entries = nf_by_tmdb.get(local_sub.tmdb_id, [])
+            has_active = any(
+                (e.get("sub_status") or e.get("status") or "").lower() in ("active", "subscribing") for e in entries
+            )
+            if not has_active:
+                # NF 端已无活跃条目，仅更新本地标记
+                if local_sub.nf_subscribed:
+                    local_sub.nf_subscribed = False
+                    local_sub.updated_at = datetime.now(UTC)
+                continue
+            # NF 端仍有活跃条目 → 调用取消
+            nf_result = await self.nf.remove_subscription(local_sub.tmdb_id, media_type=local_sub.media_type)
+            if "error" not in nf_result:
+                local_sub.nf_subscribed = False
+                local_sub.updated_at = datetime.now(UTC)
+                results.append(
+                    SubscriptionSyncResult(
+                        tmdb_id=local_sub.tmdb_id,
+                        title=local_sub.title,
+                        action="cancelled_blacklisted",
+                        nf_subscribed=False,
+                        message=f"拉黑取消: {local_sub.title}",
+                    )
+                )
+                logger.info(f"同步拉黑 — 从 NF 取消: {local_sub.title} (tmdb_id={local_sub.tmdb_id})")
+            else:
+                logger.warning(f"同步拉黑 — 从 NF 取消失败: {local_sub.title}, {nf_result}")
+
         # === Phase 2: 本地 → NF（推送未完成的本地订阅到 NF）===
         for local_sub in local_all:
-            if local_sub.completed:
+            if local_sub.completed or local_sub.blacklisted:
                 continue
             # 检查 NF 中是否已有该 tmdb_id 的 active 条目
             entries = nf_by_tmdb.get(local_sub.tmdb_id, [])
@@ -471,27 +503,19 @@ class OrchestratorService:
                             f"完结剧已全部入库: {sub.title} (emby={ec.emby_episode_count}, total={tc.tmdb_total_eps})"
                         )
 
-        # === Phase 5: 清理 NF 中不再需要的 cancelled 条目 ===
-        cleaned = 0
+        # === Phase 5: 清理 NF 中不再需要的 cancelled 条目（仅记录，不重复调用取消 API）===
         for tid, entries in nf_by_tmdb.items():
             local_sub = local_by_tmdb.get(tid)
             for nf_sub in entries:
                 nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or nf_sub.get("nf_status")
                 if not nf_status or str(nf_status).lower() not in ("cancelled", "canceled", "stopped"):
                     continue
-                if local_sub and not local_sub.completed:
-                    continue  # 未完成，Phase 1 会重新订阅
-                reason = "本地已完成" if local_sub else "本地无记录"
-                nf_result = await self.nf.remove_subscription(tid, media_type=nf_sub.get("media_type", "tv"))
-                if "error" not in nf_result:
-                    cleaned += 1
-                    logger.info(
-                        f"同步清理 — 删除 NF 无效订阅: tmdb_id={tid}, type={nf_sub.get('media_type')} ({reason})"
-                    )
-                else:
-                    logger.warning(f"同步清理 — 删除 NF 无效订阅失败: tmdb_id={tid}, {nf_result}")
-        if cleaned:
-            logger.info(f"同步清理 — 本轮共删除 {cleaned} 条 NF 无效订阅")
+                if local_sub and not local_sub.completed and not local_sub.blacklisted:
+                    continue  # 未完成且未拉黑，Phase 1 会重新订阅
+                reason = (
+                    "本地已完成" if local_sub and local_sub.completed else ("已拉黑" if local_sub else "本地无记录")
+                )
+                logger.debug(f"NF 已取消条目（跳过）: tmdb_id={tid}, type={nf_sub.get('media_type')} ({reason})")
 
         # === Phase 6: 记录同步活动 ===
         log_entry = ActivityLog(
