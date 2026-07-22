@@ -23,14 +23,13 @@ const { stats, platforms, activities, nfQuota, loading, scanStatus, loadPlatform
 
     <ScanProgress :scan-status="scanStatus" />
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <PlatformPanel
-        :platforms="platforms"
-        :nf-quota="nfQuota"
-        :loading="loading.platforms"
-        @refresh="loadPlatformData"
-      />
-    </div>
+    <PlatformPanel
+      :platforms="platforms"
+      :nf-quota="nfQuota"
+      :loading="loading.platforms"
+      class="mt-4"
+      @refresh="loadPlatformData"
+    />
 
     <div class="grid grid-cols-1 gap-4 mt-4">
       <ActivityList :activities="activities" :loading="loading.activities" @refresh="loadActivities" />

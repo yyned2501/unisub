@@ -8,7 +8,7 @@ import type { PlatformConfig } from '@/types'
 defineOptions({ name: 'PlatformSettings' })
 
 const platforms = ref<PlatformConfig[]>([])
-const nfQuota = ref<number | null>(null)
+const nfQuota = ref<Record<string, string> | null>(null)
 const testingId = ref<string | null>(null)
 const loading = ref(false)
 const savingId = ref<string | null>(null)
@@ -42,11 +42,17 @@ async function loadPlatforms() {
 async function loadQuota() {
   try {
     const data = await getNextFindQuota()
-    nfQuota.value = (data?.remaining ?? data?.quota ?? null) as number | null
+    nfQuota.value = data?.quota?.data ?? null
   } catch {
     nfQuota.value = null
   }
 }
+
+/** NextFind 有效额度列表（过滤掉"未开启"的空条目） */
+const nfQuotaList = computed(() => {
+  if (!nfQuota.value) return []
+  return Object.values(nfQuota.value).filter((v) => v && v !== '未开启')
+})
 
 async function handleSave(p: PlatformConfig) {
   savingId.value = p.id
@@ -159,9 +165,11 @@ onMounted(() => {
                 show-password-on="click"
               />
             </div>
-            <div v-if="p.name === 'nextfind' && nfQuota !== null" class="flex items-center gap-2 text-xs">
+            <div v-if="p.name === 'nextfind' && nfQuotaList.length" class="flex items-center gap-2 text-xs">
               <span class="opacity-40">额度</span>
-              <span class="font-semibold" style="color: rgb(96, 165, 250)">{{ nfQuota }}</span>
+              <span class="font-semibold leading-relaxed" style="color: rgb(96, 165, 250)">
+                <span v-for="(item, idx) in nfQuotaList" :key="idx" class="block">{{ item }}</span>
+              </span>
             </div>
           </div>
 

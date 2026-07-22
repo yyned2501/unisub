@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { PlatformStatus } from '@/types'
 
-defineProps<{
+const props = defineProps<{
   platforms: PlatformStatus[]
-  nfQuota: number | string | null
+  nfQuota: Record<string, string> | null
   loading: boolean
 }>()
 
@@ -17,6 +18,12 @@ const PLATFORM_LABELS: Record<string, string> = {
   emby: 'Emby',
   tmdb: 'TMDB',
 }
+
+/** NextFind 有效额度列表（过滤掉"未开启"的空条目） */
+const nfQuotaList = computed(() => {
+  if (!props.nfQuota) return []
+  return Object.values(props.nfQuota).filter((v) => v && v !== '未开启')
+})
 </script>
 
 <template>
@@ -40,9 +47,9 @@ const PLATFORM_LABELS: Record<string, string> = {
             <div class="text-xs opacity-50 font-mono truncate">{{ p.message }}</div>
           </div>
           <div class="flex items-center gap-3 shrink-0">
-            <span v-if="p.name === 'nextfind' && nfQuota !== null" class="text-xs opacity-60">
-              剩余 <strong class="opacity-100">{{ nfQuota }}</strong>
-            </span>
+            <div v-if="p.name === 'nextfind' && nfQuotaList.length" class="text-xs opacity-60 text-right leading-relaxed">
+              <div v-for="(item, idx) in nfQuotaList" :key="idx">{{ item }}</div>
+            </div>
             <n-tag :type="!p.enabled ? 'default' : p.connected ? 'success' : 'error'" size="tiny" round>
               {{ !p.enabled ? '未启用' : p.connected ? '已连接' : '连接失败' }}
             </n-tag>
