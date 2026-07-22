@@ -268,12 +268,12 @@ class OrchestratorService:
         for tid, nf_sub in nf_by_tmdb.items():
             nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or nf_sub.get("nf_status")
 
-            # NF 已取消的订阅：本地有记录则重新订阅，否则跳过
+            # NF 已取消的订阅：本地有记录且未完成则重新订阅，本地无记录或已完成则跳过
             if nf_status and str(nf_status).lower() in ("cancelled", "canceled", "stopped"):
                 local_sub = local_by_tmdb.get(tid)
-                if not local_sub:
-                    continue
-                # 本地有记录 → 重新订阅到 NF
+                if not local_sub or local_sub.completed:
+                    continue  # 孤儿或已完成 → 跳过（NF 不允许删除已取消条目）
+                # 本地有记录且未完成 → 重新订阅到 NF
                 nf_result = await self.nf.add_subscription(tid)
                 if "error" in nf_result:
                     logger.warning(f"双向同步 — 重新订阅到 NF 失败: {local_sub.title}, {nf_result}")
@@ -431,7 +431,30 @@ class OrchestratorService:
                             f"完结剧已全部入库: {sub.title} (emby={ec.emby_episode_count}, total={tc.tmdb_total_eps})"
                         )
 
-        # 记录同步活动
+        # === Phase 5: 清理 NF 中不再需要的 cancelled 条目 ===
+        # 经过 Phase 1-4 后，清理两种无效订阅：
+        #   1. 孤儿条目（本地无记录）→ 直接删
+        #   2. 已完成条目（本地 completed）→ 删
+        # 未完成且本地有记录的 cancelled 由 Phase 1 重新订阅，这里不动。
+        cleaned = 0
+        for tid, nf_sub in nf_by_tmdb.items():
+            nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or nf_sub.get("nf_status")
+            if not nf_status or str(nf_status).lower() not in ("cancelled", "canceled", "stopped"):
+                continue
+            local_sub = local_by_tmdb.get(tid)
+            if local_sub and not local_sub.completed:
+                continue  # 未完成，Phase 1 会重新订阅
+            reason = "本地已完成" if local_sub else "本地无记录"
+            nf_result = await self.nf.remove_subscription(tid, media_type=nf_sub.get("media_type", "tv"))
+            if "error" not in nf_result:
+                cleaned += 1
+                logger.info(f"同步清理 — 删除 NF 无效订阅: tmdb_id={tid} ({reason})")
+            else:
+                logger.warning(f"同步清理 — 删除 NF 无效订阅失败: tmdb_id={tid}, {nf_result}")
+        if cleaned:
+            logger.info(f"同步清理 — 本轮共删除 {cleaned} 条 NF 无效订阅")
+
+        # === Phase 6: 记录同步活动 ===
         log_entry = ActivityLog(
             id=str(uuid.uuid4()),
             action="sync",
