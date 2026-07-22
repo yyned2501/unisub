@@ -1,10 +1,8 @@
 """自动订阅路由。"""
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
-from app.core.database import get_db
 from app.schemas.auto_subscribe import (
     AutoSubConfigResponse,
     AutoSubConfigUpdate,
@@ -40,19 +38,30 @@ async def update_config(body: AutoSubConfigUpdate) -> dict:
 
 
 @router.post("/run", response_model=AutoSubRunResponse)
-async def trigger_run(db: AsyncSession = Depends(get_db)) -> AutoSubRunResponse:
-    """手动触发一次自动订阅运行，完成后自动同步 NF。"""
-    result = await get_auto_subscribe_service().run(db)
-    # 自动订阅完成后触发 NF 同步
-    if result.get("success"):
-        from app.services import get_nf_service
-        from app.services.orchestrator import OrchestratorService
+async def trigger_run() -> AutoSubRunResponse:
+    """手动触发一次自动订阅运行（后台执行，立即返回）。"""
+    import asyncio
 
-        nf = await get_nf_service(db)
-        if nf:
-            orchestrator = OrchestratorService(nf)
-            await orchestrator.sync_subscriptions(db)
-    return AutoSubRunResponse(**result)
+    from app.core.database import async_session
+
+    svc = get_auto_subscribe_service()
+    if svc.get_status()["running"]:
+        return AutoSubRunResponse(success=False, started=False, message="自动订阅正在运行中")
+
+    async def _background_run():
+        async with async_session() as bg_db:
+            result = await svc.run(bg_db, trigger="manual")
+            if result.get("success"):
+                from app.services import get_nf_service
+                from app.services.orchestrator import OrchestratorService
+
+                nf = await get_nf_service(bg_db)
+                if nf:
+                    orchestrator = OrchestratorService(nf)
+                    await orchestrator.sync_subscriptions(bg_db)
+
+    asyncio.create_task(_background_run())
+    return AutoSubRunResponse(success=True, started=True, message="自动订阅已启动，正在后台运行")
 
 
 @router.get("/history", response_model=AutoSubHistoryResponse)
