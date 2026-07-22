@@ -3,6 +3,7 @@
 封装 NextFind 的搜索、订阅、转存、额度查询等 OpenAPI 接口。
 """
 
+import asyncio
 from dataclasses import dataclass
 
 from app.core.http_client import http_client
@@ -34,6 +35,18 @@ class NextFindService:
     所有方法通过 X-API-Key 头鉴权，自动处理 JSON 解析与错误。
     """
 
+    _last_call: float = 0.0
+    _min_interval: float = 0.6  # 每次 API 调用最小间隔（秒），防止并发过高
+
+    @classmethod
+    async def _rate_limit(cls):
+        """API 调用限流：确保两次调用之间至少间隔 _min_interval 秒。"""
+        now = asyncio.get_event_loop().time()
+        elapsed = now - cls._last_call
+        if elapsed < cls._min_interval:
+            await asyncio.sleep(cls._min_interval - elapsed)
+        cls._last_call = asyncio.get_event_loop().time()
+
     def __init__(self, base_url: str, api_key: str):
         """初始化 NextFind 服务。
 
@@ -64,12 +77,14 @@ class NextFindService:
     async def search_tmdb(self, query: str, media_type: str = "all") -> list[dict]:
         """搜索 TMDB 资源。
 
+        await self._rate_limit()
         Args:
             query: 搜索关键词
             media_type: 媒体类型（movie / tv / all）
 
         Returns:
             搜索结果列表
+        await self._rate_limit()
         """
         # 将英文类型映射为 NextFind 所需的中文类型
         mapped_type = _TYPE_MAP.get(media_type, media_type)
@@ -83,15 +98,18 @@ class NextFindService:
         if isinstance(result, dict):
             return result.get("data", result.get("results", []))
         return []
+        await self._rate_limit()
 
     async def add_subscription(self, tmdb_id: int, media_type: str = "tv", title: str | None = None) -> dict:
         """向 NextFind 添加订阅。
 
+        await self._rate_limit()
         Args:
             tmdb_id: TMDB ID
             media_type: 媒体类型（movie / tv）
             title: 可选，辅助标题
 
+        await self._rate_limit()
         Returns:
             API 响应字典
         """
@@ -111,6 +129,7 @@ class NextFindService:
     ) -> SubscriptionCreateResult:
         """创建订阅并严格校验 NextFind 的业务响应。
 
+        await self._rate_limit()
         Args:
             tmdb_id: TMDB ID。
             media_type: 媒体类型（movie / tv）。
@@ -157,10 +176,12 @@ class NextFindService:
         """从 NextFind 取消订阅。
 
         Args:
+            await self._rate_limit()
             tmdb_id: TMDB ID
             media_type: 媒体类型（movie / tv）
 
         Returns:
+            await self._rate_limit()
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/subscriptions/remove"
@@ -177,8 +198,10 @@ class NextFindService:
         Returns:
             订阅列表
         """
+        await self._rate_limit()
         url = f"{self.base_url}/api/openapi/subscriptions"
         result = await http_client.get(url, headers=self._headers)
+        await self._rate_limit()
         if (ret := self._check(result, [], "获取订阅列表")) is not None:
             return ret
         if isinstance(result, list):
@@ -193,6 +216,7 @@ class NextFindService:
         Returns:
             额度信息字典
         """
+        await self._rate_limit()
         url = f"{self.base_url}/api/openapi/quota"
         result = await http_client.get(url, headers=self._headers)
         return result
@@ -204,6 +228,7 @@ class NextFindService:
             tmdb_id: TMDB ID
             target_folder: 目标文件夹路径
 
+        await self._rate_limit()
         Returns:
             API 响应字典
         """
@@ -223,6 +248,7 @@ class NextFindService:
         """
         url = f"{self.base_url}/api/openapi/history"
         result = await http_client.get(url, headers=self._headers)
+        await self._rate_limit()
         if (ret := self._check(result, [], "获取历史")) is not None:
             return ret
         if isinstance(result, list):
@@ -240,6 +266,7 @@ class NextFindService:
         Returns:
             目录列表
         """
+        await self._rate_limit()
         url = f"{self.base_url}/api/openapi/directories"
         params = {}
         if cid:
@@ -263,6 +290,7 @@ class NextFindService:
         """搜索网盘与种子资源，获取标签、神盾标志、洗版权重等属性。
 
         Args:
+            await self._rate_limit()
             tmdb_id: TMDB ID
             media_type: 媒体类型（movie / tv）
             season: 季号
@@ -297,6 +325,7 @@ class NextFindService:
         """
         url = f"{self.base_url}/api/openapi/preview"
         result = await http_client.post(url, headers=self._headers, json={"slug": slug})
+        await self._rate_limit()
         if (ret := self._check(result, {}, "探针解包")) is not None:
             return ret
         return result
@@ -312,6 +341,7 @@ class NextFindService:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/hdhive/unlock"
+        await self._rate_limit()
         result = await http_client.post(
             url,
             headers=self._headers,
@@ -332,6 +362,7 @@ class NextFindService:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/directories"
+        await self._rate_limit()
         result = await http_client.post(
             url,
             headers=self._headers,
@@ -355,6 +386,7 @@ class NextFindService:
         result = await http_client.get(url, headers=self._headers, params=params)
         if (ret := self._check(result, [], "本地库过滤")) is not None:
             return ret
+        await self._rate_limit()
         if isinstance(result, list):
             return result
         if isinstance(result, dict):
@@ -368,6 +400,7 @@ class NextFindService:
             items: 查询项列表，每项为 {"tmdb_id": str, "media_type": "tv"|"movie"}
 
         Returns:
+            await self._rate_limit()
             订阅详情字典，data 数组含 local_episodes / total_episodes / is_in_library 等
         """
         url = f"{self.base_url}/api/openapi/subscriptions/info"
@@ -387,6 +420,7 @@ class NextFindService:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/media/fill_missing"
+        await self._rate_limit()
         result = await http_client.post(
             url,
             headers=self._headers,
@@ -413,5 +447,6 @@ class NextFindService:
             json={"tmdb_id": str(tmdb_id), "season": season},
         )
         if (ret := self._check(result, {}, "切换忽略季")) is not None:
+            await self._rate_limit()
             return ret
         return result
