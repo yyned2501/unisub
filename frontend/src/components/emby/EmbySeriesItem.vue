@@ -6,14 +6,12 @@ defineProps<{
   s: EmbyCacheResponse
   hiding: boolean
   subscribing: boolean
-  filling: boolean
 }>()
 
 defineEmits<{
   hide: [tmdbId: number]
   unhide: [tmdbId: number]
   subscribe: [s: EmbyCacheResponse]
-  fill: [tmdbId: number]
 }>()
 </script>
 
@@ -89,17 +87,6 @@ defineEmits<{
       >
         <template #icon><i class="ri-add-line"></i></template>
         <span class="hidden sm:inline">添加订阅</span>
-      </n-button>
-      <n-button
-        v-if="(s.adjusted_missing ?? 0) > 0"
-        size="tiny"
-        type="warning"
-        secondary
-        :loading="filling"
-        @click="$emit('fill', s.tmdb_id)"
-      >
-        <template #icon><i class="ri-refresh-line"></i></template>
-        <span class="hidden sm:inline">立即补缺</span>
       </n-button>
       <n-button v-if="!s.is_blacklisted" size="tiny" quaternary :loading="hiding" @click="$emit('hide', s.tmdb_id)">
         <template #icon><i class="ri-eye-off-line"></i></template>

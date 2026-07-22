@@ -10,7 +10,6 @@ declare module 'vue' {
     ActivityList: typeof import('./../components/dashboard/ActivityList.vue')['default']
     AppMenu: typeof import('./../components/common/AppMenu.vue')['default']
     AppProvider: typeof import('./../components/common/app-provider.vue')['default']
-    AutoFillProgress: typeof import('./../components/dashboard/AutoFillProgress.vue')['default']
     EmbyScanProgress: typeof import('./../components/emby/EmbyScanProgress.vue')['default']
     EmbySeriesItem: typeof import('./../components/emby/EmbySeriesItem.vue')['default']
     EmbyStatsCards: typeof import('./../components/emby/EmbyStatsCards.vue')['default']

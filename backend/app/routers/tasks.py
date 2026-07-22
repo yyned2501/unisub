@@ -10,9 +10,8 @@ from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
 from app.services import get_mp_service, get_nf_service, log_activity
-from app.services import scheduler as _sched_mod
 from app.services.orchestrator import OrchestratorService
-from app.services.scheduler import TaskConfigUpdate, _auto_fill_progress, _task_config, save_state
+from app.services.scheduler import TaskConfigUpdate, _task_config, save_state
 
 router = APIRouter(prefix="/api/tasks", tags=["定时任务"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
@@ -32,9 +31,6 @@ class TaskStatusResponse(BaseModel):
     last_run: str | None = None
     last_result: dict | None = None
     config: dict
-    auto_fill_cursor: int | None = None
-    auto_fill_last_run: str | None = None
-    auto_fill_progress: dict | None = None
 
 
 class TaskTriggerResponse(BaseModel):
@@ -54,9 +50,6 @@ async def get_task_status():
         last_run=_task_status["last_run"],
         last_result=_task_status["last_result"],
         config=_task_config,
-        auto_fill_cursor=_sched_mod._auto_fill_cursor,
-        auto_fill_last_run=_sched_mod._auto_fill_last_run,
-        auto_fill_progress=_auto_fill_progress,
     )
 
 

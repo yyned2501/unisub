@@ -4,11 +4,10 @@ import StatsCards from '@/components/dashboard/StatsCards.vue'
 import ScanProgress from '@/components/dashboard/ScanProgress.vue'
 import PlatformPanel from '@/components/dashboard/PlatformPanel.vue'
 import ActivityList from '@/components/dashboard/ActivityList.vue'
-import AutoFillProgress from '@/components/dashboard/AutoFillProgress.vue'
 
 defineOptions({ name: 'DashboardView' })
 
-const { stats, platforms, activities, nfQuota, loading, scanStatus, autoFillStatus, loadPlatformData, loadActivities } =
+const { stats, platforms, activities, nfQuota, loading, scanStatus, loadPlatformData, loadActivities } =
   useDashboard()
 </script>
 
@@ -23,12 +22,6 @@ const { stats, platforms, activities, nfQuota, loading, scanStatus, autoFillStat
     />
 
     <ScanProgress :scan-status="scanStatus" />
-
-    <AutoFillProgress
-      :auto-fill-enabled="autoFillStatus.enabled"
-      :auto-fill-last-run="autoFillStatus.lastRun"
-      :auto-fill-progress="autoFillStatus.progress"
-    />
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <PlatformPanel

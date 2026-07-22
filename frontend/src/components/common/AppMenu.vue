@@ -28,6 +28,7 @@ const menuOptions = [
   { label: '媒体库', key: '/emby', icon: riIcon('ri-tv-2-line text-lg') },
   { label: '自动订阅', key: '/settings/auto-subscribe', icon: riIcon('ri-sparkling-2-line text-lg') },
   { label: '无 TMDB 媒体', key: '/emby/tmdb-404', icon: riIcon('ri-error-warning-line text-lg') },
+  { label: '系统架构', key: '/architecture', icon: riIcon('ri-flow-chart text-lg') },
   {
     label: '设置',
     key: 'settings-group',

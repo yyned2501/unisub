@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>UniSub 定时任务数据流</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  padding: 40px;
+  min-height: 100vh;
+}
+h1 {
+  text-align: center;
+  font-size: 24px;
+  margin-bottom: 8px;
+  color: #fff;
+}
+.subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 40px;
+}
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* === 四条线 === */
+.lines {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 40px;
+}
+.line-card {
+  border-radius: 12px;
+  padding: 20px 24px;
+  position: relative;
+  overflow: hidden;
+}
+.line-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 100%;
+}
+.line-1 { background: rgba(74,143,232,0.08); border: 1px solid rgba(74,143,232,0.25); }
+.line-1::before { background: #4A8FE8; }
+.line-2 { background: rgba(196,136,10,0.08); border: 1px solid rgba(196,136,10,0.25); }
+.line-2::before { background: #C4880A; }
+.line-3 { background: rgba(156,91,196,0.08); border: 1px solid rgba(156,91,196,0.25); }
+.line-3::before { background: #9C5BC4; }
+.line-4 { background: rgba(192,80,58,0.08); border: 1px solid rgba(192,80,58,0.25); }
+.line-4::before { background: #C0503A; }
+
+.line-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.line-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #1a1a2e;
+}
+.line-1 .line-badge { background: #4A8FE8; }
+.line-2 .line-badge { background: #C4880A; }
+.line-3 .line-badge { background: #9C5BC4; }
+.line-4 .line-badge { background: #C0503A; }
+
+.line-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+.line-trigger {
+  font-size: 12px;
+  color: #aaa;
+  margin-bottom: 12px;
+  padding: 4px 8px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  display: inline-block;
+}
+
+/* 流程步骤 */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.step-num {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.1);
+  color: #ccc;
+}
+.step-arrow {
+  color: #666;
+  font-size: 11px;
+  margin-left: 6px;
+}
+.step code {
+  background: rgba(255,255,255,0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #ddd;
+}
+
+/* === 关系图 === */
+.relation-section {
+  margin-top: 40px;
+}
+.relation-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #fff;
+}
+.flow-diagram {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 32px;
+  overflow-x: auto;
+}
+.flow-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.flow-row:last-child { margin-bottom: 0; }
+
+.flow-node {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+.node-external {
+  background: rgba(255,255,255,0.06);
+  border: 1px dashed rgba(255,255,255,0.3);
+  color: #bbb;
+}
+.node-process {
+  border: 1px solid;
+}
+.node-db {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px 4px 12px 12px;
+  color: #ccc;
+}
+.node-1 { border-color: rgba(74,143,232,0.5); background: rgba(74,143,232,0.1); color: #4A8FE8; }
+.node-2 { border-color: rgba(196,136,10,0.5); background: rgba(196,136,10,0.1); color: #C4880A; }
+.node-3 { border-color: rgba(156,91,196,0.5); background: rgba(156,91,196,0.1); color: #9C5BC4; }
+.node-4 { border-color: rgba(192,80,58,0.5); background: rgba(192,80,58,0.1); color: #C0503A; }
+
+.flow-arrow {
+  color: #666;
+  font-size: 16px;
+}
+.flow-arrow-down {
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+  margin: 8px 0;
+}
+.flow-label {
+  font-size: 10px;
+  color: #888;
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* 嵌入关系标注 */
+.embed-note {
+  margin-top: 24px;
+  padding: 12px 16px;
+  background: rgba(156,91,196,0.06);
+  border: 1px solid rgba(156,91,196,0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #ccc;
+  line-height: 1.8;
+}
+.embed-note strong { color: #9C5BC4; }
+.embed-note .tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+.tag-1 { background: rgba(74,143,232,0.2); color: #4A8FE8; }
+.tag-2 { background: rgba(196,136,10,0.2); color: #C4880A; }
+.tag-3 { background: rgba(156,91,196,0.2); color: #9C5BC4; }
+.tag-4 { background: rgba(192,80,58,0.2); color: #C0503A; }
+
+/* 数据库区域 */
+.db-section {
+  margin-top: 32px;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.db-box {
+  padding: 10px 20px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.15);
+  font-size: 12px;
+  text-align: center;
+}
+.db-box .db-name {
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.db-box .db-desc {
+  color: #999;
+  font-size: 11px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>UniSub 定时任务数据流</h1>
+  <p class="subtitle">4 条定时线 · scheduler._loop 统一驱动 · 全量扫描内嵌 NF 同步</p>
+
+  <!-- 四条线卡片 -->
+  <div class="lines">
+    <!-- 线 1 -->
+    <div class="line-card line-1">
+      <div class="line-header">
+        <span class="line-badge">线 1</span>
+        <span class="line-title">Emby 扫描 + TMDB 刷新</span>
+      </div>
+      <div class="line-trigger">⏱ 轻量 10min / 全量 60min（auto_sync_enabled）</div>
+      <div class="steps">
+        <div class="step"><span class="step-num">1</span> 访问 Emby API，同步媒体列表 → <code>emby_cache</code></div>
+        <div class="step"><span class="step-num">2</span> 对缓存条目查询 TMDB API → <code>tmdb_cache</code></div>
+        <div class="step"><span class="step-num">3</span> <em>（仅全量）</em>触发线 3 的 NF 同步 <span class="step-arrow">→ 见下方</span></div>
+      </div>
+    </div>
+
+    <!-- 线 2 -->
+    <div class="line-card line-2">
+      <div class="line-header">
+        <span class="line-badge">线 2</span>
+        <span class="line-title">自动订阅（发现新内容）</span>
+      </div>
+      <div class="line-trigger">⏱ Cron 表达式（schedule_cron）</div>
+      <div class="steps">
+        <div class="step"><span class="step-num">1</span> 并发抓取：豆瓣 / Mikan / 猫眼 榜单</div>
+        <div class="step"><span class="step-num">2</span> 全局 + 每源过滤（类型/年份/评分）</div>
+        <div class="step"><span class="step-num">3</span> TMDB 搜索（优先）/ NF 搜索（兜底）</div>
+        <div class="step"><span class="step-num">4</span> 标题相似度校验 → 查本地 DB 去重</div>
+        <div class="step"><span class="step-num">5</span> 新条目 → 调 NF 创建订阅 → 写 <code>subscriptions</code></div>
+      </div>
+    </div>
+
+    <!-- 线 3 -->
+    <div class="line-card line-3">
+      <div class="line-header">
+        <span class="line-badge">线 3</span>
+        <span class="line-title">NextFind 双向同步</span>
+      </div>
+      <div class="line-trigger">⏱ 嵌入全量扫描 Step 3 / 手动 POST /api/subscriptions/sync</div>
+      <div class="steps">
+        <div class="step"><span class="step-num">P0</span> 清理 NF 无元数据异常订阅</div>
+        <div class="step"><span class="step-num">P1</span> NF → 本地：更新状态/缺集数；NF 多余 → 取消</div>
+        <div class="step"><span class="step-num">P2</span> 本地 → NF：本地有但 NF 没有 → 推送</div>
+        <div class="step"><span class="step-num">P3</span> 电影完成状态（NF is_in_library）</div>
+        <div class="step"><span class="step-num">P4</span> 剧集完成状态（emby 集数 vs tmdb 集数）</div>
+        <div class="step"><span class="step-num">P5</span> 清理 NF 无效 cancelled 条目</div>
+      </div>
+    </div>
+
+    <!-- 线 4 -->
+    <div class="line-card line-4">
+      <div class="line-header">
+        <span class="line-badge">线 4</span>
+        <span class="line-title">自动缺集补全（MoviePilot）</span>
+      </div>
+      <div class="line-trigger">⏱ 固定间隔（auto_fill_interval_seconds，默认 30s）· 独立于 auto_sync</div>
+      <div class="steps">
+        <div class="step"><span class="step-num">1</span> 查找 <code>nf_missing_eps > 0</code> 且未完成的订阅</div>
+        <div class="step"><span class="step-num">2</span> 按游标（cursor）轮流取一条</div>
+        <div class="step"><span class="step-num">3</span> 调用 MoviePilot 搜索 API 触发下载</div>
+        <div class="step"><span class="step-num">4</span> 记录日志，游标前进，下轮处理下一条</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 关系总览 -->
+  <div class="relation-section">
+    <div class="relation-title">调度关系总览</div>
+    <div class="flow-diagram">
+      <div class="flow-row">
+        <div class="flow-node node-external">Emby Server</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node node-process node-1">线1: sync_cache</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node node-db">emby_cache</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node node-external">TMDB API</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node node-db">tmdb_cache</div>
+      </div>
+
+      <div class="flow-arrow-down">↓ 全量扫描完成后触发</div>
+
+      <div class="flow-row">
+        <div class="flow-node node-db">subscriptions</div>
+        <span class="flow-arrow">⇄</span>
+        <div class="flow-node node-process node-3">线3: sync_subscriptions</div>
+        <span class="flow-arrow">⇄</span>
+        <div class="flow-node node-external">NextFind API</div>
+      </div>
+
+      <div class="flow-arrow-down" style="margin-top: 20px;">── 独立线 ──</div>
+
+      <div class="flow-row">
+        <div class="flow-node node-external">豆瓣 / Mikan / 猫眼</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node node-process node-2">线2: auto_subscribe</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node node-external">TMDB / NF 搜索</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node node-db">subscriptions</div>
+      </div>
+
+      <div class="flow-row" style="margin-top: 12px;">
+        <div class="flow-node node-db">subscriptions<br><small style="color:#999">nf_missing_eps &gt; 0</small></div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node node-process node-4">线4: auto_fill</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node node-external">MoviePilot API</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node node-external" style="border-style: solid;">下载任务</div>
+      </div>
+    </div>
+
+    <!-- 关键说明 -->
+    <div class="embed-note">
+      <strong>⚠️ 关键设计：</strong><br>
+      <span class="tag tag-3">线3</span> 不是独立定时器 — 它嵌入在 <span class="tag tag-1">线1</span> 全量扫描的 Step 3 中（每 60min 跑一次）<br>
+      <span class="tag tag-2">线2</span> 目的是「发现新内容」— 只判断 已订阅?/已入库? 不判断缺集<br>
+      <span class="tag tag-4">线4</span> 才是「缺集 → 触发下载」的逻辑，独立于 auto_sync_enabled 开关<br>
+      <span class="tag tag-1">线1</span> 轻量刷新只补 <em>缺失</em> TMDB 数据；全量才刷新所有条目
+    </div>
+
+    <!-- 数据库 -->
+    <div class="db-section">
+      <div class="db-box">
+        <div class="db-name">emby_cache</div>
+        <div class="db-desc">Emby 本地库集数快照</div>
+      </div>
+      <div class="db-box">
+        <div class="db-name">tmdb_cache</div>
+        <div class="db-desc">TMDB 总集数/已播集数</div>
+      </div>
+      <div class="db-box">
+        <div class="db-name">subscriptions</div>
+        <div class="db-desc">订阅记录 + NF 状态</div>
+      </div>
+      <div class="db-box">
+        <div class="db-name">activity_logs</div>
+        <div class="db-desc">操作日志</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
