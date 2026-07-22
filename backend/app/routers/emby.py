@@ -12,7 +12,6 @@ from app.core.logger import init_logger
 from app.schemas.emby import (
     BlacklistActionResponse,
     BlacklistCreate,
-    EmbyActionRequest,
     EmbyActionResponse,
     EmbyBlacklistEntry,
     EmbySubscribeRequest,
@@ -181,37 +180,6 @@ async def subscribe_from_emby(
     except Exception as e:
         logger.error(f"Emby 添加订阅失败: {e}")
         raise HTTPException(status_code=500, detail=f"添加订阅失败: {e}")
-
-
-@router.post("/fill-missing", response_model=EmbyActionResponse)
-async def fill_missing_from_emby(
-    body: EmbyActionRequest,
-    db: AsyncSession = Depends(get_db),
-    nf: NextFindService = Depends(require_nf_service),
-):
-    """从 Emby 缺集列表触发补缺集 — 调用 NextFind /media/fill_missing。"""
-    try:
-        result = await nf.fill_missing(tmdb_id=body.tmdb_id, media_type="tv")
-        if isinstance(result, dict) and result.get("error"):
-            logger.error(f"NextFind 补缺集失败: tmdb_id={body.tmdb_id}, {result}")
-            return EmbyActionResponse(
-                success=False,
-                message=f"补缺集失败: {result.get('error', '未知错误')}",
-            )
-
-        await log_activity(db, "sync", f"触发补缺集: tmdb_id={body.tmdb_id}", tmdb_id=body.tmdb_id)
-        await db.commit()
-
-        logger.info(f"Emby 补缺集触发成功: tmdb_id={body.tmdb_id}")
-        return EmbyActionResponse(
-            success=True,
-            message="补缺集已推入高优搜索队列",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Emby 补缺集失败: {e}")
-        raise HTTPException(status_code=500, detail=f"补缺集失败: {e}")
 
 
 @router.get("/tmdb-404", response_model=list[Tmdb404Item])

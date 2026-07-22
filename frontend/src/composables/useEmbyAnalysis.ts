@@ -7,7 +7,6 @@ import {
   addToBlacklist,
   removeFromBlacklist,
   subscribeFromEmby,
-  fillMissingFromEmby,
 } from '@/service/api/emby'
 import { useIdSet } from '@/composables/useIdSet'
 import { usePolling } from '@/composables/usePolling'
@@ -17,7 +16,7 @@ import type { EmbyMissingAnalysis, EmbyCacheResponse } from '@/types'
 
 /**
  * Emby 缺集分析页业务逻辑
- * - 缺集列表加载/分页/筛选、缓存同步、全量扫描轮询、黑名单、订阅、补缺
+ * - 缺集列表加载/分页/筛选、缓存同步、全量扫描轮询、黑名单、订阅
  */
 export function useEmbyAnalysis() {
   const loading = ref(false)
@@ -27,7 +26,6 @@ export function useEmbyAnalysis() {
   const showHidden = ref(false)
   const hidingIds = useIdSet()
   const subscribingIds = useIdSet()
-  const fillingIds = useIdSet()
 
   // 分页
   const page = ref(1)
@@ -184,22 +182,6 @@ export function useEmbyAnalysis() {
     }
   }
 
-  async function handleFillMissing(tmdbId: number) {
-    fillingIds.add(tmdbId)
-    try {
-      const data = await fillMissingFromEmby(tmdbId)
-      if (data?.success) {
-        msg.success(data.message || '补缺集已触发')
-      } else {
-        msg.error(data?.message || '补缺集失败')
-      }
-    } catch (e: unknown) {
-      msg.error((e as AxiosError<{ detail?: string }>)?.response?.data?.detail || '补缺集失败')
-    } finally {
-      fillingIds.remove(tmdbId)
-    }
-  }
-
   onMounted(() => load())
 
   return {
@@ -211,7 +193,6 @@ export function useEmbyAnalysis() {
     libraryFilter,
     hidingIds,
     subscribingIds,
-    fillingIds,
     libraries,
     filteredSeries,
     scanRunning,
@@ -226,6 +207,5 @@ export function useEmbyAnalysis() {
     handleHide,
     handleUnhide,
     handleSubscribe,
-    handleFillMissing,
   }
 }

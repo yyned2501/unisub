@@ -1,14 +1,13 @@
 import { reactive, ref, onMounted } from 'vue'
 import { getStats, getPlatformStatus, getActivities, getNextFindQuota } from '@/service/api/dashboard'
-import { getTaskStatus } from '@/service/api/tasks'
 import { getEmbyScanStatus } from '@/service/api/emby'
 import { usePolling } from '@/composables/usePolling'
 import { msg } from '@/utils/message'
-import type { DashboardStats, PlatformStatus, ActivityLog, EmbyScanStatus, AutoFillProgress } from '@/types'
+import type { DashboardStats, PlatformStatus, ActivityLog, EmbyScanStatus } from '@/types'
 
 /**
  * 看板页面数据管理
- * - 统计卡片、平台状态、活动列表、扫描进度、自动补缺状态
+ * - 统计卡片、平台状态、活动列表、扫描进度
  */
 export function useDashboard() {
   const stats = reactive<DashboardStats>({
@@ -28,19 +27,6 @@ export function useDashboard() {
 
   // 扫描进度
   const scanStatus = ref<EmbyScanStatus | null>(null)
-
-  // 自动补缺状态
-  const autoFillStatus = reactive<{
-    enabled: boolean
-    lastRun: string | null
-    cursor: number | null
-    progress: AutoFillProgress | null
-  }>({
-    enabled: false,
-    lastRun: null,
-    cursor: null,
-    progress: null,
-  })
 
   async function loadStats() {
     try {
@@ -85,27 +71,11 @@ export function useDashboard() {
     }
   }
 
-  async function loadAutoFillStatus() {
-    try {
-      const data = await getTaskStatus()
-      if (data) {
-        autoFillStatus.enabled = data.config?.auto_fill_enabled ?? false
-        autoFillStatus.lastRun = data.auto_fill_last_run ?? null
-        autoFillStatus.cursor = data.auto_fill_cursor ?? null
-        autoFillStatus.progress = data.auto_fill_progress ?? null
-      }
-    } catch {
-      // 轮询类偶发失败不打扰用户，静默保留上次状态
-    }
-  }
-
   onMounted(() => {
     loadStats()
     loadPlatformData()
     loadActivities()
-    loadAutoFillStatus()
-    // 轮询：自动补缺状态（5s）、扫描进度（3s）— usePolling 自动在卸载时清理
-    usePolling(loadAutoFillStatus, 5000)
+    // 轮询扫描进度（3s）— usePolling 自动在卸载时清理
     usePolling(pollScanStatus, 3000, { immediate: true })
   })
 
@@ -116,7 +86,6 @@ export function useDashboard() {
     nfQuota,
     loading,
     scanStatus,
-    autoFillStatus,
     loadStats,
     loadPlatformData,
     loadActivities,

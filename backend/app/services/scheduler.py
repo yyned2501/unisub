@@ -34,18 +34,7 @@ _task_config: dict = {
     "light_interval_minutes": 10,
     "mp_supplement_enabled": True,
     "auto_sync_enabled": True,
-    "auto_fill_enabled": False,
-    "auto_fill_interval_seconds": 30,
 }
-
-# 自动补缺集的轮流游标，记录上次处理的 tmdb_id
-_auto_fill_cursor: int | None = None
-_auto_fill_last_run: str | None = None
-_auto_fill_progress: dict = {"current": 0, "total": 0}
-# 本轮已补缺的 tmdb_id 集合，重启后跳过，避免重复
-_auto_fill_completed: set[int] = set()
-# 当前自动订阅的 tmdb_id（用于触发补缺后取消），None 表示未通过自动方式订阅
-_auto_fill_current_sub: int | None = None
 
 
 class TaskConfigUpdate(BaseModel):
@@ -55,14 +44,11 @@ class TaskConfigUpdate(BaseModel):
     light_interval_minutes: int | None = Field(None, ge=1, le=120, description="轻量刷新间隔（分钟）")
     mp_supplement_enabled: bool | None = Field(None, description="是否启用 MP 补充搜索")
     auto_sync_enabled: bool | None = Field(None, description="是否启用自动同步")
-    auto_fill_enabled: bool | None = Field(None, description="是否启用自动缺集补全")
-    auto_fill_interval_seconds: int | None = Field(None, ge=10, le=86400, description="自动补缺集间隔（秒）")
 
 
 async def start(
     light_scan_runner: Callable[[], Awaitable[None]],
     full_scan_runner: Callable[[], Awaitable[None]],
-    auto_fill_runner: Callable[[], Awaitable[None]] | None = None,
     auto_subscribe_runner: Callable[[], Awaitable[None]] | None = None,
 ) -> None:
     """启动后台调度循环。"""
@@ -79,7 +65,6 @@ async def start(
         _loop(
             light_scan_runner,
             full_scan_runner,
-            auto_fill_runner,
             auto_subscribe_runner,
             _stop_event,
         )
@@ -109,8 +94,6 @@ async def stop():
 
 def load_state():
     """从 JSON 文件加载调度状态到内存。"""
-    global _auto_fill_cursor, _auto_fill_completed, _auto_fill_last_run, _auto_fill_current_sub
-
     if not _STATE_FILE.exists():
         logger.info("调度状态文件不存在，使用默认配置")
         return
@@ -120,22 +103,7 @@ def load_state():
         data = json.loads(raw)
         if "config" in data:
             _task_config.update(data["config"])
-        if "auto_fill_cursor" in data and data["auto_fill_cursor"] is not None:
-            _auto_fill_cursor = data["auto_fill_cursor"]
-        if "auto_fill_last_run" in data:
-            _auto_fill_last_run = data["auto_fill_last_run"]
-        if "auto_fill_completed" in data:
-            _auto_fill_completed = set(data["auto_fill_completed"])
-        if "auto_fill_current_sub" in data:
-            _auto_fill_current_sub = data["auto_fill_current_sub"]
-        if "auto_fill_progress" in data:
-            _auto_fill_progress.update(data["auto_fill_progress"])
-        logger.info(
-            f"调度状态已从文件加载: config={_task_config}, "
-            f"cursor={_auto_fill_cursor}, completed={len(_auto_fill_completed)} 条, "
-            f"current_sub={_auto_fill_current_sub}, "
-            f"progress={_auto_fill_progress}"
-        )
+        logger.info(f"调度状态已从文件加载: config={_task_config}")
     except (json.JSONDecodeError, OSError, TypeError) as e:
         logger.warning(f"调度状态文件解析失败: {e}，使用默认配置")
 
@@ -146,11 +114,6 @@ def save_state():
         _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "config": dict(_task_config),
-            "auto_fill_cursor": _auto_fill_cursor,
-            "auto_fill_last_run": _auto_fill_last_run,
-            "auto_fill_completed": sorted(_auto_fill_completed),
-            "auto_fill_current_sub": _auto_fill_current_sub,
-            "auto_fill_progress": dict(_auto_fill_progress),
         }
         _STATE_FILE.write_text(
             json.dumps(data, ensure_ascii=False, indent=2),
@@ -196,14 +159,12 @@ async def _run_auto_subscribe_if_due(
 async def _loop(
     light_scan_runner: Callable[[], Awaitable[None]],
     full_scan_runner: Callable[[], Awaitable[None]],
-    auto_fill_runner: Callable[[], Awaitable[None]] | None,
     auto_subscribe_runner: Callable[[], Awaitable[None]] | None,
     stop_event: asyncio.Event,
 ) -> None:
     """调度主循环，按需触发扫描与自动订阅。"""
     _last_light_run: datetime | None = None
     _last_full_run: datetime | None = None
-    _last_auto_fill_run: datetime | None = None
 
     while not stop_event.is_set():
         try:
@@ -212,8 +173,6 @@ async def _loop(
             enabled = _task_config.get("auto_sync_enabled", True)
             light_interval = _task_config.get("light_interval_minutes", 10)
             full_interval = _task_config.get("interval_minutes", 60)
-            auto_fill_enabled = _task_config.get("auto_fill_enabled", False)
-            auto_fill_interval = _task_config.get("auto_fill_interval_seconds", 30)
 
             if enabled:
                 now = datetime.now(UTC)
@@ -247,22 +206,6 @@ async def _loop(
 
             if auto_subscribe_runner:
                 await _run_auto_subscribe_if_due(auto_subscribe_runner)
-
-            # 检查是否需要自动缺集补全（独立于 auto_sync_enabled）
-            if auto_fill_enabled and auto_fill_runner:
-                now = datetime.now(UTC)
-                if _last_auto_fill_run is None or (now - _last_auto_fill_run).total_seconds() >= auto_fill_interval:
-                    from app.services.emby_scan import EmbyScanService
-
-                    status = EmbyScanService.get_status()
-                    if not status["running"]:
-                        logger.info(f"调度器触发自动缺集补全: 间隔 {auto_fill_interval} 秒")
-                        global _auto_fill_last_run
-                        await auto_fill_runner()
-                        _last_auto_fill_run = datetime.now(UTC)
-                        _auto_fill_last_run = _last_auto_fill_run.isoformat()
-                    else:
-                        logger.debug("调度器跳过自动补全: 扫描正在运行中")
 
         except Exception as e:
             logger.error(f"调度器循环异常: {e}")

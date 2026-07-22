@@ -58,10 +58,6 @@ export function subscribeFromEmby(
   })
 }
 
-export function fillMissingFromEmby(tmdbId: number) {
-  return apiClient.post<ActionResponse>('/emby/fill-missing', { tmdb_id: tmdbId })
-}
-
 export function getTmdb404List() {
   return apiClient.get<Tmdb404Item[]>('/emby/tmdb-404')
 }

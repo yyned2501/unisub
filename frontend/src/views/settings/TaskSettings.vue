@@ -10,8 +10,6 @@ const saving = ref(false)
 
 const config = reactive({
   interval: 1800,
-  auto_fill_enabled: false,
-  auto_fill_interval_secs: 30,
 })
 
 function formatInterval(seconds: number): string {
@@ -26,10 +24,6 @@ async function load() {
     const data = await getTaskStatus()
     if (data) {
       config.interval = data.config?.interval || 1800
-      if (data.config) {
-        config.auto_fill_enabled = data.config.auto_fill_enabled || false
-        config.auto_fill_interval_secs = data.config.auto_fill_interval_seconds || 30
-      }
     }
   } catch {
     msg.error('加载任务配置失败')
@@ -43,8 +37,6 @@ async function handleSave() {
   try {
     await updateTaskConfig({
       interval: config.interval,
-      auto_fill_enabled: config.auto_fill_enabled,
-      auto_fill_interval_seconds: config.auto_fill_interval_secs,
     })
     msg.success('任务配置已保存')
   } catch {
@@ -78,30 +70,6 @@ onMounted(() => load())
                 <template #suffix><span class="text-xs opacity-40">秒</span></template>
               </n-input-number>
               <span class="text-xs opacity-50">{{ formatInterval(config.interval) }}</span>
-            </div>
-          </div>
-
-          <div style="border-top: 1px solid var(--n-border-color)"></div>
-
-          <div class="flex items-center justify-between">
-            <label class="text-xs opacity-50 font-medium">启用自动补缺集</label>
-            <n-switch v-model:value="config.auto_fill_enabled" />
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs opacity-50 font-medium">补缺集间隔</label>
-            <div class="flex items-center gap-2.5">
-              <n-input-number
-                v-model:value="config.auto_fill_interval_secs"
-                :min="10"
-                :max="86400"
-                :step="10"
-                size="small"
-                style="width: 140px"
-              >
-                <template #suffix><span class="text-xs opacity-40">秒</span></template>
-              </n-input-number>
-              <span class="text-xs opacity-50">{{ formatInterval(config.auto_fill_interval_secs) }}</span>
             </div>
           </div>
 

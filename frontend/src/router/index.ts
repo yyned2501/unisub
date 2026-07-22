@@ -77,6 +77,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '无 TMDB 媒体' },
   },
   {
+    path: '/architecture',
+    name: 'Architecture',
+    component: () => import('../views/ArchitectureView.vue'),
+    meta: { title: '系统架构' },
+  },
+  {
     path: '/settings',
     redirect: '/settings/platforms',
   },
