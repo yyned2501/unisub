@@ -80,12 +80,13 @@ async def list_subscriptions_with_cache(
                     break
 
     for sub in subs:
-        if sub.media_type != "tv" or sub.nf_missing_eps <= 0:
+        if sub.media_type != "tv":
             continue
         cached = cache_map.get(sub.tmdb_id)
         if cached:
             sub.tmdb_aired_eps = cached.tmdb_aired_eps
-            if cached.tmdb_total_eps and cached.tmdb_total_eps > 0:
+            sub.tmdb_total_eps = cached.tmdb_total_eps
+            if sub.nf_missing_eps > 0 and cached.tmdb_total_eps and cached.tmdb_total_eps > 0:
                 in_library = cached.tmdb_total_eps - sub.nf_missing_eps
                 aired = cached.tmdb_aired_eps or cached.tmdb_total_eps
                 sub.adjusted_missing_eps = max(0, aired - in_library)
@@ -94,14 +95,19 @@ async def list_subscriptions_with_cache(
 
 
 async def _update_tmdb_cache_for_sub(scan_db, sub, tmdb_service):
-    """为单个订阅更新 TMDB 缓存数据（含 poster_url）。"""
+    """为单个订阅更新 TMDB 缓存数据（含 poster_url）。
+
+    无论剧集是否连载中都会写入 total_eps；aired_eps 仅连载中剧集有值，
+    完结剧为 None（表示已全部播出，前端按 total 显示）。
+    """
     try:
-        aired = await tmdb_service.get_aired_episode_count(sub.tmdb_id)
-        if aired is None:
-            return
         detail = await tmdb_service.get_tv_detail(sub.tmdb_id)
-        total = detail.get("number_of_episodes", 0) if detail and "error" not in detail else 0
-        poster_path = detail.get("poster_path") if detail and "error" not in detail else None
+        if not detail or "error" in detail:
+            return
+        total = detail.get("number_of_episodes") or None
+        poster_path = detail.get("poster_path")
+        # 连载中剧集返回已播集数；完结/无播出信息返回 None
+        aired = await tmdb_service.get_aired_episode_count(sub.tmdb_id)
     except Exception:
         return
 
@@ -117,7 +123,7 @@ async def _update_tmdb_cache_for_sub(scan_db, sub, tmdb_service):
         tc = TmdbCache(
             tmdb_id=sub.tmdb_id,
             tmdb_aired_eps=aired,
-            tmdb_total_eps=total or None,
+            tmdb_total_eps=total,
             poster_url=poster_url,
         )
         scan_db.add(tc)
