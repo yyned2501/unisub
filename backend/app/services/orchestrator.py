@@ -112,7 +112,7 @@ class OrchestratorService:
         db.add(sub)
 
         # 通知 NextFind 添加订阅
-        nf_result = await self.nf.add_subscription(tmdb_id)
+        nf_result = await self.nf.add_subscription(tmdb_id, title=title)
         if "error" not in nf_result:
             sub.nf_subscribed = True
             nf_id = nf_result.get("id") or nf_result.get("sub_id") or ""
@@ -274,7 +274,7 @@ class OrchestratorService:
                 if not local_sub or local_sub.completed:
                     continue  # 孤儿或已完成 → 跳过（NF 不允许删除已取消条目）
                 # 本地有记录且未完成 → 重新订阅到 NF
-                nf_result = await self.nf.add_subscription(tid)
+                nf_result = await self.nf.add_subscription(tid, title=local_sub.title)
                 if "error" in nf_result:
                     logger.warning(f"双向同步 — 重新订阅到 NF 失败: {local_sub.title}, {nf_result}")
                     continue
@@ -358,7 +358,7 @@ class OrchestratorService:
             # nf_subscribed=True 但 NF 全量列表中找不到 → 需要重新推送
             if local_sub.nf_subscribed and local_sub.tmdb_id in nf_by_tmdb:
                 continue
-            nf_result = await self.nf.add_subscription(local_sub.tmdb_id)
+            nf_result = await self.nf.add_subscription(local_sub.tmdb_id, title=local_sub.title)
             if "error" not in nf_result:
                 local_sub.nf_subscribed = True
                 nf_id = nf_result.get("id") or nf_result.get("sub_id") or ""

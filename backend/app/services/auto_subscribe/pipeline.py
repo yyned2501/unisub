@@ -356,7 +356,7 @@ async def _create_subscription(
     if existing.scalar_one_or_none():
         return "local_exists", None
 
-    remote = await nf_service.create_subscription(tmdb_id, media_type)
+    remote = await nf_service.create_subscription(tmdb_id, media_type, title=title)
     if remote.outcome == "failed":
         logger.error(
             "[自动订阅] NextFind 未确认订阅: tmdb_id=%s, reason=%s",
