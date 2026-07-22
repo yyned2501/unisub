@@ -45,15 +45,27 @@ async def list_subscriptions_with_cache(
     # 从 tmdb_cache 读取已缓存的 TMDB 数据（秒出）
     tmdb_ids = [s.tmdb_id for s in subs if s.media_type == "tv"]
     cache_map: dict[int, TmdbCache] = {}
+    emby_cache_map: dict[int, EmbyCache] = {}
     if tmdb_ids:
         cache_result = await db.execute(select(TmdbCache).where(TmdbCache.tmdb_id.in_(tmdb_ids)))
         cache_map = {c.tmdb_id: c for c in cache_result.scalars().all()}
+        # 同时读取 emby_cache 获取当前入库数
+        ec_result = await db.execute(select(EmbyCache).where(EmbyCache.tmdb_id.in_(tmdb_ids)))
+        emby_cache_map = {e.tmdb_id: e for e in ec_result.scalars().all()}
         for sub in subs:
             # 补全缺失的 poster_url（tmdb_cache → emby_cache）
             if not sub.poster_url:
                 cached = cache_map.get(sub.tmdb_id)
                 if cached and cached.poster_url:
                     sub.poster_url = cached.poster_url
+            # 补全 emby 入库数
+            ec = emby_cache_map.get(sub.tmdb_id)
+            if ec:
+                sub.emby_episode_count = ec.emby_episode_count
+            # 补全 TMDB 总集数
+            tc = cache_map.get(sub.tmdb_id)
+            if tc:
+                sub.tmdb_total_eps = tc.tmdb_total_eps
 
     # 从 emby_cache 补全仍缺失的 poster_url
     still_missing = [s.tmdb_id for s in subs if not s.poster_url]
