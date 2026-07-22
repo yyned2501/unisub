@@ -32,6 +32,7 @@ _STATE_FILE = Path(__file__).parent.parent / "data" / "scheduler_state.json"
 _task_config: dict = {
     "interval_minutes": 60,
     "light_interval_minutes": 10,
+    "sync_interval_minutes": 60,
     "mp_supplement_enabled": True,
     "auto_sync_enabled": True,
 }
@@ -42,6 +43,7 @@ class TaskConfigUpdate(BaseModel):
 
     interval_minutes: int | None = Field(None, ge=5, le=1440, description="全量扫描间隔（分钟）")
     light_interval_minutes: int | None = Field(None, ge=1, le=120, description="轻量刷新间隔（分钟）")
+    sync_interval_minutes: int | None = Field(None, ge=5, le=1440, description="NF 订阅同步间隔（分钟）")
     mp_supplement_enabled: bool | None = Field(None, description="是否启用 MP 补充搜索")
     auto_sync_enabled: bool | None = Field(None, description="是否启用自动同步")
 
@@ -50,6 +52,7 @@ async def start(
     light_scan_runner: Callable[[], Awaitable[None]],
     full_scan_runner: Callable[[], Awaitable[None]],
     auto_subscribe_runner: Callable[[], Awaitable[None]] | None = None,
+    sync_runner: Callable[[], Awaitable[None]] | None = None,
 ) -> None:
     """启动后台调度循环。"""
     global _scheduler_task, _stop_event, _auto_subscribe_runner
@@ -66,6 +69,7 @@ async def start(
             light_scan_runner,
             full_scan_runner,
             auto_subscribe_runner,
+            sync_runner,
             _stop_event,
         )
     )
@@ -160,11 +164,13 @@ async def _loop(
     light_scan_runner: Callable[[], Awaitable[None]],
     full_scan_runner: Callable[[], Awaitable[None]],
     auto_subscribe_runner: Callable[[], Awaitable[None]] | None,
+    sync_runner: Callable[[], Awaitable[None]] | None,
     stop_event: asyncio.Event,
 ) -> None:
-    """调度主循环，按需触发扫描与自动订阅。"""
+    """调度主循环，按需触发扫描、同步与自动订阅。"""
     _last_light_run: datetime | None = None
     _last_full_run: datetime | None = None
+    _last_sync_run: datetime | None = None
 
     while not stop_event.is_set():
         try:
@@ -173,6 +179,7 @@ async def _loop(
             enabled = _task_config.get("auto_sync_enabled", True)
             light_interval = _task_config.get("light_interval_minutes", 10)
             full_interval = _task_config.get("interval_minutes", 60)
+            sync_interval = _task_config.get("sync_interval_minutes", 60)
 
             if enabled:
                 now = datetime.now(UTC)
@@ -187,6 +194,7 @@ async def _loop(
                         await full_scan_runner()
                         _last_full_run = datetime.now(UTC)
                         _last_light_run = _last_full_run  # 全量包含轻量，重置轻量计时
+                        _last_sync_run = _last_full_run  # 全量包含 NF 同步，重置同步计时
                     else:
                         logger.debug("调度器跳过: 扫描正在运行中")
                     await asyncio.sleep(0)  # 让出控制权
@@ -203,6 +211,14 @@ async def _loop(
                         _last_light_run = datetime.now(UTC)
                     else:
                         logger.debug("调度器跳过: 扫描正在运行中")
+
+                # 检查是否需要 NF 订阅同步
+                if sync_runner and (
+                    _last_sync_run is None or (now - _last_sync_run).total_seconds() >= sync_interval * 60
+                ):
+                    logger.info(f"调度器触发 NF 订阅同步: 间隔 {sync_interval} 分钟")
+                    await sync_runner()
+                    _last_sync_run = datetime.now(UTC)
 
             if auto_subscribe_runner:
                 await _run_auto_subscribe_if_due(auto_subscribe_runner)

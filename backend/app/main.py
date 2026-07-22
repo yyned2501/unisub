@@ -135,16 +135,37 @@ async def lifespan(app: FastAPI):
                 await EmbyScanService.run_full_scan(scan_db, emby, tmdb, nf, mp)
 
         async def _scheduler_auto_subscribe_runner():
-            """自动订阅 runner，使用独立数据库会话。"""
+            """自动订阅 runner，完成后自动触发 NF 同步。"""
             from app.services.auto_subscribe.service import get_auto_subscribe_service
 
             async with async_session() as subscription_db:
-                await get_auto_subscribe_service().run(subscription_db, trigger="scheduled")
+                result = await get_auto_subscribe_service().run(subscription_db, trigger="scheduled")
+                # 自动订阅完成后触发 NF 同步
+                if result.get("success"):
+                    await _run_nf_sync(subscription_db)
+
+        async def _scheduler_sync_runner():
+            """NF 订阅同步 runner，使用独立数据库会话。"""
+            async with async_session() as sync_db:
+                await _run_nf_sync(sync_db)
+
+        async def _run_nf_sync(db):
+            """执行 NF 订阅同步（共用逻辑）。"""
+            from app.services.orchestrator import OrchestratorService
+
+            nf = await get_nf_service(db)
+            if not nf:
+                logger.warning("NF 同步跳过: NextFind 未配置或未启用")
+                return
+            orchestrator = OrchestratorService(nf)
+            results = await orchestrator.sync_subscriptions(db)
+            logger.info(f"NF 订阅同步完成: {len(results)} 条记录")
 
         await _scheduler_mod.start(
             _scheduler_light_scan_runner,
             _scheduler_full_scan_runner,
             auto_subscribe_runner=_scheduler_auto_subscribe_runner,
+            sync_runner=_scheduler_sync_runner,
         )
     except Exception as e:
         logger.error(f"调度器启动失败: {e}")

@@ -41,8 +41,17 @@ async def update_config(body: AutoSubConfigUpdate) -> dict:
 
 @router.post("/run", response_model=AutoSubRunResponse)
 async def trigger_run(db: AsyncSession = Depends(get_db)) -> AutoSubRunResponse:
-    """手动触发一次自动订阅运行。"""
+    """手动触发一次自动订阅运行，完成后自动同步 NF。"""
     result = await get_auto_subscribe_service().run(db)
+    # 自动订阅完成后触发 NF 同步
+    if result.get("success"):
+        from app.services import get_nf_service
+        from app.services.orchestrator import OrchestratorService
+
+        nf = await get_nf_service(db)
+        if nf:
+            orchestrator = OrchestratorService(nf)
+            await orchestrator.sync_subscriptions(db)
     return AutoSubRunResponse(**result)
 
 
