@@ -31,6 +31,7 @@ class Subscription(Base):
     nf_sub_id: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="NextFind 订阅 ID")
     completed: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否已全部入库（仅完结剧）")
     aired_complete: Mapped[bool] = mapped_column(Boolean, default=False, comment="在播剧已播出集数是否已全部入库")
+    blacklisted: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否被拉黑")
     source: Mapped[str | None] = mapped_column(
         String(20), nullable=True, comment="数据来源: manual / forward / auto_subscribe / nextfind"
     )

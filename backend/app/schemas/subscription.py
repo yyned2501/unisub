@@ -31,6 +31,7 @@ class SubscriptionResponse(BaseModel):
     nf_sub_id: str | None = None
     completed: bool = False
     aired_complete: bool = False
+    blacklisted: bool = False
     source: str | None = None
     created_at: datetime
     updated_at: datetime

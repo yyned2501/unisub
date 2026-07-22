@@ -27,6 +27,7 @@ export interface Subscription {
   nf_sub_id: string | null
   completed: boolean
   aired_complete: boolean
+  blacklisted: boolean
   source: string | null
   created_at: string
   updated_at: string

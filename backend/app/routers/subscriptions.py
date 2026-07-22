@@ -79,6 +79,26 @@ async def delete_subscription(
     return result
 
 
+@router.patch("/{subscription_id}/blacklist")
+async def toggle_blacklist(
+    subscription_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """切换订阅黑名单状态。"""
+    sub = await db.get(Subscription, subscription_id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="订阅记录不存在")
+    sub.blacklisted = not sub.blacklisted
+    await db.commit()
+    await db.refresh(sub)
+    logger.info(f"{'拉黑' if sub.blacklisted else '解除拉黑'}: {sub.title} (tmdb_id={sub.tmdb_id})")
+    return {
+        "success": True,
+        "blacklisted": sub.blacklisted,
+        "message": f"已{'拉黑' if sub.blacklisted else '解除拉黑'}「{sub.title}」",
+    }
+
+
 @router.get("/{subscription_id}", response_model=SubscriptionResponse)
 async def get_subscription(subscription_id: str, db: AsyncSession = Depends(get_db)):
     """获取单条订阅详情。"""

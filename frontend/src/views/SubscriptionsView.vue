@@ -44,6 +44,7 @@ const {
   totalPages,
   handleSync,
   handleDelete,
+  handleBlacklist,
   handlePageChange,
 } = useSubscriptions()
 
@@ -144,22 +145,38 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
   {
     title: '操作',
     key: 'actions',
-    width: 60,
+    width: 100,
     align: 'right',
     render(row) {
-      return h(
-        NPopconfirm,
-        { onPositiveClick: () => handleDelete(row), positiveText: '确认', negativeText: '取消' },
-        {
-          default: () => '确认取消订阅？',
-          trigger: () =>
-            h(
-              NButton,
-              { size: 'tiny', quaternary: true, type: 'error' },
-              { default: () => h('i', { class: 'ri-delete-bin-6-line text-sm' }) }
-            ),
-        }
-      )
+      if (row.blacklisted) {
+        // 黑名单项：显示解除拉黑按钮
+        return h(
+          NButton,
+          { size: 'tiny', quaternary: true, type: 'warning', onClick: () => handleBlacklist(row) },
+          { default: () => h('i', { class: 'ri-eye-line text-sm' }) }
+        )
+      }
+      // 正常项：显示拉黑 + 删除
+      return h('div', { class: 'flex justify-end gap-1' }, [
+        h(
+          NButton,
+          { size: 'tiny', quaternary: true, type: 'warning', onClick: () => handleBlacklist(row) },
+          { default: () => h('i', { class: 'ri-forbid-line text-sm' }) }
+        ),
+        h(
+          NPopconfirm,
+          { onPositiveClick: () => handleDelete(row), positiveText: '确认', negativeText: '取消' },
+          {
+            default: () => '确认取消订阅？',
+            trigger: () =>
+              h(
+                NButton,
+                { size: 'tiny', quaternary: true, type: 'error' },
+                { default: () => h('i', { class: 'ri-delete-bin-6-line text-sm' }) }
+              ),
+          }
+        ),
+      ])
     },
   },
 ])
@@ -173,7 +190,7 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
           <n-radio-group v-model:value="filterTab" size="small">
             <n-radio-button value="active">订阅中</n-radio-button>
             <n-radio-button value="completed">已完成</n-radio-button>
-            <n-radio-button value="unsynced">未同步</n-radio-button>
+            <n-radio-button value="blacklisted">黑名单</n-radio-button>
             <n-radio-button value="all">全部</n-radio-button>
           </n-radio-group>
           <n-input v-model:value="searchText" placeholder="搜索标题..." size="small" clearable class="w-full sm:w-50">
@@ -201,7 +218,7 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
           size="small"
           :row-key="(row) => row.id"
         />
-        <n-empty v-else description="暂无活跃订阅" class="py-15" />
+        <n-empty v-else :description="filterTab === 'blacklisted' ? '暂无黑名单记录' : '暂无活跃订阅'" class="py-15" />
       </n-spin>
     </n-card>
 
