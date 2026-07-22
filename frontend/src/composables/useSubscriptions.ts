@@ -34,6 +34,17 @@ export function useSubscriptions() {
     return items
   })
 
+  /** 各 tab 的数量（不受搜索影响） */
+  const tabCounts = computed(() => {
+    const all = list.value
+    return {
+      active: all.filter((i) => !i.completed && !i.blacklisted).length,
+      completed: all.filter((i) => i.completed && !i.blacklisted).length,
+      blacklisted: all.filter((i) => i.blacklisted).length,
+      all: all.filter((i) => !i.blacklisted).length,
+    }
+  })
+
   // 前端分页
   const { page, pageSize, totalPages, pagedList, setPage: handlePageChange, reset: resetPage } = usePagedList(filteredList, 20)
 
@@ -94,6 +105,7 @@ export function useSubscriptions() {
     searchText,
     filterTab,
     filteredList,
+    tabCounts,
     pagedList,
     page,
     pageSize,
