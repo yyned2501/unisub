@@ -38,6 +38,7 @@ const {
   syncing,
   searchText,
   filterTab,
+  tabCounts,
   pagedList,
   page,
   pageSize,
@@ -188,10 +189,10 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-3">
           <n-radio-group v-model:value="filterTab" size="small">
-            <n-radio-button value="active">订阅中</n-radio-button>
-            <n-radio-button value="completed">已完成</n-radio-button>
-            <n-radio-button value="blacklisted">黑名单</n-radio-button>
-            <n-radio-button value="all">全部</n-radio-button>
+            <n-radio-button value="active">订阅中 {{ tabCounts.active }}</n-radio-button>
+            <n-radio-button value="completed">已完成 {{ tabCounts.completed }}</n-radio-button>
+            <n-radio-button value="blacklisted">黑名单 {{ tabCounts.blacklisted }}</n-radio-button>
+            <n-radio-button value="all">全部 {{ tabCounts.all }}</n-radio-button>
           </n-radio-group>
           <n-input v-model:value="searchText" placeholder="搜索标题..." size="small" clearable class="w-full sm:w-50">
             <template #prefix><i class="ri-search-line opacity-40"></i></template>
