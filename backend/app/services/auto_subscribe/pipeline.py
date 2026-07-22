@@ -272,12 +272,41 @@ async def _search_and_subscribe(
     year = best.get("year") or item.year
     poster = best.get("poster") or best.get("poster_url") or item.poster
 
-    # 评分过滤
+    # 评分过滤（全局 + 每源，取较高者）
     min_vote = cfg.get("min_vote", 0) or 0
-    if min_vote > 0 and (vote < min_vote or vote == 0):
+    src_min_vote = cfg.get(f"{src_name}_min_vote", 0) or 0
+    effective_min_vote = max(min_vote, src_min_vote)
+    if effective_min_vote > 0 and (vote < effective_min_vote or vote == 0):
         _inc_stat(stats, src_name, STATUS_FILTERED)
         new_handled[seed] = {"status": STATUS_FILTERED, "time": _now_str()}
         return
+
+    # 年份过滤（全局 + 每源，取较高者；基于 TMDB 搜索结果年份）
+    min_year = cfg.get("min_year", 0) or 0
+    src_min_year = cfg.get(f"{src_name}_min_year", 0) or 0
+    effective_min_year = max(min_year, src_min_year)
+    if effective_min_year > 0 and year:
+        try:
+            item_year_int = int(str(year)[:4])
+            if item_year_int < effective_min_year:
+                # 多季电视剧：最新季满足最小年份则放行
+                if media_type == "tv" and tmdb_service:
+                    detail = await tmdb_service.get_tv_detail(tmdb_id)
+                    last_air = str(detail.get("last_air_date") or "")[:4]
+                    if not (last_air.isdigit() and int(last_air) >= effective_min_year):
+                        _inc_stat(stats, src_name, STATUS_FILTERED)
+                        new_handled[seed] = {"status": STATUS_FILTERED, "time": _now_str()}
+                        return
+                    logger.info(
+                        f"[自动订阅] 多季剧最新季满足年份: {matched_title} "
+                        f"(首播={item_year_int}, 最新季={last_air}, min_year={effective_min_year})"
+                    )
+                else:
+                    _inc_stat(stats, src_name, STATUS_FILTERED)
+                    new_handled[seed] = {"status": STATUS_FILTERED, "time": _now_str()}
+                    return
+        except (ValueError, TypeError):
+            pass
 
     # TMDB 搜索无 is_subscribed/is_in_library 字段，从本地 DB 查询
     if not best.get("is_subscribed"):
@@ -412,10 +441,17 @@ def _source_options(cfg: dict, src_name: str) -> dict:
 
 
 def _passes_global_filter(cfg: dict, item: RankMediaItem) -> bool:
-    """全局过滤检查。"""
+    """全局过滤检查。
+
+    年份过滤仅对电影生效；电视剧由搜索后基于 TMDB 数据判断（支持多季最新季年份）。
+    """
     media_type = cfg.get("media_type", "all")
     if media_type != "all" and item.type_hint and item.type_hint != media_type:
         return False
+
+    # 电视剧的年份过滤推迟到搜索后（需要 TMDB 数据判断多季最新季）
+    if item.type_hint == "tv":
+        return True
 
     min_year = cfg.get("min_year", 0) or 0
     if min_year > 0 and item.year:
@@ -429,11 +465,18 @@ def _passes_global_filter(cfg: dict, item: RankMediaItem) -> bool:
 
 
 def _passes_source_filter(cfg: dict, src_name: str, item: RankMediaItem) -> bool:
-    """每源过滤检查。"""
+    """每源过滤检查。
+
+    年份过滤仅对电影生效；电视剧由搜索后基于 TMDB 数据判断。
+    """
     prefix = f"{src_name}_"
     media_type = cfg.get(f"{prefix}media_type", "all")
     if media_type and media_type != "all" and item.type_hint and item.type_hint != media_type:
         return False
+
+    # 电视剧的年份过滤推迟到搜索后
+    if item.type_hint == "tv":
+        return True
 
     min_year = cfg.get(f"{prefix}min_year", 0) or 0
     if min_year > 0 and item.year:
