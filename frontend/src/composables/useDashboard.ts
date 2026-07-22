@@ -22,7 +22,7 @@ export function useDashboard() {
 
   const platforms = ref<PlatformStatus[]>([])
   const activities = ref<ActivityLog[]>([])
-  const nfQuota = ref<number | null>(null)
+  const nfQuota = ref<Record<string, string> | null>(null)
   const loading = reactive({ platforms: false, activities: false })
 
   // 扫描进度
@@ -45,7 +45,7 @@ export function useDashboard() {
         platforms.value = platformRes.value ?? []
       }
       if (quotaRes.status === 'fulfilled') {
-        nfQuota.value = (quotaRes.value?.remaining ?? quotaRes.value?.quota ?? null) as number | null
+        nfQuota.value = quotaRes.value?.quota?.data ?? null
       }
     } finally {
       loading.platforms = false

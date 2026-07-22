@@ -32,7 +32,9 @@ export interface ActivityLog {
 
 /** NextFind 额度/积分信息 */
 export interface NextFindQuota {
-  quota?: Record<string, unknown> | null
+  quota?: {
+    status?: string
+    data?: Record<string, string>
+  } | null
   error?: string | null
-  remaining?: number | null
 }
