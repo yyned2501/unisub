@@ -9,6 +9,8 @@
 import uuid
 from datetime import UTC, datetime
 
+import asyncio
+
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
