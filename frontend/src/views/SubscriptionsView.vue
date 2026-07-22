@@ -16,9 +16,14 @@ function statusCell(row: Subscription) {
     const type = row.completed ? 'success' as const : 'default' as const
     return h(NTag, { type, size: 'tiny', round: true }, { default: () => label })
   }
-  // 剧集：emby入库 / 已播出 / 总集数
+  // 剧集：入库数 / 已播出 / 总集数
+  // 入库数用 tmdb_total_eps - nf_missing_eps 计算（NF 本地库的实际入库数），
+  // 比 emby_episode_count 更准确（emby 可能多计花絮/特典）
+  const inLibrary = row.tmdb_total_eps != null && row.nf_missing_eps >= 0
+    ? row.tmdb_total_eps - row.nf_missing_eps
+    : row.emby_episode_count ?? 0
   const parts: string[] = []
-  parts.push(row.emby_episode_count != null ? String(row.emby_episode_count) : '-')
+  parts.push(inLibrary > 0 ? String(inLibrary) : '-')
   parts.push(row.tmdb_aired_eps != null ? String(row.tmdb_aired_eps) : '-')
   parts.push(row.tmdb_total_eps != null ? String(row.tmdb_total_eps) : '-')
   const label = parts.join('/')
