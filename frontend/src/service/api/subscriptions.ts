@@ -20,3 +20,7 @@ export function getSubscription(id: string) {
 export function syncSubscriptions() {
   return apiClient.post<SubscriptionSyncResult[]>('/subscriptions/sync')
 }
+
+export function toggleBlacklist(id: string) {
+  return apiClient.patch<{ success: boolean; blacklisted: boolean; message: string }>(`/subscriptions/${id}/blacklist`)
+}

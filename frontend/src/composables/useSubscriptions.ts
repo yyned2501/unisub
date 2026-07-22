@@ -1,5 +1,5 @@
 import { ref, computed, onMounted } from 'vue'
-import { getSubscriptions, deleteSubscription, syncSubscriptions } from '@/service/api/subscriptions'
+import { getSubscriptions, deleteSubscription, syncSubscriptions, toggleBlacklist } from '@/service/api/subscriptions'
 import { usePagedList } from '@/composables/usePagedList'
 import { msg } from '@/utils/message'
 import type { Subscription } from '@/types'
@@ -19,11 +19,13 @@ export function useSubscriptions() {
   const filteredList = computed(() => {
     let items = list.value
     if (filterTab.value === 'active') {
-      items = items.filter((i) => !i.completed)
+      items = items.filter((i) => !i.completed && !i.blacklisted)
     } else if (filterTab.value === 'completed') {
-      items = items.filter((i) => i.completed)
-    } else if (filterTab.value === 'unsynced') {
-      items = items.filter((i) => !i.completed && !i.nf_subscribed)
+      items = items.filter((i) => i.completed && !i.blacklisted)
+    } else if (filterTab.value === 'blacklisted') {
+      items = items.filter((i) => i.blacklisted)
+    } else if (filterTab.value === 'all') {
+      items = items.filter((i) => !i.blacklisted)
     }
     if (searchText.value.trim()) {
       const kw = searchText.value.trim().toLowerCase()
@@ -66,6 +68,18 @@ export function useSubscriptions() {
     }
   }
 
+  async function handleBlacklist(row: Subscription) {
+    try {
+      const res = await toggleBlacklist(row.id)
+      msg.success(res.message)
+      // 更新本地状态
+      const item = list.value.find((i) => i.id === row.id)
+      if (item) item.blacklisted = res.blacklisted
+    } catch {
+      msg.error('操作失败')
+    }
+  }
+
   onMounted(async () => {
     await loadList()
   })
@@ -84,6 +98,7 @@ export function useSubscriptions() {
     loadList,
     handleSync,
     handleDelete,
+    handleBlacklist,
     handlePageChange,
   }
 }
