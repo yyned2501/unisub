@@ -173,17 +173,17 @@ class NextFindAdminService:
             return result.get("data", result.get("channels", []))
         return []
 
-    async def update_tg_channels(self, data: list[dict]) -> dict:
+    async def update_tg_channels(self, channels: list[str]) -> dict:
         """修改 TG 频道配置。
 
         Args:
-            data: TG 频道配置列表
+            channels: 频道 ID 列表，如 ["-1002167886055", "@aliyun_share"]
 
         Returns:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/settings/tg_channels"
-        result = await http_client.post(url, headers=self._headers, json=data)
+        result = await http_client.post(url, headers=self._headers, json={"channels": channels})
         if "error" in result:
             logger.error(f"NextFind 修改 TG 频道失败: {result}")
             return {}
@@ -208,17 +208,17 @@ class NextFindAdminService:
             return result.get("data", result.get("rss", []))
         return []
 
-    async def update_rss(self, data: list[dict]) -> dict:
+    async def update_rss(self, sources: list[str]) -> dict:
         """修改 RSS 订阅源配置。
 
         Args:
-            data: RSS 订阅源配置列表
+            sources: RSS URL 列表
 
         Returns:
             API 响应字典
         """
         url = f"{self.base_url}/api/openapi/settings/rss"
-        result = await http_client.post(url, headers=self._headers, json=data)
+        result = await http_client.post(url, headers=self._headers, json={"sources": sources})
         if "error" in result:
             logger.error(f"NextFind 修改 RSS 失败: {result}")
             return {}
@@ -242,11 +242,12 @@ class NextFindAdminService:
             return {}
         return result
 
-    async def update_transfer_folder(self, folder: str) -> dict:
+    async def update_transfer_folder(self, folder_id: str, folder_name: str) -> dict:
         """修改默认转存目录。
 
         Args:
-            folder: 默认转存目录路径
+            folder_id: 网盘目录 ID
+            folder_name: 目录名称
 
         Returns:
             API 响应字典
@@ -255,7 +256,7 @@ class NextFindAdminService:
         result = await http_client.post(
             url,
             headers=self._headers,
-            json={"folder": folder},
+            json={"folder_id": folder_id, "folder_name": folder_name},
         )
         if "error" in result:
             logger.error(f"NextFind 修改转存目录失败: {result}")
