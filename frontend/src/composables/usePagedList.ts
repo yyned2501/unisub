@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Ref, ComputedRef } from 'vue'
 
 /**
@@ -15,6 +15,11 @@ export function usePagedList<T>(source: Ref<T[]> | ComputedRef<T[]>, pageSize = 
   const page = ref(1)
 
   const totalPages = computed(() => Math.max(1, Math.ceil(source.value.length / pageSize)))
+
+  // 数据源变化时自动钳制页码，防止越界导致空列表
+  watch(totalPages, (tp) => {
+    if (page.value > tp) page.value = tp
+  })
 
   const pagedList = computed(() => {
     const start = (page.value - 1) * pageSize
