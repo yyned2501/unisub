@@ -355,17 +355,17 @@ class NextFindService:
             return result.get("data", result.get("results", []))
         return []
 
-    async def get_subscriptions_info(self, subscription_ids: list[int]) -> dict:
+    async def get_subscriptions_info(self, items: list[dict]) -> dict:
         """批量查询订阅的入库详情和进度。
 
         Args:
-            subscription_ids: 订阅 ID 列表
+            items: 查询项列表，每项为 {"tmdb_id": str, "media_type": "tv"|"movie"}
 
         Returns:
-            订阅详情字典
+            订阅详情字典，data 数组含 local_episodes / total_episodes / is_in_library 等
         """
         url = f"{self.base_url}/api/openapi/subscriptions/info"
-        result = await http_client.post(url, headers=self._headers, json={"ids": subscription_ids})
+        result = await http_client.post(url, headers=self._headers, json={"items": items})
         if (ret := self._check(result, {}, "查询订阅详情")) is not None:
             return ret
         return result
@@ -404,7 +404,7 @@ class NextFindService:
         result = await http_client.post(
             url,
             headers=self._headers,
-            json={"tmdb_id": tmdb_id, "season": season},
+            json={"tmdb_id": str(tmdb_id), "season": season},
         )
         if (ret := self._check(result, {}, "切换忽略季")) is not None:
             return ret
