@@ -1,4 +1,4 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { getSubscriptions, deleteSubscription, syncSubscriptions, toggleBlacklist } from '@/service/api/subscriptions'
 import { usePagedList } from '@/composables/usePagedList'
 import { msg } from '@/utils/message'
@@ -35,7 +35,10 @@ export function useSubscriptions() {
   })
 
   // 前端分页
-  const { page, pageSize, totalPages, pagedList, setPage: handlePageChange } = usePagedList(filteredList, 20)
+  const { page, pageSize, totalPages, pagedList, setPage: handlePageChange, reset: resetPage } = usePagedList(filteredList, 20)
+
+  // 切换 tab / 搜索时重置到第一页
+  watch([filterTab, searchText], () => resetPage())
 
   async function loadList() {
     loading.value = true
