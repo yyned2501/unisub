@@ -36,6 +36,8 @@ class SubscriptionResponse(BaseModel):
     updated_at: datetime
     adjusted_missing_eps: int | None = None
     tmdb_aired_eps: int | None = None
+    emby_episode_count: int | None = None
+    tmdb_total_eps: int | None = None
 
     model_config = {"from_attributes": True}
 

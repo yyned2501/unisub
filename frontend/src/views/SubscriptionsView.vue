@@ -8,19 +8,24 @@ import type { DataTableColumns } from 'naive-ui'
 
 defineOptions({ name: 'SubscriptionsView' })
 
-function subStatus(row: Subscription) {
-  if (!row.nf_subscribed) return { label: '未同步', type: 'warning' as const }
-  return { label: '订阅中', type: 'primary' as const }
-}
-
-function embyStatus(row: Subscription) {
-  if (row.completed) return { label: '已完成', type: 'success' as const }
-  if (row.aired_complete) return { label: '已入库', type: 'primary' as const }
-  if (row.media_type === 'tv' && row.nf_missing_eps > 0)
-    return { label: `缺 ${row.nf_missing_eps} 集`, type: 'info' as const }
-  if (row.nf_subscribed && row.nf_missing_eps === 0)
-    return { label: '已入库', type: 'primary' as const }
-  return { label: '未入库', type: 'default' as const }
+/** 状态栏：显示入库/已播/全集 和完成标记 */
+function statusCell(row: Subscription) {
+  // 电影：0/1 或 1/1
+  if (row.media_type === 'movie') {
+    const label = row.completed ? '1/1' : '0/1'
+    const type = row.completed ? 'success' as const : 'default' as const
+    return h(NTag, { type, size: 'tiny', round: true }, { default: () => label })
+  }
+  // 剧集：emby入库 / 已播出 / 总集数
+  const parts: string[] = []
+  parts.push(row.emby_episode_count != null ? String(row.emby_episode_count) : '-')
+  parts.push(row.tmdb_aired_eps != null ? String(row.tmdb_aired_eps) : '-')
+  parts.push(row.tmdb_total_eps != null ? String(row.tmdb_total_eps) : '-')
+  const label = parts.join('/')
+  let type: 'success' | 'primary' | 'default' = 'default'
+  if (row.completed) type = 'success'
+  else if (row.aired_complete) type = 'primary'
+  return h(NTag, { type, size: 'tiny', round: true }, { default: () => label })
 }
 
 const {
@@ -107,21 +112,11 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
     },
   },
   {
-    title: '订阅状态',
-    key: 'sub_status',
-    width: 80,
+    title: '状态',
+    key: 'status',
+    width: 120,
     render(row) {
-      const s = subStatus(row)
-      return h(NTag, { type: s.type, size: 'tiny', round: true }, { default: () => s.label })
-    },
-  },
-  {
-    title: 'Emby 状态',
-    key: 'emby_status',
-    width: 90,
-    render(row) {
-      const s = embyStatus(row)
-      return h(NTag, { type: s.type, size: 'tiny', round: true }, { default: () => s.label })
+      return statusCell(row)
     },
   },
   {

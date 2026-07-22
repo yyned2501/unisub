@@ -32,6 +32,8 @@ export interface Subscription {
   updated_at: string
   adjusted_missing_eps: number | null
   tmdb_aired_eps: number | null
+  emby_episode_count: number | null
+  tmdb_total_eps: number | null
 }
 
 /** 单条订阅同步结果 */
