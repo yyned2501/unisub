@@ -119,6 +119,13 @@ async def get_platform_statuses(db: AsyncSession) -> list[PlatformStatus]:
                 info = await emby.test_connection()
                 connected = "error" not in info and "ServerName" in info
                 message = f"Emby 连接正常: {info.get('ServerName')}" if connected else "连接失败"
+            elif config.name == "tmdb":
+                from app.services.tmdb import TMDBService
+
+                tmdb = TMDBService(config.api_key, config.base_url)
+                conf = await tmdb._get("/configuration")
+                connected = "error" not in conf and "images" in conf
+                message = "连接正常" if connected else f"连接失败: {conf.get('status_message', conf.get('error', ''))}"
         except Exception as e:
             message = f"连接异常: {str(e)}"
 
