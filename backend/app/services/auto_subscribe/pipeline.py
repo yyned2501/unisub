@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logger import init_logger
 from app.models.activity_log import ActivityLog
 from app.models.subscription import Subscription
-from app.models.tmdb_cache import TmdbCache
 from app.services.auto_subscribe import douban, maoyan, mikan
 from app.services.auto_subscribe.models import (
     SOURCE_NAMES,
@@ -311,33 +310,7 @@ async def _search_and_subscribe(
 
     # 写入 TMDB 缓存：既然查了 TMDB 就别浪费，写入数据库后续直接用
     if media_type == "tv" and tmdb_service:
-        try:
-            detail = await tmdb_service.get_tv_detail(tmdb_id)
-            if detail and "error" not in detail:
-                aired = await tmdb_service.get_aired_episode_count(tmdb_id)
-                next_date = await tmdb_service.get_next_air_date(tmdb_id)
-                poster_path = detail.get("poster_path")
-                poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
-                tc = await db.get(TmdbCache, tmdb_id)
-                if tc:
-                    tc.tmdb_total_eps = detail.get("number_of_episodes")
-                    tc.tmdb_aired_eps = aired
-                    tc.tmdb_next_air_date = next_date
-                    tc.poster_url = poster_url or tc.poster_url
-                else:
-                    db.add(
-                        TmdbCache(
-                            tmdb_id=tmdb_id,
-                            tmdb_total_eps=detail.get("number_of_episodes"),
-                            tmdb_aired_eps=aired,
-                            tmdb_next_air_date=next_date,
-                            poster_url=poster_url,
-                        )
-                    )
-                await db.commit()
-        except Exception:
-            await db.rollback()
-            logger.debug(f"[自动订阅] TMDB 缓存写入失败: tmdb_id={tmdb_id}", exc_info=True)
+        await tmdb_service.update_cache_for_tv(db, tmdb_id)
 
     # TMDB 搜索无 is_subscribed/is_in_library 字段，从本地 DB 查询
     if not best.get("is_subscribed"):
