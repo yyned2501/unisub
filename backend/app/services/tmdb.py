@@ -3,6 +3,8 @@
 用于计算连载中剧集的实际已播出集数，避免以 TMDB 总量作为缺集基准。
 """
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.http_client import http_client
 from app.core.logger import init_logger
 
@@ -196,3 +198,53 @@ class TMDBService:
                 )
 
         return normalized
+
+    async def update_cache_for_tv(self, db: AsyncSession, tmdb_id: int) -> dict | None:
+        """查询 TV 剧集的 TMDB 详情并写入本地缓存（tmdb_cache）。
+
+        任何调用方（自动订阅、同步等）调此方法，查到的数据自动落库，
+        后续二次使用不再需要重复调 TMDB API。
+
+        Args:
+            db: 数据库会话
+            tmdb_id: TMDB ID
+
+        Returns:
+            缓存数据字典，或 None（查询失败/非 TV）
+        """
+        from app.models.tmdb_cache import TmdbCache
+
+        detail = await self.get_tv_detail(tmdb_id)
+        if not detail or "error" in detail:
+            return None
+
+        aired = await self.get_aired_episode_count(tmdb_id)
+        next_date = await self.get_next_air_date(tmdb_id)
+        poster_path = detail.get("poster_path")
+        poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+
+        data = {
+            "tmdb_total_eps": detail.get("number_of_episodes"),
+            "tmdb_aired_eps": aired,
+            "tmdb_next_air_date": next_date,
+            "poster_url": poster_url,
+        }
+
+        tc = await db.get(TmdbCache, tmdb_id)
+        if tc:
+            tc.tmdb_total_eps = data["tmdb_total_eps"]
+            tc.tmdb_aired_eps = data["tmdb_aired_eps"]
+            tc.tmdb_next_air_date = data["tmdb_next_air_date"]
+            if poster_url:
+                tc.poster_url = poster_url
+        else:
+            db.add(TmdbCache(tmdb_id=tmdb_id, **data))
+
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            logger.debug(f"TMDB 缓存写入失败: tmdb_id={tmdb_id}", exc_info=True)
+            return None
+
+        return data

@@ -615,32 +615,11 @@ class OrchestratorService:
                 skipped += 1
                 continue
 
-            # 不一致 → 调 TMDB API 刷新
-            try:
-                detail = await self.tmdb.get_tv_detail(tid)
-                if not detail or "error" in detail:
-                    continue
-
-                aired = await self.tmdb.get_aired_episode_count(tid)
-                next_date = await self.tmdb.get_next_air_date(tid)
-                poster = detail.get("poster_path")
-                poster_url = f"https://image.tmdb.org/t/p/w500{poster}" if poster else None
-
-                data = {
-                    "tmdb_total_eps": detail.get("number_of_episodes"),
-                    "tmdb_aired_eps": aired,
-                    "tmdb_next_air_date": next_date,
-                    "poster_url": poster_url,
-                }
-                if tc:
-                    for k, v in data.items():
-                        setattr(tc, k, v)
-                else:
-                    db.add(TmdbCache(tmdb_id=tid, **data))
+            # 不一致 → 调 TMDB API 刷新（用 update_cache_for_tv 自动写入缓存）
+            if await self.tmdb.update_cache_for_tv(db, tid):
                 updated += 1
-            except Exception:
-                logger.debug(f"TMDB 增量刷新异常: tmdb_id={tid}", exc_info=True)
-                continue
+            else:
+                skipped += 1
 
         await db.commit()
         logger.info(f"TMDB 增量刷新: {updated} 条更新, {skipped} 条跳过")
