@@ -17,11 +17,17 @@ function statusCell(row: Subscription) {
     return h(NTag, { type, size: 'tiny', round: true }, { default: () => label })
   }
   // 剧集：入库数 / 已播出 / 总集数
-  // 入库数用 tmdb_total_eps - nf_missing_eps 计算（NF 本地库的实际入库数），
-  // 比 emby_episode_count 更准确（emby 可能多计花絮/特典）
-  const inLibrary = row.tmdb_total_eps != null && row.nf_missing_eps >= 0
-    ? row.tmdb_total_eps - row.nf_missing_eps
-    : row.emby_episode_count ?? 0
+  // 优先使用 Emby 实际扫描的集数（最准确），
+  // 若 Emby 数据超过 TMDB 总集数（可能多计花絮/特典导致矛盾），回退到缺集反推
+  const embyCount = row.emby_episode_count ?? 0
+  const nfDerived =
+    row.tmdb_total_eps != null && row.nf_missing_eps >= 0
+      ? row.tmdb_total_eps - row.nf_missing_eps
+      : 0
+  const inLibrary =
+    embyCount > 0 && (row.tmdb_total_eps == null || embyCount <= row.tmdb_total_eps)
+      ? embyCount
+      : nfDerived
   const parts: string[] = []
   parts.push(inLibrary > 0 ? String(inLibrary) : '-')
   parts.push(row.tmdb_aired_eps != null ? String(row.tmdb_aired_eps) : '-')
