@@ -161,11 +161,26 @@ async def lifespan(app: FastAPI):
             results = await orchestrator.sync_subscriptions(db)
             logger.info(f"NF 订阅同步完成: {len(results)} 条记录")
 
+        async def _scheduler_tmdb_sync_runner():
+            """TMDB 增量刷新 runner — 通过 NF 数据判断哪些需要刷新，不批量全扫。"""
+            async with async_session() as scan_db:
+                nf = await get_nf_service(scan_db)
+                tmdb = await get_tmdb_service(scan_db)
+                if not nf or not tmdb:
+                    logger.warning("TMDB 增量刷新跳过: NF 或 TMDB 未配置")
+                    return
+                from app.services.orchestrator import OrchestratorService
+
+                orchestrator = OrchestratorService(nf, tmdb_service=tmdb)
+                result = await orchestrator.sync_tmdb_from_nf(scan_db)
+                logger.info(f"TMDB 增量刷新完成: {result}")
+
         await _scheduler_mod.start(
             _scheduler_light_scan_runner,
             _scheduler_full_scan_runner,
             auto_subscribe_runner=_scheduler_auto_subscribe_runner,
             sync_runner=_scheduler_sync_runner,
+            tmdb_sync_runner=_scheduler_tmdb_sync_runner,
         )
     except Exception as e:
         logger.error(f"调度器启动失败: {e}")

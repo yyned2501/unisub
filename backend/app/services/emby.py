@@ -5,7 +5,7 @@ Emby API 通过 X-Emby-Token 头鉴权。
 """
 
 import asyncio
-from datetime import UTC, date, datetime, timedelta
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -355,9 +355,6 @@ class EmbyService:
         emby_cached = (await db.execute(stmt)).scalars().all()
 
         # 筛选需要刷新的
-        # 兜底刷新间隔：无 next_air_date 的剧集（完结/无播出信息）每 7 天刷新一次
-        periodic_refresh_days = 7
-        now_utc = datetime.now(UTC)
         to_update = []
         for c in emby_cached:
             if mode == "subscribed" and c.tmdb_id not in subscribed_ids:
@@ -367,13 +364,8 @@ class EmbyService:
                 if tc is not None:
                     continue  # 已有则跳过
             else:
-                if tc is not None:
-                    # 下一集播出日期已过 → 需要刷新（有新集播出）
-                    aired_refresh = bool(tc.tmdb_next_air_date and tc.tmdb_next_air_date < today_str)
-                    # 无 next_air_date 且超过兜底间隔 → 定期刷新（完结剧/无播出信息）
-                    stale = (now_utc - tc.updated_at) >= timedelta(days=periodic_refresh_days)
-                    if not aired_refresh and not stale:
-                        continue  # 不需要刷新
+                if tc is not None and not (tc.tmdb_next_air_date and tc.tmdb_next_air_date < today_str):
+                    continue  # 不需要刷新
             to_update.append(c)
 
         total = len(to_update)
