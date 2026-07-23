@@ -66,6 +66,21 @@ class TMDBService:
         if "error" in detail or not detail:
             return None
 
+        return self.aired_from_detail(detail)
+
+    @staticmethod
+    def aired_from_detail(detail: dict) -> int | None:
+        """从已获取的剧集详情计算实际已播出集数（纯计算，不发请求）。
+
+        逻辑与 get_aired_episode_count 一致，供已持有 detail 的调用方复用，
+        避免对同一 /tv/{id} 端点重复发起请求。
+
+        Args:
+            detail: /tv/{id} 返回的详情字典
+
+        Returns:
+            已播出的集数，或 None（已完结/数据不足）
+        """
         status = detail.get("status", "")
         if status != "Returning Series":
             return None  # 已完结的剧集直接用 TMDB 总量
@@ -119,6 +134,18 @@ class TMDBService:
         detail = await self._get(f"/tv/{tmdb_id}")
         if "error" in detail or not detail:
             return None
+        return self.next_air_date_from_detail(detail)
+
+    @staticmethod
+    def next_air_date_from_detail(detail: dict) -> str | None:
+        """从已获取的剧集详情提取下一集播出日期（纯计算，不发请求）。
+
+        Args:
+            detail: /tv/{id} 返回的详情字典
+
+        Returns:
+            播出日期字符串（YYYY-MM-DD）或 None（已完结/无下一集）
+        """
         next_ep = detail.get("next_episode_to_air")
         if next_ep:
             return next_ep.get("air_date")
@@ -218,8 +245,9 @@ class TMDBService:
         if not detail or "error" in detail:
             return None
 
-        aired = await self.get_aired_episode_count(tmdb_id)
-        next_date = await self.get_next_air_date(tmdb_id)
+        # 复用同一份 detail 纯计算，避免对 /tv/{id} 重复发请求
+        aired = self.aired_from_detail(detail)
+        next_date = self.next_air_date_from_detail(detail)
         poster_path = detail.get("poster_path")
         poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
 
@@ -228,6 +256,7 @@ class TMDBService:
             "tmdb_aired_eps": aired,
             "tmdb_next_air_date": next_date,
             "poster_url": poster_url,
+            "tmdb_poster_path": poster_path,
         }
 
         tc = await db.get(TmdbCache, tmdb_id)
@@ -235,6 +264,8 @@ class TMDBService:
             tc.tmdb_total_eps = data["tmdb_total_eps"]
             tc.tmdb_aired_eps = data["tmdb_aired_eps"]
             tc.tmdb_next_air_date = data["tmdb_next_air_date"]
+            if poster_path:
+                tc.tmdb_poster_path = poster_path
             if poster_url:
                 tc.poster_url = poster_url
         else:
