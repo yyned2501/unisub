@@ -28,8 +28,10 @@ function statusCell(row: Subscription) {
     embyCount > 0 && (row.tmdb_total_eps == null || embyCount <= row.tmdb_total_eps)
       ? embyCount
       : nfDerived
+  // 入库数现在由 Emby 实际扫描值或 NF 缺集反推可靠得出，0 就是 0 集入库（与电影 0/1 一致），
+  // '-' 仅用于 TMDB 数据缺失的情况
   const parts: string[] = []
-  parts.push(inLibrary > 0 ? String(inLibrary) : '-')
+  parts.push(String(inLibrary))
   parts.push(row.tmdb_aired_eps != null ? String(row.tmdb_aired_eps) : '-')
   parts.push(row.tmdb_total_eps != null ? String(row.tmdb_total_eps) : '-')
   const label = parts.join('/')
