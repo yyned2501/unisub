@@ -33,9 +33,15 @@ function statusCell(row: Subscription) {
   parts.push(row.tmdb_aired_eps != null ? String(row.tmdb_aired_eps) : '-')
   parts.push(row.tmdb_total_eps != null ? String(row.tmdb_total_eps) : '-')
   const label = parts.join('/')
+  // 状态颜色根据实时显示的数字判断（不依赖持久化的 aired_complete，避免新集播出后不重置）：
+  // 已入库 >= 总集数 → 绿色；已入库 >= 已播出 → 蓝色；否则灰色
+  // 例：1/2/3 灰、2/2/3 蓝、3/3/3 绿
   let type: 'success' | 'primary' | 'default' = 'default'
-  if (row.completed) type = 'success'
-  else if (row.aired_complete) type = 'primary'
+  if (row.completed || (row.tmdb_total_eps != null && inLibrary > 0 && inLibrary >= row.tmdb_total_eps)) {
+    type = 'success'
+  } else if (row.tmdb_aired_eps != null && inLibrary > 0 && inLibrary >= row.tmdb_aired_eps) {
+    type = 'primary'
+  }
   return h(NTag, { type, size: 'tiny', round: true }, { default: () => label })
 }
 
