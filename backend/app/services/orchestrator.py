@@ -577,3 +577,71 @@ class OrchestratorService:
         await db.commit()
         logger.info(f"MP 补充搜索完成: 处理了 {len(results)} 条缺集订阅")
         return results
+
+    async def sync_tmdb_from_nf(self, db: AsyncSession) -> dict:
+        """通过 NF 订阅数据判断哪些剧集需要刷新 TMDB 缓存。
+
+        NF 的 total_episodes 变了 → TMDB 有新数据 → 只刷新这一条。
+        避免批量全量扫描，减少 TMDB API 调用。
+
+        Args:
+            db: 数据库会话
+
+        Returns:
+            更新统计字典 {updated, skipped}
+        """
+        if not self.tmdb:
+            logger.warning("TMDB 增量刷新跳过: TMDB 服务未配置")
+            return {"updated": 0, "skipped": 0}
+
+        nf_subs = await self.nf.get_subscriptions()
+        tv_subs = [s for s in nf_subs if s.get("media_type") in ("tv", "剧集")]
+
+        updated = 0
+        skipped = 0
+        for nf_sub in tv_subs:
+            tid = int(nf_sub["tmdb_id"])
+            nf_total = int(nf_sub.get("total_episodes") or 0)
+            if nf_total <= 0:
+                skipped += 1
+                continue
+
+            # 查询本地 tmdb_cache
+            tc = await db.get(TmdbCache, tid)
+            local_total = tc.tmdb_total_eps if tc else None
+
+            # 一致 → 跳过
+            if local_total == nf_total:
+                skipped += 1
+                continue
+
+            # 不一致 → 调 TMDB API 刷新
+            try:
+                detail = await self.tmdb.get_tv_detail(tid)
+                if not detail or "error" in detail:
+                    continue
+
+                aired = await self.tmdb.get_aired_episode_count(tid)
+                next_date = await self.tmdb.get_next_air_date(tid)
+                poster = detail.get("poster_path")
+                poster_url = f"https://image.tmdb.org/t/p/w500{poster}" if poster else None
+
+                data = {
+                    "tmdb_total_eps": detail.get("number_of_episodes"),
+                    "tmdb_aired_eps": aired,
+                    "tmdb_next_air_date": next_date,
+                    "poster_url": poster_url,
+                }
+                if tc:
+                    for k, v in data.items():
+                        setattr(tc, k, v)
+                else:
+                    db.add(TmdbCache(tmdb_id=tid, **data))
+                updated += 1
+            except Exception:
+                logger.debug(f"TMDB 增量刷新异常: tmdb_id={tid}", exc_info=True)
+                continue
+
+        await db.commit()
+        logger.info(f"TMDB 增量刷新: {updated} 条更新, {skipped} 条跳过")
+        return {"updated": updated, "skipped": skipped}
