@@ -432,8 +432,9 @@ class EmbyService:
             try:
                 detail = await tmdb_service.get_tv_detail(tid)
                 if detail and "error" not in detail:
-                    aired = await tmdb_service.get_aired_episode_count(tid)
-                    next_date = await tmdb_service.get_next_air_date(tid)
+                    # 复用同一份 detail 纯计算，避免对 /tv/{id} 重复发请求
+                    aired = tmdb_service.aired_from_detail(detail)
+                    next_date = tmdb_service.next_air_date_from_detail(detail)
                     poster = detail.get("poster_path")
                     poster_url = f"https://image.tmdb.org/t/p/w500{poster}" if poster else None
                     return tid, {
