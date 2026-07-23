@@ -15,6 +15,7 @@ const {
   libraryFilter,
   hidingIds,
   subscribingIds,
+  deletingIds,
   libraries,
   filteredSeries,
   scanRunning,
@@ -29,6 +30,7 @@ const {
   handleHide,
   handleUnhide,
   handleSubscribe,
+  handleDelete,
 } = useEmbyAnalysis()
 </script>
 
@@ -120,9 +122,11 @@ const {
             :s="s"
             :hiding="hidingIds.has(s.tmdb_id)"
             :subscribing="subscribingIds.has(s.tmdb_id)"
+            :deleting="deletingIds.has(s.tmdb_id)"
             @hide="handleHide"
             @unhide="handleUnhide"
             @subscribe="handleSubscribe"
+            @delete="handleDelete"
           />
         </div>
       </n-card>

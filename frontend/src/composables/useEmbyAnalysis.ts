@@ -7,10 +7,11 @@ import {
   addToBlacklist,
   removeFromBlacklist,
   subscribeFromEmby,
+  deleteEmbyItem,
 } from '@/service/api/emby'
 import { useIdSet } from '@/composables/useIdSet'
 import { usePolling } from '@/composables/usePolling'
-import { msg } from '@/utils/message'
+import { msg, confirmDialog } from '@/utils/message'
 import type { AxiosError } from 'axios'
 import type { EmbyMissingAnalysis, EmbyCacheResponse } from '@/types'
 
@@ -26,6 +27,7 @@ export function useEmbyAnalysis() {
   const showHidden = ref(false)
   const hidingIds = useIdSet()
   const subscribingIds = useIdSet()
+  const deletingIds = useIdSet()
 
   // 分页
   const page = ref(1)
@@ -182,6 +184,34 @@ export function useEmbyAnalysis() {
     }
   }
 
+  async function handleDelete(s: EmbyCacheResponse) {
+    try {
+      await confirmDialog({
+        title: '从 Emby 删除',
+        content: `确定要从 Emby 删除「${s.emby_series_name || '未知'}」吗？此操作不可逆，将同时删除媒体文件。`,
+        positiveText: '删除',
+      })
+    } catch {
+      return // 用户取消
+    }
+    deletingIds.add(s.tmdb_id)
+    try {
+      const data = await deleteEmbyItem(s.tmdb_id)
+      if (data?.success) {
+        if (analysis.value) {
+          analysis.value.series = analysis.value.series.filter((x) => x.tmdb_id !== s.tmdb_id)
+        }
+        msg.success(data.message || '已从 Emby 删除')
+      } else {
+        msg.error(data?.message || '删除失败')
+      }
+    } catch (e: unknown) {
+      msg.error((e as AxiosError<{ detail?: string }>)?.response?.data?.detail || '删除失败')
+    } finally {
+      deletingIds.remove(s.tmdb_id)
+    }
+  }
+
   onMounted(() => load())
 
   return {
@@ -193,6 +223,7 @@ export function useEmbyAnalysis() {
     libraryFilter,
     hidingIds,
     subscribingIds,
+    deletingIds,
     libraries,
     filteredSeries,
     scanRunning,
@@ -207,5 +238,6 @@ export function useEmbyAnalysis() {
     handleHide,
     handleUnhide,
     handleSubscribe,
+    handleDelete,
   }
 }
