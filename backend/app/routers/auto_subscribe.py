@@ -101,13 +101,20 @@ async def get_meta() -> AutoSubMetaResponse:
     return AutoSubMetaResponse(
         douban_ranks=[{"value": key, "label": value["label"]} for key, value in douban.DOUBAN_RANKS.items()],
         maoyan_platforms=[
-            {"value": value, "label": value}
-            for value in ["腾讯视频", "爱奇艺", "优酷", "芒果TV", "哔哩哔哩", "抖音", "快手", "西瓜视频"]
+            {"value": "全网", "label": "全网"},
+            {"value": "腾讯视频", "label": "腾讯视频"},
+            {"value": "爱奇艺", "label": "爱奇艺"},
+            {"value": "优酷", "label": "优酷"},
+            {"value": "芒果TV", "label": "芒果TV"},
+            {"value": "搜狐视频", "label": "搜狐视频"},
+            {"value": "乐视", "label": "乐视"},
+            {"value": "PPTV", "label": "PPTV"},
         ],
         maoyan_media_types=[
+            {"value": "series", "label": "电视剧+网络剧"},
             {"value": "tv", "label": "电视剧"},
-            {"value": "movie", "label": "电影"},
-            {"value": "动漫", "label": "动漫"},
+            {"value": "web", "label": "网络剧"},
+            {"value": "variety", "label": "综艺"},
         ],
         seasons=[
             {"value": value, "label": label}

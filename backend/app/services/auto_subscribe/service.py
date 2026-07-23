@@ -88,16 +88,21 @@ class AutoSubscribeService:
                         "nf_cache": result.get("nf_cache", {}),
                         "last_run": datetime.now(UTC).isoformat(),
                         "last_stats": _summarize_stats(result["stats"]),
-                        "last_error": result["errors"] or None,
+                        "last_error": result.get("auth_error") or result["errors"] or None,
                     }
                 )
                 store.save_history(history)
 
                 added = len(result["added"])
                 error_count = len(result["errors"])
-                message = f"自动订阅完成: 新增 {added} 条订阅"
-                if error_count:
-                    message += f"，{error_count} 个源抓取失败"
+                auth_error = result.get("auth_error")
+                if auth_error:
+                    self._last_error = auth_error
+                    message = f"自动订阅中止: {auth_error}"
+                else:
+                    message = f"自动订阅完成: 新增 {added} 条订阅"
+                    if error_count:
+                        message += f"，{error_count} 个源抓取失败"
                 db.add(
                     ActivityLog(
                         id=str(uuid.uuid4()),
