@@ -2,6 +2,7 @@ import { ref, computed, onMounted } from 'vue'
 import {
   getEmbyLibraryAnalysis,
   syncEmbyCache,
+  backfillOverview,
   triggerEmbyScan,
   getEmbyScanStatus,
   addToBlacklist,
@@ -22,6 +23,7 @@ import type { EmbyMissingAnalysis, EmbyCacheResponse } from '@/types'
 export function useEmbyAnalysis() {
   const loading = ref(false)
   const syncing = ref(false)
+  const backfilling = ref(false)
   const analysis = ref<EmbyMissingAnalysis | null>(null)
   const searchText = ref('')
   const showHidden = ref(false)
@@ -94,6 +96,19 @@ export function useEmbyAnalysis() {
       msg.error('同步失败')
     } finally {
       syncing.value = false
+    }
+  }
+
+  async function handleBackfillOverview() {
+    backfilling.value = true
+    try {
+      const data = await backfillOverview()
+      msg.success(data?.message || '描述补充完成')
+      await load()
+    } catch {
+      msg.error('补充描述失败')
+    } finally {
+      backfilling.value = false
     }
   }
 
@@ -217,6 +232,7 @@ export function useEmbyAnalysis() {
   return {
     loading,
     syncing,
+    backfilling,
     analysis,
     searchText,
     showHidden,
@@ -234,6 +250,7 @@ export function useEmbyAnalysis() {
     handlePageChange,
     handleLibraryChange,
     handleSync,
+    handleBackfillOverview,
     handleFullScan,
     handleHide,
     handleUnhide,

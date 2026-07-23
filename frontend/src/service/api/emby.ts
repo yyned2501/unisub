@@ -18,6 +18,12 @@ export function syncEmbyCache() {
   return apiClient.post<EmbySyncResult>('/emby/sync-cache')
 }
 
+export function backfillOverview() {
+  return apiClient.post<{ success: boolean; checked: number; filled: number; message: string }>(
+    '/emby/backfill-overview'
+  )
+}
+
 export function updateEmbyTmdb() {
   return apiClient.post<ActionResponse>('/emby/update-tmdb')
 }

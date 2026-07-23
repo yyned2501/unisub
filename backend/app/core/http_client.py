@@ -144,6 +144,9 @@ class AsyncHttpClient:
         try:
             response = await client.post(url, headers=headers, json=json, data=data)
             response.raise_for_status()
+            # 部分接口（如 Emby 更新元数据）成功返回 204 No Content（空响应体）
+            if not response.content:
+                return {}
             return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP POST {url} 失败: {e.response.status_code}")
