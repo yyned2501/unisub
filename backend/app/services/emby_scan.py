@@ -104,6 +104,11 @@ class EmbyScanService:
                 progress_callback=_tmdb_progress,
             )
 
+            # 补充缺失描述：TMDB 有描述的写入 emby_cache 并同步到 Emby（仅处理空 overview 条目）
+            cls._scan_status["step_name"] = "正在补充缺失描述..."
+            overview_result = await emby.backfill_overview(db, tmdb)
+            logger.info(f"扫描 描述补充完成: {overview_result}")
+
             cls._scan_status["progress"] = 80
             logger.info(f"扫描 Step 2/3 完成: {tmdb_result}")
 

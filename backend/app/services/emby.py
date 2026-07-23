@@ -165,11 +165,12 @@ class EmbyService:
         return self._user_id
 
     async def update_item_overview(self, item_id: str, overview: str) -> bool:
-        """向 Emby 写入媒体项描述，并锁定 Overview 字段防止重新刮削覆盖。
+        """向 Emby 写入媒体项描述（不锁定字段）。
 
         Emby 更新元数据要求完整 DTO，因此采用 GET 完整 item → 修改 Overview →
-        POST 回写的方式。仅把 Overview 加入 LockedFields（不锁整条），
-        其他元数据仍可正常刷新。
+        POST 回写的方式。不锁定 Overview：若 Emby 后续能从源刮削到描述则自动
+        覆盖更新，刮削不到则保留本写入值（Emby 无新值时不会清空已有描述）。
+        若该字段此前被锁定，会主动解除锁定。
 
         Args:
             item_id: Emby Series ID
@@ -187,10 +188,11 @@ class EmbyService:
             logger.warning(f"Emby 写入 overview 失败: 获取 item 失败 (item_id={item_id})")
             return False
         item["Overview"] = overview
+        # 不锁定：解除可能存在的 Overview 锁定，交由 Emby 正常刮削维护
         locked = item.get("LockedFields") or []
-        if "Overview" not in locked:
-            locked.append("Overview")
-        item["LockedFields"] = locked
+        if "Overview" in locked:
+            locked.remove("Overview")
+            item["LockedFields"] = locked
         result = await http_client.post(f"{self.base_url}/Items/{item_id}", headers=self._headers, json=item)
         if "error" in result:
             logger.warning(f"Emby 写入 overview 失败: item_id={item_id}, {result}")
@@ -201,8 +203,9 @@ class EmbyService:
         """为缺少描述的剧集从 TMDB 补充 overview，写入 emby_cache 并同步到 Emby。
 
         只处理 emby_cache 中 overview 为空且有 emby_series_id 的条目；TMDB 也无
-        描述的条目跳过。写入 Emby 后该字段被锁定，后续 sync_cache 从 Emby 读回
-        时会保留，形成自洽。Emby 写入为 best-effort，失败不影响本地缓存补充。
+        描述的条目跳过。写入 Emby 时不锁定字段，后续 sync_cache 从 Emby 读回会
+        保留该描述（Emby 刮削不到时不会清空），形成自洽。Emby 写入为
+        best-effort，失败不影响本地缓存补充。
 
         Args:
             db: 数据库会话
