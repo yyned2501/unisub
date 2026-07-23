@@ -14,7 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logger import init_logger
 from app.models.activity_log import ActivityLog
 from app.models.subscription import Subscription
-from app.services.auto_subscribe import douban, maoyan, mikan
+
+# 导入各来源模块以触发 @register 自注册（不直接使用模块对象）。
+from app.services.auto_subscribe import douban, maoyan, mikan  # noqa: F401
+from app.services.auto_subscribe.base import get_provider
 from app.services.auto_subscribe.models import (
     SOURCE_NAMES,
     STATUS_ALREADY,
@@ -24,9 +27,11 @@ from app.services.auto_subscribe.models import (
     STATUS_IN_LIBRARY,
     STATUS_SUBSCRIBED,
     STATUS_UNRECOGNIZED,
+    TERMINAL_STATUSES,
     RankMediaItem,
+    make_history_key,
 )
-from app.services.nextfind import NextFindService
+from app.services.nextfind import NextFindAuthError, NextFindService
 from app.services.tmdb import TMDBService
 
 logger = init_logger(__name__)
@@ -73,15 +78,17 @@ async def run(
     added: list[dict] = []
     new_handled = dict(handled)
 
-    # 1. 并发抓取各榜单源
+    # 1. 并发抓取各榜单源（通过注册表取 provider）
     fetch_tasks = []
-    source_map = {"douban": douban, "mikan": mikan, "maoyan": maoyan}
-    enabled_sources = [s for s in source_map if cfg.get(f"{s}_enabled", False)]
+    enabled_sources = [s for s in SOURCE_NAMES if cfg.get(f"{s}_enabled", False)]
 
     for src_name in enabled_sources:
-        src_module = source_map[src_name]
+        provider = get_provider(src_name)
+        if provider is None:
+            logger.warning(f"[自动订阅] 未注册的来源: {src_name}，跳过")
+            continue
         src_opts = _source_options(cfg, src_name)
-        fetch_tasks.append(_fetch_with_stats(src_name, src_module, src_opts, stats, errors))
+        fetch_tasks.append(_fetch_with_stats(src_name, provider, src_opts, stats, errors))
 
     results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
     for r in results:
@@ -96,24 +103,37 @@ async def run(
 
     logger.info(f"[自动订阅] 共获取 {len(all_items)} 个条目，开始搜索{' TMDB' if tmdb_service else ' NextFind'}...")
 
-    # 3. 搜索并处理（串行 + 并发控制）
+    # 3. 搜索并处理（并发控制 + 鉴权失败快速中止）
     sem = asyncio.Semaphore(_SEARCH_CONCURRENCY)
     db_lock = asyncio.Lock()  # DB 写操作串行化，避免并发 commit 冲突
+    abort = asyncio.Event()  # 鉴权失败时置位，其余任务提前退出
+    auth_error = ""
 
     async def _process(src_name: str, item: RankMediaItem):
+        nonlocal auth_error
+        if abort.is_set():
+            return
         async with sem:
-            return await _search_and_subscribe(
-                cfg,
-                src_name,
-                item,
-                nf_service,
-                tmdb_service,
-                db,
-                db_lock,
-                new_handled,
-                stats,
-                added,
-            )
+            if abort.is_set():
+                return
+            try:
+                return await _search_and_subscribe(
+                    cfg,
+                    src_name,
+                    item,
+                    nf_service,
+                    tmdb_service,
+                    db,
+                    db_lock,
+                    new_handled,
+                    stats,
+                    added,
+                )
+            except NextFindAuthError as exc:
+                # 密钥无效/过期：继续跑只会每条都 401，立即中止整轮并明确报因。
+                auth_error = str(exc)
+                abort.set()
+                logger.error(f"[自动订阅] {exc}，已中止本轮")
 
     tasks = [_process(src_name, item) for src_name, item in all_items]
     await asyncio.gather(*tasks, return_exceptions=True)
@@ -124,19 +144,20 @@ async def run(
         "added": added,
         "handled": new_handled,
         "nf_cache": cfg.get("nf_cache", {}),
+        "auth_error": auth_error,
     }
 
 
 async def _fetch_with_stats(
     src_name: str,
-    src_module,
+    provider,
     options: dict,
     stats: dict,
     errors: dict,
 ) -> list[RankMediaItem]:
     """抓取榜单源并记录统计。"""
     try:
-        items = await src_module.fetch(options)
+        items = await provider.fetch_async(options)
         stats.setdefault(src_name, {})["fetched"] = len(items)
         logger.info(f"[{SOURCE_NAMES.get(src_name, src_name)}] 抓取到 {len(items)} 个条目")
         return items
@@ -162,10 +183,11 @@ async def _search_and_subscribe(
     """搜索 TMDB（优先）或 NextFind，并决定是否订阅。"""
     title = item.title
     type_hint = item.type_hint or "all"  # RSS 未提供类别时才搜索全部
-
-    # 检查历史去重
     seed = item.unique_seed or title
-    if seed in new_handled:
+
+    # 跨轮去重：历史里该 seed 已是正向终态才跳过（filtered/unrecognized 不跳过，可重评）
+    prev = new_handled.get(seed)
+    if prev and prev.get("status") in TERMINAL_STATUSES:
         _inc_stat(stats, src_name, STATUS_ALREADY)
         return
 
@@ -225,6 +247,8 @@ async def _search_and_subscribe(
                 if search_error:
                     logger.info(f"[自动订阅] NextFind 搜索兜底成功: {title}")
                 return nf_results
+        except NextFindAuthError:
+            raise  # 鉴权失败向上传播以中止整轮
         except Exception as e:
             search_error = e
             logger.warning(f"[自动订阅] NF 搜索异常: {title}: {e}")
@@ -272,6 +296,20 @@ async def _search_and_subscribe(
     year = best.get("year") or item.year
     poster = best.get("poster") or best.get("poster_url") or item.poster
 
+    # 跨源去重：按解析后的 tmdb_id 生成历史键，已是正向终态则跳过
+    season = item.season if media_type == "tv" else None
+    history_key = make_history_key(tmdb_id, media_type, season)
+    prev_key = new_handled.get(history_key)
+    if prev_key and prev_key.get("status") in TERMINAL_STATUSES:
+        _inc_stat(stats, src_name, STATUS_ALREADY)
+        return
+
+    def _mark_terminal(status: str) -> None:
+        """正向终态：同时按 seed 与 tmdb 历史键记录，供跨轮 + 跨源去重。"""
+        entry = {"status": status, "tmdb_id": tmdb_id, "media_type": media_type, "time": _now_str()}
+        new_handled[seed] = entry
+        new_handled[history_key] = entry
+
     # 评分过滤（全局 + 每源，取较高者）
     min_vote = cfg.get("min_vote", 0) or 0
     src_min_vote = cfg.get(f"{src_name}_min_vote", 0) or 0
@@ -317,22 +355,12 @@ async def _search_and_subscribe(
         existing = await db.execute(select(Subscription).where(Subscription.tmdb_id == tmdb_id))
         if existing.scalar_one_or_none():
             _inc_stat(stats, src_name, STATUS_EXISTS)
-            new_handled[seed] = {
-                "status": STATUS_EXISTS,
-                "tmdb_id": tmdb_id,
-                "media_type": media_type,
-                "time": _now_str(),
-            }
+            _mark_terminal(STATUS_EXISTS)
             return
 
     if best.get("is_in_library"):
         _inc_stat(stats, src_name, STATUS_IN_LIBRARY)
-        new_handled[seed] = {
-            "status": STATUS_IN_LIBRARY,
-            "tmdb_id": tmdb_id,
-            "media_type": media_type,
-            "time": _now_str(),
-        }
+        _mark_terminal(STATUS_IN_LIBRARY)
         return
 
     # 创建订阅：远端明确成功后才写入本地。
@@ -342,33 +370,20 @@ async def _search_and_subscribe(
             if outcome == "created" and sub:
                 _inc_stat(stats, src_name, STATUS_SUBSCRIBED)
                 added.append({"tmdb_id": tmdb_id, "title": matched_title, "source": src_name, "media_type": media_type})
-                new_handled[seed] = {
-                    "status": STATUS_SUBSCRIBED,
-                    "tmdb_id": tmdb_id,
-                    "media_type": media_type,
-                    "time": _now_str(),
-                }
+                _mark_terminal(STATUS_SUBSCRIBED)
                 logger.info(f"[自动订阅] 新增订阅: {matched_title} (tmdb_id={tmdb_id}, 来源={src_name})")
             elif outcome == "already_exists" and sub:
                 _inc_stat(stats, src_name, STATUS_EXISTS)
-                new_handled[seed] = {
-                    "status": STATUS_EXISTS,
-                    "tmdb_id": tmdb_id,
-                    "media_type": media_type,
-                    "time": _now_str(),
-                }
+                _mark_terminal(STATUS_EXISTS)
                 logger.info(f"[自动订阅] NextFind 已有订阅，已同步本地记录: {matched_title}")
             elif outcome == "local_exists":
                 _inc_stat(stats, src_name, STATUS_EXISTS)
-                new_handled[seed] = {
-                    "status": STATUS_EXISTS,
-                    "tmdb_id": tmdb_id,
-                    "media_type": media_type,
-                    "time": _now_str(),
-                }
+                _mark_terminal(STATUS_EXISTS)
             else:
                 _inc_stat(stats, src_name, STATUS_ERROR)
                 new_handled[seed] = {"status": STATUS_ERROR, "time": _now_str()}
+        except NextFindAuthError:
+            raise  # 鉴权失败向上传播以中止整轮
         except Exception as e:
             logger.error(f"[自动订阅] 订阅失败: {title}: {e}")
             _inc_stat(stats, src_name, STATUS_ERROR)

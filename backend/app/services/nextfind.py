@@ -11,6 +11,14 @@ from app.core.logger import init_logger
 logger = init_logger()
 
 
+class NextFindAuthError(Exception):
+    """NextFind 鉴权失败（401/403）：API 密钥无效或已过期。运行时据此立即中止整轮。"""
+
+
+class NextFindError(Exception):
+    """NextFind 请求/响应异常。"""
+
+
 @dataclass(frozen=True)
 class SubscriptionCreateResult:
     """NextFind 创建订阅的语义化结果。"""
@@ -61,6 +69,14 @@ class NextFindService:
             return empty
         return None
 
+    @staticmethod
+    def _raise_on_auth_error(result) -> None:
+        """若 http_client 返回 401/403 鉴权错误则抛 NextFindAuthError，供调用方中止整轮。"""
+        if isinstance(result, dict) and result.get("error"):
+            code = str(result.get("error", ""))
+            if "401" in code or "403" in code:
+                raise NextFindAuthError("NextFind 鉴权失败（HTTP 401/403）：API 密钥无效或已过期")
+
     async def search_tmdb(self, query: str, media_type: str = "all") -> list[dict]:
         """搜索 TMDB 资源。
 
@@ -75,6 +91,7 @@ class NextFindService:
         url = f"{self.base_url}/api/openapi/search"
         params = {"query": query, "type": mapped_type}
         result = await http_client.get(url, headers=self._headers, params=params)
+        self._raise_on_auth_error(result)
         if (ret := self._check(result, [], "搜索")) is not None:
             return ret
         if isinstance(result, list):
@@ -103,6 +120,7 @@ class NextFindService:
             headers=self._headers,
             json=body,
         )
+        self._raise_on_auth_error(result)
         return result
 
     async def create_subscription(
