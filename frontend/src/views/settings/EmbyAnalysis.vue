@@ -9,6 +9,7 @@ defineOptions({ name: 'EmbyAnalysis' })
 const {
   loading,
   syncing,
+  backfilling,
   analysis,
   searchText,
   showHidden,
@@ -26,6 +27,7 @@ const {
   handlePageChange,
   handleLibraryChange,
   handleSync,
+  handleBackfillOverview,
   handleFullScan,
   handleHide,
   handleUnhide,
@@ -42,6 +44,10 @@ const {
         <n-button size="small" secondary :loading="syncing" @click="handleSync">
           <template #icon><i class="ri-download-line"></i></template>
           同步缓存
+        </n-button>
+        <n-button size="small" secondary :loading="backfilling" @click="handleBackfillOverview">
+          <template #icon><i class="ri-file-text-line"></i></template>
+          补充描述
         </n-button>
         <n-button size="small" type="primary" :disabled="scanRunning" :loading="scanRunning" @click="handleFullScan">
           <template #icon><i class="ri-refresh-line"></i></template>

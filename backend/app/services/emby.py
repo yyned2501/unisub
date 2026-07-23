@@ -35,6 +35,7 @@ class EmbyService:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self._headers = {"X-Emby-Token": api_key, "accept": "application/json"}
+        self._user_id: str | None = None
 
     async def test_connection(self) -> dict:
         """测试 Emby 连接 — 调用 /System/Info 接口。
@@ -147,6 +148,92 @@ class EmbyService:
         else:
             logger.info(f"Emby 删除媒体项成功: item_id={item_id}")
         return result
+
+    async def _get_user_id(self) -> str | None:
+        """获取 Emby 第一个用户的 ID（用户级 item 查询需要），结果缓存于实例。
+
+        Returns:
+            用户 ID，获取失败返回 None
+        """
+        if self._user_id:
+            return self._user_id
+        result = await http_client.get(f"{self.base_url}/Users", headers=self._headers)
+        if isinstance(result, list) and result:
+            self._user_id = result[0].get("Id")
+        elif isinstance(result, dict) and result.get("Items"):
+            self._user_id = result["Items"][0].get("Id")
+        return self._user_id
+
+    async def update_item_overview(self, item_id: str, overview: str) -> bool:
+        """向 Emby 写入媒体项描述，并锁定 Overview 字段防止重新刮削覆盖。
+
+        Emby 更新元数据要求完整 DTO，因此采用 GET 完整 item → 修改 Overview →
+        POST 回写的方式。仅把 Overview 加入 LockedFields（不锁整条），
+        其他元数据仍可正常刷新。
+
+        Args:
+            item_id: Emby Series ID
+            overview: 描述文本
+
+        Returns:
+            是否写入成功
+        """
+        user_id = await self._get_user_id()
+        if not user_id:
+            logger.warning(f"Emby 写入 overview 失败: 无法获取用户 ID (item_id={item_id})")
+            return False
+        item = await http_client.get(f"{self.base_url}/Users/{user_id}/Items/{item_id}", headers=self._headers)
+        if not isinstance(item, dict) or "error" in item or not item.get("Id"):
+            logger.warning(f"Emby 写入 overview 失败: 获取 item 失败 (item_id={item_id})")
+            return False
+        item["Overview"] = overview
+        locked = item.get("LockedFields") or []
+        if "Overview" not in locked:
+            locked.append("Overview")
+        item["LockedFields"] = locked
+        result = await http_client.post(f"{self.base_url}/Items/{item_id}", headers=self._headers, json=item)
+        if "error" in result:
+            logger.warning(f"Emby 写入 overview 失败: item_id={item_id}, {result}")
+            return False
+        return True
+
+    async def backfill_overview(self, db: AsyncSession, tmdb_service: TMDBService) -> dict:
+        """为缺少描述的剧集从 TMDB 补充 overview，写入 emby_cache 并同步到 Emby。
+
+        只处理 emby_cache 中 overview 为空且有 emby_series_id 的条目；TMDB 也无
+        描述的条目跳过。写入 Emby 后该字段被锁定，后续 sync_cache 从 Emby 读回
+        时会保留，形成自洽。Emby 写入为 best-effort，失败不影响本地缓存补充。
+
+        Args:
+            db: 数据库会话
+            tmdb_service: TMDB 服务实例
+
+        Returns:
+            {"checked": 检查数, "filled": 成功补充数, "no_tmdb": TMDB 无描述数}
+        """
+        stmt = select(EmbyCache).where(
+            EmbyCache.emby_series_id.isnot(None),
+            (EmbyCache.overview.is_(None)) | (EmbyCache.overview == ""),
+        )
+        missing = (await db.execute(stmt)).scalars().all()
+        checked = len(missing)
+        filled = 0
+        no_tmdb = 0
+        for cache in missing:
+            detail = await tmdb_service.get_tv_detail(cache.tmdb_id)
+            if not detail or "error" in detail:
+                no_tmdb += 1
+                continue
+            overview = (detail.get("overview") or "").strip()
+            if not overview:
+                no_tmdb += 1
+                continue
+            cache.overview = overview
+            await self.update_item_overview(cache.emby_series_id, overview)
+            filled += 1
+        await db.commit()
+        logger.info(f"Overview 回填完成: 检查 {checked}, 补充 {filled}, TMDB 无描述 {no_tmdb}")
+        return {"checked": checked, "filled": filled, "no_tmdb": no_tmdb}
 
     async def get_all_items_with_tmdb(
         self,

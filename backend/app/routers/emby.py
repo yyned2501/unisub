@@ -77,6 +77,25 @@ async def update_tmdb(
     )
 
 
+@router.post("/backfill-overview")
+async def backfill_overview_endpoint(
+    db: AsyncSession = Depends(get_db),
+    emby: EmbyService = Depends(require_emby_service),
+    tmdb: TMDBService = Depends(require_tmdb_service),
+):
+    """从 TMDB 为缺少描述的剧集补充 overview，写入本地缓存并同步到 Emby。"""
+    result = await emby.backfill_overview(db, tmdb)
+    logger.info(f"Overview 回填: {result}")
+    return {
+        "success": True,
+        "checked": result["checked"],
+        "filled": result["filled"],
+        "message": (
+            f"补充完成: 检查 {result['checked']} 条, 成功 {result['filled']} 条, TMDB 无描述 {result['no_tmdb']} 条"
+        ),
+    }
+
+
 @router.get("/library-analysis", response_model=EmbyMissingAnalysis)
 async def analyze_missing(
     page: int = 1,
