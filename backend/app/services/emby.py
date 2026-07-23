@@ -172,25 +172,44 @@ class EmbyService:
             return {item["Id"]: item["Name"] for item in result["Items"] if item.get("Id")}
         return {}
 
-    def _get_library_for_item(self, item: dict, library_map: dict[str, str]) -> str | None:
-        """根据 Emby item 的 FolderId 查找所属的媒体库名称。
+    async def _build_tmdb_library_map(self) -> dict[int, str]:
+        """按媒体库逐个查询，构建 {tmdb_id: 媒体库名称} 映射。
 
-        Args:
-            item: Emby item（Series）
-            library_map: _get_media_folders() 返回的映射
+        Emby 列表接口中 item 的 ParentId/FolderId 为空，无法反查所属库；
+        路径子串匹配又因库名互为子串（如「国产」⊂「国产剧」/「国产动漫」）而不可靠，
+        会把大量剧集错误归入「国产」或匹配不到。因此改为对每个媒体库用 ParentId
+        精确查询其下的 Series，建立准确映射。
 
         Returns:
-            媒体库名称，未找到时返回 None
+            {tmdb_id: 媒体库名称, ...}
         """
-        folder_id = item.get("FolderId") or item.get("ParentId")
-        if folder_id and library_map.get(folder_id):
-            return library_map[folder_id]
-        # 备用：通过路径前缀判断
-        for _fid, fname in library_map.items():
-            path = item.get("Path") or ""
-            if fname in path:
-                return fname
-        return None
+        library_map = await self._get_media_folders()
+        tmdb_to_library: dict[int, str] = {}
+        url = f"{self.base_url}/Items"
+        limit = 5000
+        for folder_id, folder_name in library_map.items():
+            start_index = 0
+            while True:
+                params = {
+                    "ParentId": folder_id,
+                    "Recursive": "true",
+                    "IncludeItemTypes": "Series",
+                    "Fields": "ProviderIds",
+                    "Limit": str(limit),
+                    "StartIndex": str(start_index),
+                }
+                result = await http_client.get(url, headers=self._headers, params=params)
+                if not isinstance(result, dict):
+                    break
+                batch = result.get("Items", [])
+                for it in batch:
+                    tmdb = (it.get("ProviderIds") or {}).get("Tmdb")
+                    if tmdb:
+                        tmdb_to_library.setdefault(int(tmdb), folder_name)
+                start_index += len(batch)
+                if not batch or start_index >= int(result.get("TotalRecordCount", 0)):
+                    break
+        return tmdb_to_library
 
     async def sync_cache(self, db: AsyncSession) -> dict:
         """同步 Emby 剧集数据到本地 emby_cache 表 — 只拉 Emby 数据。
@@ -205,8 +224,8 @@ class EmbyService:
         Returns:
             同步统计信息
         """
-        # 获取所有媒体库（文件夹）信息
-        library_map = await self._get_media_folders()
+        # 构建 {tmdb_id: 媒体库名称} 映射（按媒体库精确查询，避免路径子串误判）
+        tmdb_library_map = await self._build_tmdb_library_map()
 
         # 获取所有带 TMDB ID 的剧集
         items = await self.get_all_items_with_tmdb(
@@ -261,7 +280,7 @@ class EmbyService:
                 emby_eps = item.get("RecursiveItemCount")
 
             # 查找该剧集所属的媒体库
-            library_name = self._get_library_for_item(item, library_map)
+            library_name = tmdb_library_map.get(tmdb_id)
 
             emby_image_url = (
                 f"{self.base_url}/Items/{emby_id}/Images/Primary?api_key={self.api_key}" if emby_id else None
