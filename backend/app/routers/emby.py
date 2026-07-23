@@ -4,11 +4,13 @@ import asyncio
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import async_session, get_db
 from app.core.logger import init_logger
+from app.models.emby_cache import EmbyCache
 from app.schemas.emby import (
     BlacklistActionResponse,
     BlacklistCreate,
@@ -180,6 +182,38 @@ async def subscribe_from_emby(
     except Exception as e:
         logger.error(f"Emby 添加订阅失败: {e}")
         raise HTTPException(status_code=500, detail=f"添加订阅失败: {e}")
+
+
+@router.delete("/item/{tmdb_id}", response_model=EmbyActionResponse)
+async def delete_from_emby(
+    tmdb_id: int,
+    db: AsyncSession = Depends(get_db),
+    emby: EmbyService = Depends(require_emby_service),
+):
+    """从 Emby 删除指定 tmdb_id 对应的媒体项。
+
+    ⚠️ 不可逆操作：会删除 Emby 中的媒体项及其本地文件。删除成功后同步
+    移除 emby_cache 记录，避免下次缺集分析再次列出。
+    """
+    cache = (await db.execute(select(EmbyCache).where(EmbyCache.tmdb_id == tmdb_id))).scalar_one_or_none()
+    if not cache:
+        raise HTTPException(status_code=404, detail="未找到该剧集的 Emby 缓存记录")
+    if not cache.emby_series_id:
+        raise HTTPException(status_code=400, detail="该剧集没有 Emby ID，请先同步缓存")
+
+    title = cache.emby_series_name or str(tmdb_id)
+    emby_id = cache.emby_series_id
+    result = await emby.delete_item(emby_id)
+    if "error" in result:
+        detail = result.get("detail") or result.get("error")
+        raise HTTPException(status_code=502, detail=f"Emby 删除失败: {detail}")
+
+    # 删除成功后移除缓存记录并记日志
+    await db.delete(cache)
+    await log_activity(db, "system", f"从 Emby 删除: {title} (tmdb_id={tmdb_id})", tmdb_id=tmdb_id)
+    await db.commit()
+    logger.info(f"从 Emby 删除成功: {title} (tmdb_id={tmdb_id}, emby_id={emby_id})")
+    return EmbyActionResponse(success=True, message=f"已从 Emby 删除: {title}")
 
 
 @router.get("/tmdb-404", response_model=list[Tmdb404Item])

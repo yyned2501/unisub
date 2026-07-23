@@ -128,6 +128,26 @@ class EmbyService:
                 result.append(item)
         return result
 
+    async def delete_item(self, item_id: str) -> dict:
+        """从 Emby 删除媒体项（DELETE /Items/{id}）。
+
+        ⚠️ 不可逆操作：Emby 会删除该媒体项及其本地文件（具体行为取决于
+        Emby 服务端配置）。删除成功时 Emby 返回 204 No Content（空响应体）。
+
+        Args:
+            item_id: Emby 中的条目 ID（Series ID）
+
+        Returns:
+            成功返回 {}；失败返回 {"error": ..., "detail": ...}
+        """
+        url = f"{self.base_url}/Items/{item_id}"
+        result = await http_client.delete(url, headers=self._headers)
+        if "error" in result:
+            logger.error(f"Emby 删除媒体项失败: item_id={item_id}, {result}")
+        else:
+            logger.info(f"Emby 删除媒体项成功: item_id={item_id}")
+        return result
+
     async def get_all_items_with_tmdb(
         self,
         include_item_types: str = "Movie,Series",

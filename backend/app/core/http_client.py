@@ -191,6 +191,9 @@ class AsyncHttpClient:
         try:
             response = await client.delete(url, headers=headers)
             response.raise_for_status()
+            # 部分接口删除成功返回 204 No Content（空响应体），此时返回空字典
+            if not response.content:
+                return {}
             return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP DELETE {url} 失败: {e.response.status_code}")

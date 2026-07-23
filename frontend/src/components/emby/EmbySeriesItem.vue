@@ -6,12 +6,14 @@ defineProps<{
   s: EmbyCacheResponse
   hiding: boolean
   subscribing: boolean
+  deleting: boolean
 }>()
 
 defineEmits<{
   hide: [tmdbId: number]
   unhide: [tmdbId: number]
   subscribe: [s: EmbyCacheResponse]
+  delete: [s: EmbyCacheResponse]
 }>()
 </script>
 
@@ -42,7 +44,13 @@ defineEmits<{
     <!-- 信息 -->
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2 mb-0.5">
-        <span class="text-sm font-medium truncate">{{ s.emby_series_name || '未知' }}</span>
+        <a
+          :href="`https://www.themoviedb.org/tv/${s.tmdb_id}`"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-sm font-medium truncate text-primary hover:underline cursor-pointer"
+          :title="`在 TMDB 查看：${s.emby_series_name || '未知'}`"
+        >{{ s.emby_series_name || '未知' }}</a>
         <span v-if="s.emby_year" class="text-xs opacity-40 shrink-0">({{ s.emby_year }})</span>
         <n-tag v-if="s.emby_library_name" size="tiny" type="info" round class="shrink-0">{{
           s.emby_library_name
@@ -87,6 +95,16 @@ defineEmits<{
       >
         <template #icon><i class="ri-add-line"></i></template>
         <span class="hidden sm:inline">添加订阅</span>
+      </n-button>
+      <n-button
+        size="tiny"
+        quaternary
+        type="error"
+        :loading="deleting"
+        title="从 Emby 删除"
+        @click="$emit('delete', s)"
+      >
+        <template #icon><i class="ri-delete-bin-line"></i></template>
       </n-button>
       <n-button v-if="!s.is_blacklisted" size="tiny" quaternary :loading="hiding" @click="$emit('hide', s.tmdb_id)">
         <template #icon><i class="ri-eye-off-line"></i></template>

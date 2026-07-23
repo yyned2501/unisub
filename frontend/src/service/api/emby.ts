@@ -58,6 +58,10 @@ export function subscribeFromEmby(
   })
 }
 
+export function deleteEmbyItem(tmdbId: number) {
+  return apiClient.delete<ActionResponse>(`/emby/item/${tmdbId}`)
+}
+
 export function getTmdb404List() {
   return apiClient.get<Tmdb404Item[]>('/emby/tmdb-404')
 }
