@@ -1,9 +1,12 @@
 """服务层 — 统一导出所有 Service 类与工厂函数。
 
 提供辅助函数用于从数据库配置创建服务实例，以及新封装的 DB 操作模块。
+平台配置带 60s TTL 内存缓存，避免每次请求都查库。
 """
 
+import time
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException
@@ -32,18 +35,51 @@ __all__ = [
     "require_mp_service",
     "require_nf_service",
     "require_tmdb_service",
+    "invalidate_platform_cache",
     "log_activity",
 ]
 
+# === 平台配置 TTL 缓存（60 秒） ===
+# 缓存纯数据快照而非 ORM 对象：ORM 实例绑定请求会话，跨会话共享在
+# expire_on_commit 等设置变化时会触发 DetachedInstanceError。
 
-async def _get_platform_config(db: AsyncSession, name: str) -> PlatformConfig | None:
-    """从数据库读取指定平台配置。"""
+
+@dataclass(frozen=True, slots=True)
+class _PlatformSnapshot:
+    """平台配置纯数据快照 — 工厂函数仅需 base_url / api_key。"""
+
+    base_url: str
+    api_key: str
+
+
+_CACHE_TTL = 60.0
+_platform_cache: dict[str, tuple[float, _PlatformSnapshot | None]] = {}
+
+
+def invalidate_platform_cache(name: str | None = None) -> None:
+    """主动失效平台配置缓存。name=None 时清空全部。"""
+    if name is None:
+        _platform_cache.clear()
+    else:
+        _platform_cache.pop(name, None)
+
+
+async def _get_platform_config(db: AsyncSession, name: str) -> _PlatformSnapshot | None:
+    """从数据库读取指定平台配置（带 TTL 缓存，存纯数据快照）。"""
+    now = time.monotonic()
+    cached = _platform_cache.get(name)
+    if cached and (now - cached[0]) < _CACHE_TTL:
+        return cached[1]
+
     stmt = select(PlatformConfig).where(
         PlatformConfig.name == name,
         PlatformConfig.enabled == True,
     )
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    row = result.scalar_one_or_none()
+    snapshot = _PlatformSnapshot(base_url=row.base_url, api_key=row.api_key) if row else None
+    _platform_cache[name] = (now, snapshot)
+    return snapshot
 
 
 async def get_nf_service(db: AsyncSession) -> NextFindService | None:

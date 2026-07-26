@@ -13,6 +13,7 @@ from app.schemas.platform import (
     PlatformConfigUpdate,
     PlatformTestResult,
 )
+from app.services import invalidate_platform_cache
 from app.services.emby import EmbyService
 from app.services.moviepilot import MoviePilotService
 from app.services.nextfind import NextFindService
@@ -42,7 +43,8 @@ async def create_platform_endpoint(body: PlatformConfigCreate, db: AsyncSession 
             api_key=body.api_key,
             enabled=body.enabled,
         )
-        logger.info(f"平台配置已创建: {body.name}")
+        invalidate_platform_cache(body.name)
+        logger.info("平台配置已创建: %s", body.name)
         return config
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -59,7 +61,8 @@ async def update_platform_endpoint(
     config = await update_platform(db, platform_id, update_data)
     if not config:
         raise HTTPException(status_code=404, detail="平台配置不存在")
-    logger.info(f"平台配置已更新: {config.name}")
+    invalidate_platform_cache(config.name)
+    logger.info("平台配置已更新: %s", config.name)
     return config
 
 
@@ -69,7 +72,8 @@ async def delete_platform_endpoint(platform_id: str, db: AsyncSession = Depends(
     success = await delete_platform(db, platform_id)
     if not success:
         raise HTTPException(status_code=404, detail="平台配置不存在")
-    logger.info(f"平台配置已删除: {platform_id}")
+    invalidate_platform_cache()
+    logger.info("平台配置已删除: %s", platform_id)
 
 
 @router.post("/{platform_id}/test", response_model=PlatformTestResult)
@@ -122,7 +126,7 @@ async def test_platform_connection(platform_id: str, db: AsyncSession = Depends(
                 message=f"未知平台类型: {config.name}",
             )
     except Exception as e:
-        logger.error(f"平台连接测试异常 ({config.name}): {e}")
+        logger.error("平台连接测试异常 (%s): %s", config.name, e)
         return PlatformTestResult(
             success=False,
             message=f"连接测试异常: {str(e)}",
