@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -13,6 +13,7 @@ class ActivityLog(Base):
     """活动日志表 — 记录所有操作历史（订阅、取消、搜索、同步等）。"""
 
     __tablename__ = "activity_logs"
+    __table_args__ = (Index("ix_activity_logs_created_at", "created_at"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     action: Mapped[str] = mapped_column(

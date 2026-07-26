@@ -6,6 +6,7 @@
 补充 = 对缺集条目调用 MoviePilot 搜索
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 
@@ -24,6 +25,9 @@ from app.services.nextfind import NextFindService
 from app.services.tmdb import TMDBService
 
 logger = init_logger()
+
+# NF API 并发限流（避免压平 NextFind 服务）
+_NF_CONCURRENCY = 5
 
 
 def _parse_year(year_val: str | int | None) -> int | None:
@@ -91,7 +95,7 @@ class OrchestratorService:
         existing = await db.execute(select(Subscription).where(Subscription.tmdb_id == tmdb_id))
         existing = existing.scalar_one_or_none()
         if existing:
-            logger.info(f"订阅已存在: {title} (tmdb_id={tmdb_id})")
+            logger.info("订阅已存在: %s (tmdb_id=%d)", title, tmdb_id)
             return SubscriptionResponse.model_validate(existing)
 
         # 创建本地记录
@@ -117,9 +121,9 @@ class OrchestratorService:
             sub.nf_subscribed = True
             nf_id = nf_result.get("id") or nf_result.get("sub_id") or ""
             sub.nf_sub_id = str(nf_id) if nf_id else None
-            logger.info(f"NextFind 订阅成功: {title} ({media_type}, tmdb_id={tmdb_id})")
+            logger.info("NextFind 订阅成功: %s (%s, tmdb_id=%d)", title, media_type, tmdb_id)
         else:
-            logger.error(f"NextFind 订阅失败: {title} ({media_type}, tmdb_id={tmdb_id}), {nf_result}")
+            logger.error("NextFind 订阅失败: %s (%s, tmdb_id=%d), %s", title, media_type, tmdb_id, nf_result)
             await db.rollback()
             raise HTTPException(
                 status_code=502,
@@ -160,7 +164,7 @@ class OrchestratorService:
         # 从 NextFind 移除
         nf_result = await self.nf.remove_subscription(sub.tmdb_id, media_type=sub.media_type)
         if "error" in nf_result:
-            logger.warning(f"NextFind 取消订阅失败: {sub.title}, {nf_result}")
+            logger.warning("NextFind 取消订阅失败: %s, %s", sub.title, nf_result)
             # NF 移除失败，保留本地记录，避免同步时重新创建
             return {"success": False, "message": f"NextFind 取消订阅失败: {sub.title}"}
 
@@ -240,7 +244,8 @@ class OrchestratorService:
         local_by_tmdb: dict[int, Subscription] = {s.tmdb_id: s for s in local_all}
 
         # === Phase 0: 清理 NF 中元数据异常的活跃订阅（无标题/无封面）===
-        # 遍历原始列表，确保重复 tmdb_id 的坏条目也能被清理
+        # 收集待清理条目，并发调用 NF API
+        abnormal_items: list[tuple[int, str, str, dict]] = []  # (tid, title, media_type, nf_sub)
         for nf_sub in nf_subs:
             tid_raw = nf_sub.get("tmdb_id")
             if not tid_raw:
@@ -250,24 +255,35 @@ class OrchestratorService:
             poster = nf_sub.get("poster") or nf_sub.get("poster_path") or ""
             nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or ""
             if str(nf_status).lower() in ("cancelled", "canceled", "stopped"):
-                continue  # 已取消的不用再处理
+                continue
             if title and poster:
-                continue  # 有标题有封面，正常
+                continue
+            abnormal_items.append((tid, title, nf_sub.get("media_type", "tv"), nf_sub))
 
-            nf_result = await self.nf.remove_subscription(tid, media_type=nf_sub.get("media_type", "tv"))
-            if "error" not in nf_result:
-                results.append(
-                    SubscriptionSyncResult(
-                        tmdb_id=tid,
-                        title=title or f"tmdb_{tid}",
-                        action="cancelled_abnormal",
-                        nf_subscribed=False,
-                        message=f"NF 异常订阅已取消（缺元数据）: tmdb_id={tid}",
+        if abnormal_items:
+            sem = asyncio.Semaphore(_NF_CONCURRENCY)
+
+            async def _remove_abnormal(item: tuple[int, str, str, dict]):
+                tid, title, mtype, _ = item
+                async with sem:
+                    return item, await self.nf.remove_subscription(tid, media_type=mtype)
+
+            remove_results = await asyncio.gather(*[_remove_abnormal(i) for i in abnormal_items])
+            for item, nf_result in remove_results:
+                tid, title, mtype, _ = item
+                if "error" not in nf_result:
+                    results.append(
+                        SubscriptionSyncResult(
+                            tmdb_id=tid,
+                            title=title or f"tmdb_{tid}",
+                            action="cancelled_abnormal",
+                            nf_subscribed=False,
+                            message=f"NF 异常订阅已取消（缺元数据）: tmdb_id={tid}",
+                        )
                     )
-                )
-                logger.info(f"同步清理 — 取消 NF 异常订阅: tmdb_id={tid}, type={nf_sub.get('media_type')}")
-            else:
-                logger.warning(f"同步清理 — 取消 NF 异常订阅失败: tmdb_id={tid}, {nf_result}")
+                    logger.info("同步清理 — 取消 NF 异常订阅: tmdb_id=%d, type=%s", tid, mtype)
+                else:
+                    logger.warning("同步清理 — 取消 NF 异常订阅失败: tmdb_id=%d, %s", tid, nf_result)
 
         # === Phase 1: NF → 本地（更新状态 + 清理 NF 多余订阅）===
         # 对每个 tmdb_id，优先选有元数据的条目作为代表
@@ -301,20 +317,22 @@ class OrchestratorService:
                 if local_sub.media_type == "movie" and (nf_in_lib or nf_local > 0):
                     local_sub.completed = True
                     local_sub.updated_at = datetime.now(UTC)
-                    logger.info(f"电影已入库（NF），标记完成: {local_sub.title} (tmdb_id={tid})")
+                    logger.info("电影已入库（NF），标记完成: %s (tmdb_id=%d)", local_sub.title, tid)
                     continue
                 if local_sub.media_type == "tv" and nf_total > 0 and nf_local >= nf_total:
                     local_sub.completed = True
                     local_sub.updated_at = datetime.now(UTC)
-                    logger.info(f"剧集已播完（NF {nf_local}/{nf_total}），标记完成: {local_sub.title} (tmdb_id={tid})")
+                    logger.info(
+                        "剧集已播完（NF %d/%d），标记完成: %s (tmdb_id=%d)", nf_local, nf_total, local_sub.title, tid
+                    )
                     continue
 
                 # 本地有记录且确实未完成 → 重新订阅到 NF
                 nf_result = await self.nf.add_subscription(tid, media_type=local_sub.media_type, title=local_sub.title)
                 if "error" in nf_result:
-                    logger.warning(f"双向同步 — 重新订阅到 NF 失败: {local_sub.title}, {nf_result}")
+                    logger.warning("双向同步 — 重新订阅到 NF 失败: %s, %s", local_sub.title, nf_result)
                     continue
-                logger.info(f"双向同步 — 重新订阅到 NF: {local_sub.title} (tmdb_id={tid})")
+                logger.info("双向同步 — 重新订阅到 NF: %s (tmdb_id=%d)", local_sub.title, tid)
                 nf_id = nf_result.get("id") or nf_result.get("sub_id") or ""
                 local_sub.nf_sub_id = str(nf_id) if nf_id else None
                 nf_sub["sub_status"] = "active"
@@ -340,10 +358,10 @@ class OrchestratorService:
                     in_library = bool(nf_sub.get("is_in_library")) or int(nf_sub.get("local_episodes") or 0) > 0
                     if in_library and not local_sub.completed:
                         local_sub.completed = True
-                        logger.info(f"电影已入库，标记完成: {local_sub.title} (tmdb_id={tid})")
+                        logger.info("电影已入库，标记完成: %s (tmdb_id=%d)", local_sub.title, tid)
                     elif not in_library and local_sub.completed:
                         local_sub.completed = False
-                        logger.info(f"电影不在本地库，取消完成标记: {local_sub.title} (tmdb_id={tid})")
+                        logger.info("电影不在本地库，取消完成标记: %s (tmdb_id=%d)", local_sub.title, tid)
                 if not local_sub.year:
                     local_sub.year = _parse_year(nf_sub.get("year"))
                 if not local_sub.poster_url:
@@ -416,42 +434,49 @@ class OrchestratorService:
                         message=f"拉黑取消: {local_sub.title}",
                     )
                 )
-                logger.info(f"同步拉黑 — 从 NF 取消: {local_sub.title} (tmdb_id={local_sub.tmdb_id})")
+                logger.info("同步拉黑 — 从 NF 取消: %s (tmdb_id=%d)", local_sub.title, local_sub.tmdb_id)
             else:
-                logger.warning(f"同步拉黑 — 从 NF 取消失败: {local_sub.title}, {nf_result}")
+                logger.warning("同步拉黑 — 从 NF 取消失败: %s, %s", local_sub.title, nf_result)
 
-        # === Phase 2: 本地 → NF（推送未完成的本地订阅到 NF）===
+        # === Phase 2: 本地 → NF（推送未完成的本地订阅到 NF，并发限流）===
+        push_candidates: list[Subscription] = []
         for local_sub in local_all:
             if local_sub.completed or local_sub.blacklisted:
                 continue
-            # 检查 NF 中是否已有该 tmdb_id 的 active 条目
             entries = nf_by_tmdb.get(local_sub.tmdb_id, [])
             has_active = any(
                 (e.get("sub_status") or e.get("status") or "").lower() in ("active", "subscribing") for e in entries
             )
             if has_active:
                 continue
-            nf_result = await self.nf.add_subscription(
-                local_sub.tmdb_id, media_type=local_sub.media_type, title=local_sub.title
-            )
-            if "error" not in nf_result:
-                local_sub.nf_subscribed = True
-                nf_id = nf_result.get("id") or nf_result.get("sub_id") or ""
-                local_sub.nf_sub_id = str(nf_id) if nf_id else None
-                local_sub.updated_at = datetime.now(UTC)
+            push_candidates.append(local_sub)
 
-                results.append(
-                    SubscriptionSyncResult(
-                        tmdb_id=local_sub.tmdb_id,
-                        title=local_sub.title,
-                        action="pushed_to_nf",
-                        nf_subscribed=True,
-                        message=f"已推送到 NF: {local_sub.title}",
+        if push_candidates:
+            sem2 = asyncio.Semaphore(_NF_CONCURRENCY)
+
+            async def _push_to_nf(sub: Subscription):
+                async with sem2:
+                    return sub, await self.nf.add_subscription(sub.tmdb_id, media_type=sub.media_type, title=sub.title)
+
+            push_results = await asyncio.gather(*[_push_to_nf(s) for s in push_candidates])
+            for local_sub, nf_result in push_results:
+                if "error" not in nf_result:
+                    local_sub.nf_subscribed = True
+                    nf_id = nf_result.get("id") or nf_result.get("sub_id") or ""
+                    local_sub.nf_sub_id = str(nf_id) if nf_id else None
+                    local_sub.updated_at = datetime.now(UTC)
+                    results.append(
+                        SubscriptionSyncResult(
+                            tmdb_id=local_sub.tmdb_id,
+                            title=local_sub.title,
+                            action="pushed_to_nf",
+                            nf_subscribed=True,
+                            message=f"已推送到 NF: {local_sub.title}",
+                        )
                     )
-                )
-                logger.info(f"双向同步 — 推送订阅到 NF: {local_sub.title} (tmdb_id={local_sub.tmdb_id})")
-            else:
-                logger.warning(f"双向同步 — 推送订阅到 NF 失败: {local_sub.title}, {nf_result}")
+                    logger.info("双向同步 — 推送订阅到 NF: %s (tmdb_id=%d)", local_sub.title, local_sub.tmdb_id)
+                else:
+                    logger.warning("双向同步 — 推送订阅到 NF 失败: %s, %s", local_sub.title, nf_result)
 
         # === Phase 3: 更新完成状态（仅电影；TV 由 Phase 4 基于 TMDB 数据判断）===
         for tid, entries in nf_by_tmdb.items():
@@ -492,15 +517,20 @@ class OrchestratorService:
                         sub.aired_complete = True
                         sub.updated_at = datetime.now(UTC)
                         logger.info(
-                            f"在播剧已播出集数全部入库: {sub.title} "
-                            f"(emby={ec.emby_episode_count}, aired={tc.tmdb_aired_eps})"
+                            "在播剧已播出集数全部入库: %s (emby=%d, aired=%d)",
+                            sub.title,
+                            ec.emby_episode_count,
+                            tc.tmdb_aired_eps,
                         )
                 elif tc.tmdb_total_eps:
                     if ec.emby_episode_count >= tc.tmdb_total_eps:
                         sub.completed = True
                         sub.updated_at = datetime.now(UTC)
                         logger.info(
-                            f"完结剧已全部入库: {sub.title} (emby={ec.emby_episode_count}, total={tc.tmdb_total_eps})"
+                            "完结剧已全部入库: %s (emby=%d, total=%d)",
+                            sub.title,
+                            ec.emby_episode_count,
+                            tc.tmdb_total_eps,
                         )
 
         # === Phase 5: 清理 NF 中不再需要的 cancelled 条目（仅记录，不重复调用取消 API）===
@@ -515,7 +545,7 @@ class OrchestratorService:
                 reason = (
                     "本地已完成" if local_sub and local_sub.completed else ("已拉黑" if local_sub else "本地无记录")
                 )
-                logger.debug(f"NF 已取消条目（跳过）: tmdb_id={tid}, type={nf_sub.get('media_type')} ({reason})")
+                logger.debug("NF 已取消条目（跳过）: tmdb_id=%d, type=%s (%s)", tid, nf_sub.get("media_type"), reason)
 
         # === Phase 6: 记录同步活动 ===
         log_entry = ActivityLog(

@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -16,6 +16,10 @@ class Subscription(Base):
     """
 
     __tablename__ = "subscriptions"
+    __table_args__ = (
+        Index("ix_subscriptions_tmdb_id", "tmdb_id", unique=True),
+        Index("ix_subscriptions_completed_blacklisted", "completed", "blacklisted"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tmdb_id: Mapped[int] = mapped_column(Integer, nullable=False, comment="TMDB ID")

@@ -87,7 +87,7 @@ async def list_subscriptions_with_cache(
             sub.tmdb_aired_eps = cached.tmdb_aired_eps
             sub.tmdb_total_eps = cached.tmdb_total_eps
             if sub.nf_missing_eps > 0 and cached.tmdb_total_eps and cached.tmdb_total_eps > 0:
-                in_library = cached.tmdb_total_eps - sub.nf_missing_eps
+                in_library = max(0, cached.tmdb_total_eps - sub.nf_missing_eps)
                 aired = cached.tmdb_aired_eps or cached.tmdb_total_eps
                 sub.adjusted_missing_eps = max(0, aired - in_library)
 

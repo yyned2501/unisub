@@ -43,7 +43,7 @@ class TMDBService:
             query_params.update(params)
         result = await http_client.get(url, params=query_params)
         if "error" in result:
-            logger.error(f"TMDB 请求失败 [{path}]: {result}")
+            logger.error("TMDB 请求失败 [%s]: %s", path, result)
         return result
 
     async def get_aired_episode_count(self, tmdb_id: int) -> int | None:
@@ -275,7 +275,7 @@ class TMDBService:
             await db.commit()
         except Exception:
             await db.rollback()
-            logger.debug(f"TMDB 缓存写入失败: tmdb_id={tmdb_id}", exc_info=True)
+            logger.debug("TMDB 缓存写入失败: tmdb_id=%d", tmdb_id, exc_info=True)
             return None
 
         return data
