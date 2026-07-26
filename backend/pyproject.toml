@@ -30,6 +30,11 @@ build-backend = "setuptools.build_meta"
 [dependency-groups]
 dev = [
     "ruff>=0.15.22",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "httpx",
+    "aiosqlite>=0.21",
+    "import-linter>=2.0",
 ]
 
 [tool.ruff]
@@ -55,3 +60,7 @@ ignore = [
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,33 @@
+; import-linter 架构分层检查
+; 强制执行 STANDARDS.md §1.3 中的核心分层约束
+; 运行: cd backend && uv run lint-imports
+
+[importlinter]
+root_packages =
+    app
+
+[importlinter:contract:services-cannot-import-routers]
+name = services 层禁止引用 routers 层
+type = forbidden
+source_modules =
+    app.services
+forbidden_modules =
+    app.routers
+
+[importlinter:contract:core-cannot-import-upper-layers]
+name = core 层禁止引用上层模块
+type = forbidden
+source_modules =
+    app.core
+forbidden_modules =
+    app.services
+    app.routers
+
+[importlinter:contract:models-cannot-import-upper-layers]
+name = models 层禁止引用上层模块
+type = forbidden
+source_modules =
+    app.models
+forbidden_modules =
+    app.services
+    app.routers
