@@ -128,9 +128,10 @@ Note: MoviePilot returns 307 redirects on API calls — always follow with -L or
 │   │   │   └── tasks.py
 │   │   └── references/
 │   │       └── nextfind-api-v2.md
-│   ├── Dockerfile
+│   ├── migrations/                # 存量库手工迁移 SQL（无 alembic）
+│   ├── tests/                     # pytest 测试（sqlite 内存库）
 │   ├── pyproject.toml
-│   └── .env.example
+│   └── .env.example               # 复制为 .env（gitignore）填入真实配置
 ├── frontend/
 │   ├── src/
 │   │   ├── App.vue               # 入口页面（含侧边栏 + 导航栏 + 布局）
@@ -160,9 +161,13 @@ Note: MoviePilot returns 307 redirects on API calls — always follow with -L or
 │   │   └── styles/
 │   │       └── css/
 │   │           └── reset.css
-│   ├── Dockerfile
 │   └── nginx.conf
-├── docker-compose.yml
+├── deploy/                        # 部署配置（systemd → supervisor 架构）
+│   ├── README.md                  # 部署手册
+│   ├── supervisor.conf            # supervisor 子进程（backend + nginx）
+│   ├── nginx.conf                 # 独立 nginx（:8082 反代 /api → :8002）
+│   └── start-api.sh               # 后端启动脚本（source backend/.env）
+├── Makefile                       # 统一命令入口（dev/lint/test/build/运维）
 ├── .gitignore
 ├── .env.example
 ├── ARCHITECTURE.md
@@ -233,14 +238,17 @@ GET    /api/emby/library
 
 ## Verification
 1. `uv run python3 -c "from app import ..."` — verify imports work
-2. `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000` — verify server starts
-3. `curl http://localhost:8000/api/platforms` — returns [] (empty list)
+2. `uv run uvicorn app.main:app --host 0.0.0.0 --port 8002` — verify server starts
+3. `curl http://localhost:8002/api/platforms` — returns [] (empty list)
 4. test NextFind connection with configured API key
 5. **Frontend** → `cd frontend && npm run build && npm run type-check` — build 通过且类型零错误
 
 ## Deployment
 
+架构: systemd（发行版 supervisor.service）→ supervisord → `unisub:backend`(uvicorn :8002) + `unisub:frontend`(nginx :8082)。
+敏感配置在 `backend/.env`（gitignore），详见 `deploy/README.md`。
+
 After any code change:
-- **Frontend changed** → `cd frontend && npm run build && npm run type-check`
-- **Backend changed** → `sudo systemctl restart unisub-backend`
+- **Frontend changed** → `cd frontend && npm run build && npm run type-check`（nginx 直接读静态文件，无需重启）
+- **Backend changed** → `sudo supervisorctl restart unisub:backend`
 - After restart, wait 3s then verify: `sleep 3 && curl http://localhost:8002/api/platforms`
