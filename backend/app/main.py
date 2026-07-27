@@ -39,13 +39,24 @@ logger = init_logger(config.debug)
 
 
 async def _seed_default_platforms():
-    """启动时自动创建默认平台配置（如果不存在）。"""
+    """启动时自动创建默认平台配置（如果不存在）。
+
+    moviepilot 也在此 seed：MP 镜像订阅依赖 platform_configs 里的 moviepilot 记录，
+    若不存在则 get_mp_service 返回 None、整条 MP 链路被跳过。seed 出占位卡片后，
+    用户在平台设置页填入 base_url + api_key 即可启用。
+    """
     defaults = [
         {
             "name": "tmdb",
             "base_url": "https://api.themoviedb.org/3",
             "api_key": "",
             "enabled": True,
+        },
+        {
+            "name": "moviepilot",
+            "base_url": "http://192.168.31.10:3000",
+            "api_key": "",
+            "enabled": False,
         },
     ]
     async with async_session() as session:

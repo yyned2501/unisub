@@ -191,3 +191,25 @@ class MoviePilotService:
         if isinstance(result, dict):
             return result.get("data", result.get("statistics", []))
         return []
+
+    async def test_connection(self) -> dict:
+        """测试 MoviePilot 连通性 — 供平台设置页"测试"按钮使用。
+
+        与 get_site_statistic 不同，本方法保留原始 error 信息，
+        使调用方能区分"连接失败"和"连上了但无站点"。
+
+        Returns:
+            成功：``{"success": True, "sites": <站点数>}``；
+            失败：含 ``error`` 键的字典。
+        """
+        url = f"{self.base_url}/api/v1/site/statistic"
+        result = await http_client.get(url, headers=self._headers)
+        if "error" in result:
+            return result
+        if isinstance(result, list):
+            sites = result
+        elif isinstance(result, dict):
+            sites = result.get("data", result.get("statistics", []))
+        else:
+            sites = []
+        return {"success": True, "sites": len(sites) if isinstance(sites, list) else 0}

@@ -100,11 +100,17 @@ async def test_platform_connection(platform_id: str, db: AsyncSession = Depends(
             )
         elif config.name == "moviepilot":
             service = MoviePilotService(config.base_url, config.api_key)
-            result = await service.get_site_statistic()
+            result = await service.test_connection()
+            if "error" in result:
+                return PlatformTestResult(
+                    success=False,
+                    message=f"连接失败: {result.get('detail', result['error'])}",
+                    details=result,
+                )
             return PlatformTestResult(
                 success=True,
                 message="MoviePilot 连接正常",
-                details={"sites": len(result) if isinstance(result, list) else 0},
+                details={"sites": result.get("sites", 0)},
             )
         elif config.name == "emby":
             service = EmbyService(config.base_url, config.api_key)
