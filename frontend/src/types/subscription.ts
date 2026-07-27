@@ -13,6 +13,17 @@ export interface SubscriptionCreate {
   source?: string | null
 }
 
+/** MoviePilot 镜像订阅（按季）响应体 */
+export interface MpSubscription {
+  id: string
+  season: number | null
+  mp_sub_id: number | null
+  mp_status: string | null
+  mp_missing_eps: number
+  mp_completed_eps: number
+  mp_total_eps: number
+}
+
 /** 订阅记录响应体 */
 export interface Subscription {
   id: string
@@ -35,6 +46,8 @@ export interface Subscription {
   tmdb_aired_eps: number | null
   emby_episode_count: number | null
   tmdb_total_eps: number | null
+  mp_subscribed: boolean
+  mp_seasons: MpSubscription[]
 }
 
 /** 单条订阅同步结果 */

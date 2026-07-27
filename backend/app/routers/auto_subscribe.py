@@ -52,12 +52,13 @@ async def trigger_run() -> AutoSubRunResponse:
         async with async_session() as bg_db:
             result = await svc.run(bg_db, trigger="manual")
             if result.get("success"):
-                from app.services import get_nf_service
+                from app.services import get_mp_service, get_nf_service
                 from app.services.orchestrator import OrchestratorService
 
                 nf = await get_nf_service(bg_db)
                 if nf:
-                    orchestrator = OrchestratorService(nf)
+                    mp = await get_mp_service(bg_db)
+                    orchestrator = OrchestratorService(nf, mp)
                     await orchestrator.sync_subscriptions(bg_db)
 
     asyncio.create_task(_background_run())

@@ -16,6 +16,20 @@ class SubscriptionCreate(BaseModel):
     source: str | None = Field(None, description="数据来源")
 
 
+class MpSubscriptionResponse(BaseModel):
+    """MoviePilot 镜像订阅（按季）的响应体。"""
+
+    id: str
+    season: int | None = None
+    mp_sub_id: int | None = None
+    mp_status: str | None = None
+    mp_missing_eps: int = 0
+    mp_completed_eps: int = 0
+    mp_total_eps: int = 0
+
+    model_config = {"from_attributes": True}
+
+
 class SubscriptionResponse(BaseModel):
     """订阅记录的响应体。"""
 
@@ -39,6 +53,9 @@ class SubscriptionResponse(BaseModel):
     tmdb_aired_eps: int | None = None
     emby_episode_count: int | None = None
     tmdb_total_eps: int | None = None
+    # MoviePilot 镜像订阅（按季），列表接口中填充
+    mp_subscribed: bool = False
+    mp_seasons: list[MpSubscriptionResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

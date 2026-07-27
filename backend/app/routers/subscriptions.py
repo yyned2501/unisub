@@ -16,7 +16,7 @@ from app.schemas.subscription import (
     SubscriptionResponse,
     SubscriptionSyncResult,
 )
-from app.services import get_tmdb_service, require_nf_service
+from app.services import get_mp_service, get_tmdb_service, require_nf_service
 from app.services.nextfind import NextFindService
 from app.services.orchestrator import OrchestratorService
 from app.services.subscription import (
@@ -34,9 +34,8 @@ async def list_subscriptions(db: AsyncSession = Depends(get_db)):
     # 获取 NextFind 基础 URL 用于补全相对路径海报
     nf_result = await db.execute(select(PlatformConfig).where(PlatformConfig.name == "nextfind"))
     nf_config = nf_result.scalar_one_or_none()
-    nf_base_url = nf_config.base_url if nf_config else None
 
-    subs = await list_subscriptions_with_cache(db, nf_base_url=nf_base_url)
+    subs = await list_subscriptions_with_cache(db, nf_base_url=nf_config.base_url if nf_config else None)
 
     # 后台异步更新 TMDB 数据
     tmdb = await get_tmdb_service(db)
@@ -53,8 +52,9 @@ async def create_subscription(
     db: AsyncSession = Depends(get_db),
     nf: NextFindService = Depends(require_nf_service),
 ):
-    """添加订阅 — 创建本地记录并通过 NextFind 添加订阅。"""
-    orchestrator = OrchestratorService(nf)
+    """添加订阅 — 创建本地记录并通过 NextFind 添加订阅，镜像到 MoviePilot。"""
+    mp = await get_mp_service(db)
+    orchestrator = OrchestratorService(nf, mp)
     return await orchestrator.subscribe(
         db=db,
         tmdb_id=body.tmdb_id,
@@ -71,8 +71,9 @@ async def delete_subscription(
     db: AsyncSession = Depends(get_db),
     nf: NextFindService = Depends(require_nf_service),
 ):
-    """取消订阅 — 从 NextFind 移除并删除本地记录。"""
-    orchestrator = OrchestratorService(nf)
+    """取消订阅 — 从 NextFind 移除并删除本地记录，清理 MoviePilot 镜像。"""
+    mp = await get_mp_service(db)
+    orchestrator = OrchestratorService(nf, mp)
     result = await orchestrator.unsubscribe(db, subscription_id)
     if not result["success"]:
         raise HTTPException(status_code=404, detail=result["message"])
@@ -113,8 +114,9 @@ async def sync_subscriptions(
     db: AsyncSession = Depends(get_db),
     nf: NextFindService = Depends(require_nf_service),
 ):
-    """手动同步 NextFind 订阅状态到本地数据库。"""
-    orchestrator = OrchestratorService(nf)
+    """手动同步订阅状态 — NextFind 双向同步 + MoviePilot 进度回写。"""
+    mp = await get_mp_service(db)
+    orchestrator = OrchestratorService(nf, mp)
     results = await orchestrator.sync_subscriptions(db)
     logger.info(f"手动同步完成: {len(results)} 条记录")
     return results

@@ -47,6 +47,33 @@ function statusCell(row: Subscription) {
   return h(NTag, { type, size: 'tiny', round: true }, { default: () => label })
 }
 
+/** MP 镜像订阅角标：汇总各季缺集数，无镜像不显示 */
+function mpBadge(row: Subscription) {
+  if (!row.mp_subscribed || !row.mp_seasons?.length) return null
+  const seasons = row.mp_seasons
+  const totalMissing = seasons.reduce((sum, s) => sum + (s.mp_missing_eps || 0), 0)
+  // 电影：season 为 null，只展示订阅中
+  if (row.media_type === 'movie') {
+    return h(NTag, { type: 'warning', size: 'tiny', round: true }, { default: () => 'MP' })
+  }
+  const seasonLabel = seasons
+    .map(s => `S${s.season ?? '?'}${s.mp_missing_eps ? ` 缺${s.mp_missing_eps}` : ' 已补齐'}`)
+    .join(' · ')
+  const label = totalMissing > 0 ? `MP ${seasons.length}季 缺${totalMissing}` : `MP ${seasons.length}季`
+  return h(
+    NTag,
+    { type: totalMissing > 0 ? 'warning' : 'success', size: 'tiny', round: true, title: seasonLabel },
+    { default: () => label }
+  )
+}
+
+/** 状态列：NF 状态 + MP 角标 */
+function statusColumn(row: Subscription) {
+  const badge = mpBadge(row)
+  if (!badge) return statusCell(row)
+  return h('div', { class: 'flex items-center gap-1 flex-wrap' }, [statusCell(row), badge])
+}
+
 const {
   loading,
   syncing,
@@ -135,9 +162,9 @@ const columns = computed<DataTableColumns<Subscription>>(() => [
   {
     title: '状态',
     key: 'status',
-    width: 120,
+    width: 150,
     render(row) {
-      return statusCell(row)
+      return statusColumn(row)
     },
   },
   {

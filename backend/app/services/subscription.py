@@ -10,8 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.emby_cache import EmbyCache
+from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
 from app.models.tmdb_cache import TmdbCache
+from app.schemas.subscription import MpSubscriptionResponse, SubscriptionResponse
 from app.services.tmdb import TMDBService
 
 _TMDB_SEMAPHORE = asyncio.Semaphore(5)
@@ -20,17 +22,17 @@ _TMDB_SEMAPHORE = asyncio.Semaphore(5)
 async def list_subscriptions_with_cache(
     db: AsyncSession,
     nf_base_url: str | None = None,
-) -> list[Subscription]:
-    """获取所有订阅列表，关联 emby_cache 中的 TMDB 缓存数据。
+) -> list[SubscriptionResponse]:
+    """获取所有订阅列表，关联缓存数据与 MP 镜像订阅。
 
-    先返回 emby_cache 的缓存数据，然后后台异步更新 TMDB 已播出信息。
+    先返回缓存数据，然后后台异步更新 TMDB 已播出信息。
 
     Args:
         db: 数据库会话
         nf_base_url: NextFind 基础 URL，用于补全相对路径海报
 
     Returns:
-        订阅列表（含缓存增强的 adjusted_missing_eps / tmdb_aired_eps）
+        订阅响应列表（含 adjusted_missing_eps / tmdb_aired_eps / mp_seasons）
     """
     result = await db.execute(select(Subscription).order_by(Subscription.created_at.desc()))
     subs = result.scalars().all()
@@ -91,7 +93,37 @@ async def list_subscriptions_with_cache(
                 aired = cached.tmdb_aired_eps or cached.tmdb_total_eps
                 sub.adjusted_missing_eps = max(0, aired - in_library)
 
-    return subs
+    return await _attach_mp_seasons(db, subs)
+
+
+async def _attach_mp_seasons(
+    db: AsyncSession,
+    subs: list[Subscription],
+) -> list[SubscriptionResponse]:
+    """把 mp_subscription 子表行附加到订阅响应，转成 SubscriptionResponse。
+
+    Args:
+        db: 数据库会话
+        subs: 订阅 ORM 对象列表
+
+    Returns:
+        填充了 mp_subscribed / mp_seasons 的响应列表
+    """
+    sub_ids = [s.id for s in subs]
+    mp_rows_by_sub: dict[str, list[MpSubscription]] = {}
+    if sub_ids:
+        rows = await db.execute(select(MpSubscription).where(MpSubscription.subscription_id.in_(sub_ids)))
+        for row in rows.scalars().all():
+            mp_rows_by_sub.setdefault(row.subscription_id, []).append(row)
+
+    responses: list[SubscriptionResponse] = []
+    for sub in subs:
+        resp = SubscriptionResponse.model_validate(sub)
+        mp_rows = mp_rows_by_sub.get(sub.id, [])
+        resp.mp_seasons = [MpSubscriptionResponse.model_validate(r) for r in mp_rows]
+        resp.mp_subscribed = bool(mp_rows)
+        responses.append(resp)
+    return responses
 
 
 async def _update_tmdb_cache_for_sub(scan_db, sub, tmdb_service):
@@ -132,7 +164,7 @@ async def _update_tmdb_cache_for_sub(scan_db, sub, tmdb_service):
 
 async def background_update_tmdb_cache(
     tmdb_service: TMDBService | None,
-    tv_subs: list[Subscription],
+    tv_subs: list[SubscriptionResponse],
 ):
     """后台异步更新 TMDB 数据到 tmdb_cache（含 poster_url）。
 
