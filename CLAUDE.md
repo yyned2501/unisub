@@ -45,10 +45,12 @@ FastAPI + Vue 3 + Naive UI + PostgreSQL 的项目，详见 `ARCHITECTURE.md`。
 - SQLAlchemy async ORM + asyncpg
 - 迁移用 alembic（初始用 create_all）
 - 连接字符串从 config 读取
-- 配置连接串（backend/.env）: `postgresql+asyncpg://tgbot:tgbot@192.168.31.10:5432/unisub`
-- ⚠️ **实际运行用户是 `unisub`**（PG 端把 tgbot 登录映射成 unisub，`SELECT current_user` 返回 unisub）。
-  应用 create_all 建的表 owner 为 unisub；若某表 owner 是 tgbot（历史遗留），
-  unisub 会 `permission denied`，需用 tgbot/超级用户执行 `GRANT ALL ON TABLE <表> TO unisub;`
+- 应用连接用户（backend/.env）: `postgresql+asyncpg://unisub:unisub@192.168.31.10:5432/unisub`
+- 两个数据库用户：
+  - `unisub`（普通用户）— 应用连接用，对所有业务表有完整 CRUD + public schema CREATE 权限
+  - `tgbot`（超级用户）— 仅用于建库等管理操作（`CREATE DATABASE` 需超级用户）
+- ⚠️ config.py 的默认连接串是 unisub；若手动 `uv run` 调试时未 source backend/.env，
+  会用默认值连成 unisub，与生产一致。验证数据库相关逻辑前先 `set -a && source backend/.env && set +a`。
 
 ## External API Details
 

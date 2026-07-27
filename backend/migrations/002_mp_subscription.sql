@@ -3,7 +3,7 @@
 --       可对应多条 MP 订阅，故用独立子表 mp_subscription 存储。
 --       create_all 只建新表不改存量表，本表为全新表，新库由 create_all 自动建立，
 --       此 SQL 供存量库手工执行。
--- 执行: psql -h 192.168.31.10 -U tgbot -d unisub -f backend/migrations/002_mp_subscription.sql
+-- 执行: psql -h 192.168.31.10 -U unisub -d unisub -f backend/migrations/002_mp_subscription.sql
 -- 对应模型: app/models/mp_subscription.py
 
 CREATE TABLE IF NOT EXISTS mp_subscription (

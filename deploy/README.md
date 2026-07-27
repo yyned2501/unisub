@@ -21,7 +21,7 @@ systemd (发行版 supervisor.service)
 ## 首次部署
 
 ```bash
-# 1. 建库
+# 1. 建库（需超级用户；应用连接用的是普通用户 unisub，见 .env）
 psql -h 192.168.31.10 -U tgbot -c "CREATE DATABASE unisub;"
 
 # 2. 后端依赖

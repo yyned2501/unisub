@@ -65,7 +65,7 @@ npm run dev
 | 环境变量 | 说明 | 默认值 |
 |---------|------|--------|
 | UNISUB_DEBUG | 调试模式 | false |
-| UNISUB_DATABASE_URL | 数据库连接 | postgresql+asyncpg://tgbot:tgbot@192.168.31.10:5432/unisub |
+| UNISUB_DATABASE_URL | 数据库连接 | postgresql+asyncpg://unisub:unisub@192.168.31.10:5432/unisub |
 | UNISUB_CORS_ORIGINS | 允许的跨域来源 | ["http://localhost:5173","http://localhost:3000"] |
 
 ### 平台配置（通过 UI）

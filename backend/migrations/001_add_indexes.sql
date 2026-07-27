@@ -1,7 +1,7 @@
 -- UniSub 迁移 001: 补建模型新增索引
 -- 背景: models 中新增了 __table_args__ 索引，但 create_all 不会为已存在的表补索引，
 --       项目暂未引入 alembic，手工 SQL 归档于此，供存量库执行。
--- 执行: psql -h 192.168.31.10 -U tgbot -d unisub -f backend/migrations/001_add_indexes.sql
+-- 执行: psql -h 192.168.31.10 -U unisub -d unisub -f backend/migrations/001_add_indexes.sql
 -- 对应模型: app/models/activity_log.py, app/models/subscription.py
 
 -- 活动日志按时间倒序查询加速
