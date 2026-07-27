@@ -116,6 +116,26 @@ class MoviePilotService:
             )
         return result
 
+    async def get_media_info(self, tmdb_id: int, media_type: str) -> dict:
+        """获取 MP 识别的完整媒体信息（含 seasons 季集数据）。
+
+        调用 ``GET /api/v1/media/tmdb:{tmdb_id}``。返回的 mediainfo 带
+        ``seasons``（``{季号: [集号列表]}``），是 notexists 计算缺集的必要输入。
+
+        Args:
+            tmdb_id: TMDB ID
+            media_type: 媒体类型（movie / tv）
+
+        Returns:
+            媒体信息字典；失败时含 ``error`` 键。
+        """
+        url = f"{self.base_url}/api/v1/media/tmdb:{tmdb_id}"
+        params = {"type_name": _to_mp_type(media_type)}
+        result = await http_client.get(url, headers=self._headers, params=params)
+        if "error" in result:
+            logger.error("MoviePilot 获取媒体信息失败 (tmdb_id=%d): %s", tmdb_id, result)
+        return result
+
     async def get_missing_seasons(
         self,
         tmdb_id: int,
@@ -127,6 +147,10 @@ class MoviePilotService:
 
         调用 MP ``POST /api/v1/mediaserver/notexists``，依赖 MP 已配置的媒体服务器
         （Emby 等）。返回的每个缺集季包含 season / episodes / total_episode 等。
+
+        关键：notexists 依据请求体里的 ``seasons`` 字段逐季比对算缺集。若不带
+        seasons，MP 端会尝试 recognize_media 自动补全，常失败而返回空。故电视剧
+        先调 get_media_info 取完整 mediainfo（含 seasons）作为 notexists 的请求体。
 
         Args:
             tmdb_id: TMDB ID
@@ -140,17 +164,28 @@ class MoviePilotService:
             失败：含 ``error`` 键的字典。
         """
         url = f"{self.base_url}/api/v1/mediaserver/notexists"
-        # type 必须用 MP 认的中文值（电影/电视剧），并补全媒体身份字段，
-        # 否则 MP 端 MediaType 构造异常返回 500。
-        body: dict = {
-            "tmdbid": tmdb_id,
-            "type": _to_mp_type(media_type),
-            "title": title,
-            "media_source": "themoviedb",
-            "media_id": str(tmdb_id),
-        }
-        if year is not None:
-            body["year"] = str(year)
+
+        # 电视剧：先取完整 mediainfo（含 seasons），整体作为 notexists 请求体，
+        # 确保 MP 能逐季比对。取不到 seasons 时降级为基础字段（MP 自行补全）。
+        body: dict | None = None
+        if media_type == "tv":
+            mediainfo = await self.get_media_info(tmdb_id, media_type)
+            if isinstance(mediainfo, dict) and "error" not in mediainfo and mediainfo.get("seasons"):
+                body = mediainfo
+
+        if body is None:
+            # 电影或 mediainfo 获取失败时的兜底请求体。
+            # type 必须用 MP 认的中文值（电影/电视剧），否则 MediaType 构造异常返回 500。
+            body = {
+                "tmdbid": tmdb_id,
+                "type": _to_mp_type(media_type),
+                "title": title,
+                "media_source": "themoviedb",
+                "media_id": str(tmdb_id),
+            }
+            if year is not None:
+                body["year"] = str(year)
+
         result = await http_client.post(url, headers=self._headers, json=body)
         if "error" in result:
             logger.error("MoviePilot 查询缺集失败 (tmdb_id=%d): %s", tmdb_id, result)

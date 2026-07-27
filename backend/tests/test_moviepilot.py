@@ -103,19 +103,50 @@ async def test_get_missing_seasons_error_returns_dict(monkeypatch):
 
 
 async def test_get_missing_seasons_uses_chinese_type(monkeypatch):
-    """notexists 的 type 必须映射成中文（电视剧），英文会触发 MP 端 500。"""
+    """media 详情获取失败时降级为基础请求体，type 仍映射成中文（电视剧）。"""
     captured: dict = {}
+
+    async def fake_get(url, headers=None, params=None):
+        # media 详情失败 → get_missing_seasons 降级到基础 body
+        return {"error": "HTTP 500", "detail": "down"}
 
     async def fake_post(url, headers=None, json=None, data=None):
         captured["json"] = json
         return []
 
+    monkeypatch.setattr(mp_module.http_client, "get", fake_get)
     monkeypatch.setattr(mp_module.http_client, "post", fake_post)
     svc = _make_service()
     await svc.get_missing_seasons(37854, "tv", "航海王", year=1999)
     assert captured["json"]["type"] == "电视剧"
     assert captured["json"]["media_source"] == "themoviedb"
     assert captured["json"]["media_id"] == "37854"
+
+
+async def test_get_missing_seasons_tv_uses_mediainfo_seasons(monkeypatch):
+    """电视剧拿到 media 详情的 seasons 后，应以完整 mediainfo 作为 notexists 请求体。
+
+    notexists 依据请求体的 seasons 字段逐季比对算缺集；不带 seasons 会因
+    recognize_media 补全失败而返回空，导致剧集镜像失效。
+    """
+    captured: dict = {}
+    mediainfo = {"tmdb_id": 209311, "title": "光阴之外", "seasons": {"1": [1, 2, 3]}}
+
+    async def fake_get(url, headers=None, params=None):
+        assert "/api/v1/media/tmdb:209311" in url
+        return mediainfo
+
+    async def fake_post(url, headers=None, json=None, data=None):
+        captured["json"] = json
+        return [{"season": 1, "episodes": [1, 2, 3], "total_episode": 52}]
+
+    monkeypatch.setattr(mp_module.http_client, "get", fake_get)
+    monkeypatch.setattr(mp_module.http_client, "post", fake_post)
+    svc = _make_service()
+    result = await svc.get_missing_seasons(209311, "tv", "光阴之外")
+    # 请求体是含 seasons 的完整 mediainfo，而非基础字段
+    assert captured["json"].get("seasons") == {"1": [1, 2, 3]}
+    assert result[0]["season"] == 1
 
 
 def test_auth_header_is_x_api_key():
