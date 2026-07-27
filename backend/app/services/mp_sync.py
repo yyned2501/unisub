@@ -62,7 +62,8 @@ class MpSyncEngine:
             return
         for item in seasons:
             season = item.get("season")
-            if season is None:
+            # 跳过特典季（season=0）与缺季号的条目
+            if season is None or int(season) == 0:
                 continue
             await self._create_mp_sub(db, sub, season=int(season), missing_info=item)
 
@@ -139,7 +140,8 @@ class MpSyncEngine:
         missing_seasons: dict[int, dict] = {}
         for item in seasons:
             sn = item.get("season")
-            if sn is not None:
+            # 跳过特典季（season=0），不对其建订阅
+            if sn is not None and int(sn) != 0:
                 missing_seasons[int(sn)] = item
 
         # 新出现的缺集季 → 建订阅

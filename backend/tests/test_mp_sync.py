@@ -106,6 +106,25 @@ async def test_subscribe_tv_no_missing_seasons_skips(db_session):
     assert fake.created == []
 
 
+async def test_subscribe_tv_skips_special_season_zero(db_session):
+    """缺集季含特典季（season=0）时应跳过，不对其建订阅。"""
+    fake = FakeMp()
+    fake.missing_seasons = [
+        {"season": 0, "episodes": [1], "total_episode": 5},  # 特典季，应跳过
+        {"season": 1, "episodes": [3], "total_episode": 10},
+    ]
+    engine = MpSyncEngine(fake, FakeTmdb())
+    sub = _make_sub()
+    db_session.add(sub)
+    await db_session.flush()
+
+    await engine.subscribe(db_session, sub)
+    await db_session.commit()
+
+    rows = (await db_session.execute(select(MpSubscription))).scalars().all()
+    assert [r.season for r in rows] == [1]  # 只有第 1 季，season=0 被跳过
+
+
 async def test_subscribe_tv_query_failure_skips(db_session):
     """缺集查询失败（返回 error dict）时降级跳过，不建订阅。"""
     fake = FakeMp()
