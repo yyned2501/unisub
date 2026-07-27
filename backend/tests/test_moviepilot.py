@@ -29,10 +29,14 @@ async def test_create_subscription_tv_body(monkeypatch):
     assert captured["url"].endswith("/api/v1/subscribe/")
     body = captured["json"]
     assert body["tmdbid"] == 123
-    assert body["type"] == "tv"
+    # type 必须映射成 MP 认的中文值，英文 tv 会触发 MP 端 500
+    assert body["type"] == "电视剧"
     assert body["season"] == 2
     assert body["year"] == "2024"
     assert body["name"] == "测试剧"
+    # 媒体身份字段需透传
+    assert body["media_source"] == "themoviedb"
+    assert body["media_id"] == "123"
     # 只读运行字段不得出现在请求体
     for forbidden in ("state", "lack_episode", "date", "id"):
         assert forbidden not in body
@@ -51,7 +55,7 @@ async def test_create_subscription_movie_no_season(monkeypatch):
     await svc.create_subscription(555, "movie", "测试电影")
 
     assert "season" not in captured["json"]
-    assert captured["json"]["type"] == "movie"
+    assert captured["json"]["type"] == "电影"
 
 
 async def test_create_subscription_error_passthrough(monkeypatch):
@@ -96,6 +100,29 @@ async def test_get_missing_seasons_error_returns_dict(monkeypatch):
     result = await svc.get_missing_seasons(123, "tv", "x")
     assert isinstance(result, dict)
     assert "error" in result
+
+
+async def test_get_missing_seasons_uses_chinese_type(monkeypatch):
+    """notexists 的 type 必须映射成中文（电视剧），英文会触发 MP 端 500。"""
+    captured: dict = {}
+
+    async def fake_post(url, headers=None, json=None, data=None):
+        captured["json"] = json
+        return []
+
+    monkeypatch.setattr(mp_module.http_client, "post", fake_post)
+    svc = _make_service()
+    await svc.get_missing_seasons(37854, "tv", "航海王", year=1999)
+    assert captured["json"]["type"] == "电视剧"
+    assert captured["json"]["media_source"] == "themoviedb"
+    assert captured["json"]["media_id"] == "37854"
+
+
+def test_auth_header_is_x_api_key():
+    """鉴权必须用 X-API-Key 头；Authorization: Bearer 会被 MP 拒绝（403）。"""
+    svc = _make_service()
+    assert svc._headers.get("X-API-Key") == "test-token"
+    assert "Authorization" not in svc._headers
 
 
 async def test_delete_subscription_uses_delete(monkeypatch):

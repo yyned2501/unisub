@@ -9,11 +9,32 @@ from app.core.logger import init_logger
 
 logger = init_logger()
 
+# UniSub 内部媒体类型（movie/tv）→ MoviePilot API 类型值。
+# MP 的 MediaType 枚举认中文「电影」/「电视剧」，传英文 tv/movie 会触发
+# MediaType(type) 构造异常导致 500，故请求前必须映射。
+_MP_TYPE_MAP = {
+    "movie": "电影",
+    "tv": "电视剧",
+}
+
+
+def _to_mp_type(media_type: str) -> str:
+    """把 UniSub 媒体类型映射成 MoviePilot 认的类型值。
+
+    Args:
+        media_type: UniSub 媒体类型（movie / tv）
+
+    Returns:
+        MP 类型值（电影 / 电视剧）；未知类型原样返回。
+    """
+    return _MP_TYPE_MAP.get(media_type, media_type)
+
 
 class MoviePilotService:
     """MoviePilot REST API 客户端。
 
-    通过 Authorization Bearer Token 鉴权，自动跟随 307 重定向。
+    通过 X-API-Key 头鉴权（MoviePilot v2 认此头，不认 Authorization: Bearer，
+    后者会返回 403「token校验不通过」），自动跟随 307 重定向。
     """
 
     def __init__(self, base_url: str, api_key: str):
@@ -21,12 +42,12 @@ class MoviePilotService:
 
         Args:
             base_url: MoviePilot API 基础地址（如 http://192.168.31.10:3000）
-            api_key: API Token（Bearer 鉴权）
+            api_key: API Token（X-API-Key 鉴权）
         """
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self._headers = {
-            "Authorization": f"Bearer {api_key}",
+            "X-API-Key": api_key,
             "accept": "application/json",
         }
 
@@ -75,10 +96,14 @@ class MoviePilotService:
             失败时含 ``error`` 键。
         """
         url = f"{self.base_url}/api/v1/subscribe/"
+        # type 用 MP 认的中文值（电影/电视剧）；并补 media_source/media_id 媒体身份，
+        # 与 notexists 保持一致，避免 MP 端 MediaType 构造异常。
         body: dict = {
             "name": title,
-            "type": media_type,
+            "type": _to_mp_type(media_type),
             "tmdbid": tmdb_id,
+            "media_source": "themoviedb",
+            "media_id": str(tmdb_id),
         }
         if year is not None:
             body["year"] = str(year)
@@ -115,7 +140,15 @@ class MoviePilotService:
             失败：含 ``error`` 键的字典。
         """
         url = f"{self.base_url}/api/v1/mediaserver/notexists"
-        body: dict = {"tmdbid": tmdb_id, "type": media_type, "title": title}
+        # type 必须用 MP 认的中文值（电影/电视剧），并补全媒体身份字段，
+        # 否则 MP 端 MediaType 构造异常返回 500。
+        body: dict = {
+            "tmdbid": tmdb_id,
+            "type": _to_mp_type(media_type),
+            "title": title,
+            "media_source": "themoviedb",
+            "media_id": str(tmdb_id),
+        }
         if year is not None:
             body["year"] = str(year)
         result = await http_client.post(url, headers=self._headers, json=body)
