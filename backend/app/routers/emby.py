@@ -22,6 +22,7 @@ from app.schemas.emby_cache import EmbyMissingAnalysis, EmbySyncResult, Tmdb404I
 from app.services import (
     get_mp_service,
     get_nf_service,
+    get_tmdb_service,
     log_activity,
     require_emby_service,
     require_nf_service,
@@ -180,7 +181,8 @@ async def subscribe_from_emby(
 ):
     """从 Emby 缺集列表添加订阅 — 调用 NextFind 订阅 + 创建本地记录。"""
     mp = await get_mp_service(db)
-    orchestrator = OrchestratorService(nf, mp)
+    tmdb = await get_tmdb_service(db)
+    orchestrator = OrchestratorService(nf, mp, tmdb)
 
     try:
         sub = await orchestrator.subscribe(

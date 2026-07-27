@@ -120,7 +120,7 @@ class EmbyScanService:
 
             if nf_service:
                 logger.info("扫描 Step 3/3: 同步订阅")
-                orchestrator = OrchestratorService(nf_service, mp_service)
+                orchestrator = OrchestratorService(nf_service, mp_service, tmdb)
                 sync_results = await orchestrator.sync_subscriptions(db)
                 cls._scan_status["total_items"] = len(sync_results)
                 cls._scan_status["current_item"] = len(sync_results)

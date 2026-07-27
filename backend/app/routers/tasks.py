@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
-from app.services import get_mp_service, get_nf_service, log_activity
+from app.services import get_mp_service, get_nf_service, get_tmdb_service, log_activity
 from app.services.orchestrator import OrchestratorService
 from app.services.scheduler import TaskConfigUpdate, _task_config, save_state
 
@@ -72,7 +72,8 @@ async def trigger_task(db: AsyncSession = Depends(get_db)):
             )
 
         mp = await get_mp_service(db)
-        orchestrator = OrchestratorService(nf, mp)
+        tmdb = await get_tmdb_service(db)
+        orchestrator = OrchestratorService(nf, mp, tmdb)
 
         # 1. 同步订阅状态
         sync_results = await orchestrator.sync_subscriptions(db)

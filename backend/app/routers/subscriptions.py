@@ -54,7 +54,8 @@ async def create_subscription(
 ):
     """添加订阅 — 创建本地记录并通过 NextFind 添加订阅，镜像到 MoviePilot。"""
     mp = await get_mp_service(db)
-    orchestrator = OrchestratorService(nf, mp)
+    tmdb = await get_tmdb_service(db)
+    orchestrator = OrchestratorService(nf, mp, tmdb)
     return await orchestrator.subscribe(
         db=db,
         tmdb_id=body.tmdb_id,
@@ -116,7 +117,8 @@ async def sync_subscriptions(
 ):
     """手动同步订阅状态 — NextFind 双向同步 + MoviePilot 进度回写。"""
     mp = await get_mp_service(db)
-    orchestrator = OrchestratorService(nf, mp)
+    tmdb = await get_tmdb_service(db)
+    orchestrator = OrchestratorService(nf, mp, tmdb)
     results = await orchestrator.sync_subscriptions(db)
     logger.info(f"手动同步完成: {len(results)} 条记录")
     return results

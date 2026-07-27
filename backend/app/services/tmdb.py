@@ -271,6 +271,10 @@ class TMDBService:
         else:
             db.add(TmdbCache(tmdb_id=tmdb_id, **data))
 
+        # 顺手写入按季集数结构（seasons），供 MP 订阅计算缺集季复用，
+        # 避免订阅同步重复访问外部接口。detail 已在手，零额外请求。
+        await self._save_seasons(db, tmdb_id, detail)
+
         try:
             await db.commit()
         except Exception:
@@ -279,3 +283,59 @@ class TMDBService:
             return None
 
         return data
+
+    async def _save_seasons(self, db: AsyncSession, tmdb_id: int, detail: dict) -> None:
+        """把剧集详情的 seasons 按季写入 tmdb_season 表（不 commit，由调用方统一提交）。
+
+        跳过 season_number=0 的特典季。已存在的季更新 episode_count/air_date，
+        不存在的新增。
+
+        Args:
+            db: 数据库会话
+            tmdb_id: TMDB ID
+            detail: /tv/{id} 返回的详情字典（含 seasons 列表）
+        """
+        from app.models.tmdb_season import TmdbSeason
+
+        seasons = detail.get("seasons") or []
+        for s in seasons:
+            sn = s.get("season_number")
+            if sn is None or sn == 0:
+                continue  # 跳过特典季
+            episode_count = s.get("episode_count") or 0
+            air_date = s.get("air_date")
+            # 复合主键 (tmdb_id, season)，用 get 精确取
+            existing = await db.get(TmdbSeason, (tmdb_id, sn))
+            if existing:
+                existing.episode_count = episode_count
+                existing.air_date = air_date
+            else:
+                db.add(TmdbSeason(tmdb_id=tmdb_id, season=sn, episode_count=episode_count, air_date=air_date))
+
+    async def get_seasons_map(self, db: AsyncSession, tmdb_id: int) -> dict[int, list[int]] | None:
+        """获取剧集的季集结构（{季号: [集号列表]}），优先本地缓存，缺失时调 TMDB 补。
+
+        MP notexists 依据此结构逐季比对算缺集。本地 tmdb_season 无数据时，
+        调 update_cache_for_tv 查询 TMDB 并落库（一次请求同时刷新整剧缓存与季数据）。
+
+        Args:
+            db: 数据库会话
+            tmdb_id: TMDB ID
+
+        Returns:
+            ``{季号: [集号列表]}``；查不到任何季数据时返回 None。
+        """
+        from sqlalchemy import select
+
+        from app.models.tmdb_season import TmdbSeason
+
+        rows = (await db.execute(select(TmdbSeason).where(TmdbSeason.tmdb_id == tmdb_id))).scalars().all()
+        if not rows:
+            # 本地无缓存 → 调 TMDB 查询并写入（update_cache_for_tv 内部会 _save_seasons）
+            await self.update_cache_for_tv(db, tmdb_id)
+            rows = (await db.execute(select(TmdbSeason).where(TmdbSeason.tmdb_id == tmdb_id))).scalars().all()
+
+        if not rows:
+            return None
+
+        return {row.season: list(range(1, (row.episode_count or 0) + 1)) for row in rows if row.episode_count}

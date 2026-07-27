@@ -22,7 +22,8 @@ async def _run_nf_sync(db: AsyncSession) -> None:
         logger.warning("NF 同步跳过: NextFind 未配置或未启用")
         return
     mp = await get_mp_service(db)
-    orchestrator = OrchestratorService(nf, mp)
+    tmdb = await get_tmdb_service(db)
+    orchestrator = OrchestratorService(nf, mp, tmdb)
     results = await orchestrator.sync_subscriptions(db)
     logger.info("NF 订阅同步完成: %d 条记录", len(results))
 

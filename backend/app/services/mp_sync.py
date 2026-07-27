@@ -20,6 +20,7 @@ from app.models.activity_log import ActivityLog
 from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
 from app.services.moviepilot import MoviePilotService
+from app.services.tmdb import TMDBService
 
 logger = init_logger()
 
@@ -27,13 +28,16 @@ logger = init_logger()
 class MpSyncEngine:
     """MoviePilot 订阅镜像引擎 — 维护 mp_subscription 子表与 MP 端一致。"""
 
-    def __init__(self, mp_service: MoviePilotService):
+    def __init__(self, mp_service: MoviePilotService, tmdb_service: TMDBService | None = None):
         """初始化引擎。
 
         Args:
             mp_service: MoviePilot 服务实例
+            tmdb_service: TMDB 服务实例（可选）。用于本地缺季集数据时调 TMDB
+                补缓存；未提供时剧集缺集查询无法补数据，会跳过镜像。
         """
         self.mp = mp_service
+        self.tmdb = tmdb_service
 
     async def subscribe(self, db: AsyncSession, sub: Subscription) -> None:
         """为订阅创建 MP 镜像。
@@ -49,7 +53,7 @@ class MpSyncEngine:
             await self._create_mp_sub(db, sub, season=None)
             return
 
-        seasons = await self._query_missing_seasons(sub)
+        seasons = await self._query_missing_seasons(db, sub)
         if seasons is None:
             # 查询失败，跳过镜像（不阻塞）
             return
@@ -129,7 +133,7 @@ class MpSyncEngine:
             return
 
         # 电视剧：重算缺集季
-        seasons = await self._query_missing_seasons(sub)
+        seasons = await self._query_missing_seasons(db, sub)
         if seasons is None:
             return  # 查询失败，本轮跳过
         missing_seasons: dict[int, dict] = {}
@@ -224,9 +228,28 @@ class MpSyncEngine:
             row.mp_completed_eps = max(0, total - lack)
         row.updated_at = datetime.now(UTC)
 
-    async def _query_missing_seasons(self, sub: Subscription) -> list[dict] | None:
-        """查询剧集缺集季。失败返回 None，无缺集返回 []。"""
-        result = await self.mp.get_missing_seasons(sub.tmdb_id, sub.media_type, sub.title, year=sub.year)
+    async def _query_missing_seasons(self, db: AsyncSession, sub: Subscription) -> list[dict] | None:
+        """查询剧集缺集季。失败返回 None，无缺集返回 []。
+
+        季集结构（seasons）优先取本地 tmdb_season 缓存；本地缺失时通过 TMDB
+        服务查询并落库（get_seasons_map 内部处理）。拿到 seasons 后交给 MP
+        notexists 逐季比对，避免直接访问 MP media 接口。
+        """
+        seasons_map: dict[int, list[int]] | None = None
+        if self.tmdb:
+            try:
+                seasons_map = await self.tmdb.get_seasons_map(db, sub.tmdb_id)
+            except Exception as e:
+                logger.warning("获取季集结构失败: %s (tmdb_id=%d), %s", sub.title, sub.tmdb_id, e)
+
+        if not seasons_map:
+            # 拿不到季集结构 → MP notexists 无法逐季比对，跳过本条镜像
+            logger.debug("无季集结构，跳过 MP 缺集查询: %s (tmdb_id=%d)", sub.title, sub.tmdb_id)
+            return None
+
+        result = await self.mp.get_missing_seasons(
+            sub.tmdb_id, sub.media_type, sub.title, year=sub.year, seasons=seasons_map
+        )
         if isinstance(result, dict) and "error" in result:
             logger.warning("MP 缺集查询失败（跳过镜像）: %s, %s", sub.title, result)
             return None

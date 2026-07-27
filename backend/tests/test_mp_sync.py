@@ -22,7 +22,8 @@ class FakeMp:
         self.created: list[dict] = []
         self.deleted: list[int] = []
 
-    async def get_missing_seasons(self, tmdb_id, media_type, title, year=None):
+    async def get_missing_seasons(self, tmdb_id, media_type, title, year=None, seasons=None):
+        # seasons 由 mp_sync 从本地/TMDB 取得后传入；桩直接返回配置的缺集结果
         return self.missing_seasons
 
     async def create_subscription(self, tmdb_id, media_type, title, year=None, season=None):
@@ -38,6 +39,19 @@ class FakeMp:
     async def delete_subscription(self, mp_sub_id):
         self.deleted.append(mp_sub_id)
         return self.delete_result
+
+
+class FakeTmdb:
+    """TMDBService 测试桩 — get_seasons_map 返回可配置的季集结构。"""
+
+    def __init__(self, seasons_map=None):
+        # 默认给一个非空季集结构，使 mp_sync 的缺集查询流程能走下去
+        self.seasons_map = seasons_map if seasons_map is not None else {1: [1, 2, 3]}
+        self.calls: list[int] = []
+
+    async def get_seasons_map(self, db, tmdb_id):
+        self.calls.append(tmdb_id)
+        return self.seasons_map
 
 
 def _make_sub(media_type: str = "tv", **kw) -> Subscription:
@@ -60,7 +74,7 @@ async def test_subscribe_tv_creates_per_missing_season(db_session):
         {"season": 1, "episodes": [3, 4], "total_episode": 10},
         {"season": 2, "episodes": [1], "total_episode": 8},
     ]
-    engine = MpSyncEngine(fake)
+    engine = MpSyncEngine(fake, FakeTmdb())
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
@@ -79,7 +93,7 @@ async def test_subscribe_tv_no_missing_seasons_skips(db_session):
     """剧集无缺集季时不创建 MP 订阅。"""
     fake = FakeMp()
     fake.missing_seasons = []
-    engine = MpSyncEngine(fake)
+    engine = MpSyncEngine(fake, FakeTmdb())
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
@@ -96,7 +110,7 @@ async def test_subscribe_tv_query_failure_skips(db_session):
     """缺集查询失败（返回 error dict）时降级跳过，不建订阅。"""
     fake = FakeMp()
     fake.missing_seasons = {"error": "HTTP 500", "detail": "down"}
-    engine = MpSyncEngine(fake)
+    engine = MpSyncEngine(fake, FakeTmdb())
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
@@ -111,7 +125,7 @@ async def test_subscribe_tv_query_failure_skips(db_session):
 async def test_subscribe_movie_creates_single_no_season(db_session):
     """电影应创建一条 season 为 NULL 的 MP 订阅。"""
     fake = FakeMp()
-    engine = MpSyncEngine(fake)
+    engine = MpSyncEngine(fake, FakeTmdb())
     sub = _make_sub(media_type="movie")
     db_session.add(sub)
     await db_session.flush()
@@ -128,7 +142,7 @@ async def test_subscribe_movie_creates_single_no_season(db_session):
 async def test_unsubscribe_deletes_all_rows(db_session):
     """取消订阅应删除 MP 端订阅并清空子表行。"""
     fake = FakeMp()
-    engine = MpSyncEngine(fake)
+    engine = MpSyncEngine(fake, FakeTmdb())
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
@@ -154,7 +168,7 @@ async def test_unsubscribe_deletes_all_rows(db_session):
 async def test_sync_refreshes_progress_and_adds_new_season(db_session):
     """sync 应回写存量季进度，并为新出现的缺集季建订阅。"""
     fake = FakeMp()
-    engine = MpSyncEngine(fake)
+    engine = MpSyncEngine(fake, FakeTmdb())
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
@@ -183,7 +197,7 @@ async def test_sync_refreshes_progress_and_adds_new_season(db_session):
 async def test_sync_removes_filled_season(db_session):
     """sync 应删除已补齐（MP 不再缺集）的季订阅与子表行。"""
     fake = FakeMp()
-    engine = MpSyncEngine(fake)
+    engine = MpSyncEngine(fake, FakeTmdb())
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()

@@ -8,6 +8,7 @@ from app.models.mp_subscription import MpSubscription
 from app.models.platform_config import PlatformConfig
 from app.models.subscription import Subscription
 from app.models.tmdb_cache import TmdbCache
+from app.models.tmdb_season import TmdbSeason
 
 __all__ = [
     "ActivityLog",
@@ -18,4 +19,5 @@ __all__ = [
     "PlatformConfig",
     "Subscription",
     "TmdbCache",
+    "TmdbSeason",
 ]

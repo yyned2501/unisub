@@ -50,7 +50,7 @@ class OrchestratorService:
         self.mp = mp_service
         self.tmdb = tmdb_service
         self._nf_sync = NfSyncEngine(nf_service)
-        self._mp_sync = MpSyncEngine(mp_service) if mp_service else None
+        self._mp_sync = MpSyncEngine(mp_service, tmdb_service) if mp_service else None
 
     async def subscribe(
         self,

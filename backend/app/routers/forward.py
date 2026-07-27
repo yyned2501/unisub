@@ -15,7 +15,7 @@ from app.schemas.forward import (
     ForwardSearchItem,
     ForwardSubscribeInput,
 )
-from app.services import get_mp_service, get_nf_service
+from app.services import get_mp_service, get_nf_service, get_tmdb_service
 from app.services.auth_config import load_auth_config
 from app.services.forward import ForwardService
 from app.services.orchestrator import OrchestratorService
@@ -40,7 +40,8 @@ async def _get_forward_service(db: AsyncSession) -> ForwardService:
     if not nf:
         raise HTTPException(status_code=503, detail="NextFind 平台未配置或未启用")
     mp = await get_mp_service(db)
-    orchestrator = OrchestratorService(nf, mp)
+    tmdb = await get_tmdb_service(db)
+    orchestrator = OrchestratorService(nf, mp, tmdb)
     return ForwardService(nf, orchestrator)
 
 
