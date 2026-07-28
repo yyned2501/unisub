@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import init_logger
 from app.models.activity_log import ActivityLog
+from app.models.emby_cache import EmbyCache
+from app.models.emby_season_cache import EmbySeasonCache
 from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
 from app.services.moviepilot import MoviePilotService
@@ -239,11 +241,17 @@ class MpSyncEngine:
         row.updated_at = datetime.now(UTC)
 
     async def _query_missing_seasons(self, db: AsyncSession, sub: Subscription) -> list[dict] | None:
-        """查询剧集缺集季。失败返回 None，无缺集返回 []。
+        """查询剧集缺集季 — 优先本地计算，同步缺口才用 MP notexists 兜底。
 
-        季集结构（seasons）优先取本地 tmdb_season 缓存；本地缺失时通过 TMDB
-        服务查询并落库（get_seasons_map 内部处理）。拿到 seasons 后交给 MP
-        notexists 逐季比对，避免直接访问 MP media 接口。
+        缺集 = 已播集数（tmdb_season）- 库内集数（emby_season_cache），纯本地 DB 计算，
+        不再每轮实时调 MP notexists（其频繁打 Emby、慢且易 502）。判定路径：
+            - 本地有按季库数据 → 本地算缺集
+            - 本地无按季数据且剧不在 Emby 库 → 所有已播集都缺（本地判定，不调 notexists）
+            - 本地无按季数据但剧在库（同步缺口）→ 回退调一次 notexists 兜底
+
+        Returns:
+            缺集季列表（``[{"season","episodes","total_episode"}, ...]``）；
+            失败/无季集结构返回 None，无缺集返回 []。
         """
         seasons_map: dict[int, list[int]] | None = None
         if self.tmdb:
@@ -253,10 +261,54 @@ class MpSyncEngine:
                 logger.warning("获取季集结构失败: %s (tmdb_id=%d), %s", sub.title, sub.tmdb_id, e)
 
         if not seasons_map:
-            # 拿不到季集结构 → MP notexists 无法逐季比对，跳过本条镜像
             logger.debug("无季集结构，跳过 MP 缺集查询: %s (tmdb_id=%d)", sub.title, sub.tmdb_id)
             return None
 
+        emby_counts = await self._emby_season_counts(db, sub.tmdb_id)
+        if emby_counts:
+            return self._diff_missing(seasons_map, emby_counts)
+
+        if not await self._show_in_emby(db, sub.tmdb_id):
+            # 剧不在 Emby 库 → 已播集全缺，本地直接判定，不调 notexists
+            return self._diff_missing(seasons_map, {})
+
+        # 剧在库但无按季缓存（同步缺口）→ notexists 兜底一次
+        logger.debug("本地无按季库缓存，notexists 兜底: %s (tmdb_id=%d)", sub.title, sub.tmdb_id)
+        return await self._query_missing_via_mp(sub, seasons_map)
+
+    @staticmethod
+    def _diff_missing(seasons_map: dict[int, list[int]], emby_counts: dict[int, int]) -> list[dict]:
+        """本地计算缺集季，返回与 MP notexists 兼容的结构。
+
+        假设库内集按序补齐（1..have），缺集为 have+1..aired。
+
+        Args:
+            seasons_map: ``{季号: [已播集号列表]}``（来自 tmdb_season）
+            emby_counts: ``{季号: 库内集数}``（来自 emby_season_cache）
+
+        Returns:
+            缺集季列表（仅含 已播 > 库内 的季）
+        """
+        missing: list[dict] = []
+        for sn, eps in seasons_map.items():
+            aired = len(eps)
+            have = emby_counts.get(sn, 0)
+            if aired > have:
+                missing.append({"season": sn, "episodes": list(range(have + 1, aired + 1)), "total_episode": aired})
+        return missing
+
+    async def _emby_season_counts(self, db: AsyncSession, tmdb_id: int) -> dict[int, int]:
+        """读取本地 emby_season_cache 的按季库内集数 ``{季号: 集数}``。"""
+        rows = (await db.execute(select(EmbySeasonCache).where(EmbySeasonCache.tmdb_id == tmdb_id))).scalars().all()
+        return {row.season: (row.episode_count or 0) for row in rows}
+
+    async def _show_in_emby(self, db: AsyncSession, tmdb_id: int) -> bool:
+        """判断剧是否在 Emby 库中（emby_cache 有该 tmdb_id 记录）。"""
+        row = (await db.execute(select(EmbyCache.tmdb_id).where(EmbyCache.tmdb_id == tmdb_id))).first()
+        return row is not None
+
+    async def _query_missing_via_mp(self, sub: Subscription, seasons_map: dict[int, list[int]]) -> list[dict] | None:
+        """兜底：调 MP notexists 查缺集（仅本地按季缓存缺口时使用）。"""
         result = await self.mp.get_missing_seasons(
             sub.tmdb_id, sub.media_type, sub.title, year=sub.year, seasons=seasons_map
         )

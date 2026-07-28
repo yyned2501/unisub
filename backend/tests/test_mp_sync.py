@@ -1,17 +1,21 @@
 """MpSyncEngine 测试 — MP 镜像订阅的正向与异常路径。
 
-用 FakeMp 桩替换 MoviePilotService，用内存 sqlite 会话验证子表读写。
+缺集判断已改为本地计算（tmdb_season 已播 - emby_season_cache 库内），故测试用
+FakeTmdb.seasons_map（已播结构）+ 库中 EmbySeasonCache 行（库内集数）驱动缺集结果；
+FakeMp.get_missing_seasons 仅在「剧在库但无按季缓存」的兜底路径生效。
 """
 
 from sqlalchemy import select
 
+from app.models.emby_cache import EmbyCache
+from app.models.emby_season_cache import EmbySeasonCache
 from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
 from app.services.mp_sync import MpSyncEngine, _extract_sub_id
 
 
 class FakeMp:
-    """MoviePilotService 测试桩 — 可配置各接口返回值并记录调用。"""
+    """MoviePilotService 测试桩 — get_missing_seasons 仅兜底路径用到。"""
 
     def __init__(self):
         self.missing_seasons: list[dict] | dict = []
@@ -21,9 +25,10 @@ class FakeMp:
         self.delete_result: dict = {}
         self.created: list[dict] = []
         self.deleted: list[int] = []
+        self.notexists_calls = 0
 
     async def get_missing_seasons(self, tmdb_id, media_type, title, year=None, seasons=None):
-        # seasons 由 mp_sync 从本地/TMDB 取得后传入；桩直接返回配置的缺集结果
+        self.notexists_calls += 1
         return self.missing_seasons
 
     async def create_subscription(self, tmdb_id, media_type, title, year=None, season=None):
@@ -45,9 +50,7 @@ class FakeTmdb:
     """TMDBService 测试桩 — get_seasons_map / get_season_completion 返回可配置结果。"""
 
     def __init__(self, seasons_map=None, completion=None):
-        # 默认给一个非空季集结构，使 mp_sync 的缺集查询流程能走下去
         self.seasons_map = seasons_map if seasons_map is not None else {1: [1, 2, 3]}
-        # 每季是否已完结 {季号: bool}；默认空 → 所有季按未完结处理（保留订阅）
         self.completion = completion if completion is not None else {}
         self.calls: list[int] = []
 
@@ -72,14 +75,23 @@ def _make_sub(media_type: str = "tv", **kw) -> Subscription:
     )
 
 
-async def test_subscribe_tv_creates_per_missing_season(db_session):
-    """电视剧应按缺集季逐季创建 MP 订阅并写入子表。"""
+def _seed_emby_seasons(db, tmdb_id: int, counts: dict[int, int]) -> None:
+    """在 emby_season_cache 写入按季库内集数。"""
+    for sn, cnt in counts.items():
+        db.add(EmbySeasonCache(tmdb_id=tmdb_id, season=sn, episode_count=cnt))
+
+
+def _seed_emby_show(db, tmdb_id: int) -> None:
+    """在 emby_cache 写入一条记录，表示剧在 Emby 库中。"""
+    db.add(EmbyCache(tmdb_id=tmdb_id, emby_series_name="测试剧"))
+
+
+async def test_subscribe_tv_local_missing_creates_per_season(db_session):
+    """本地算缺集：已播 > 库内的季逐季建 MP 订阅，不调 notexists。"""
     fake = FakeMp()
-    fake.missing_seasons = [
-        {"season": 1, "episodes": [3, 4], "total_episode": 10},
-        {"season": 2, "episodes": [1], "total_episode": 8},
-    ]
-    engine = MpSyncEngine(fake, FakeTmdb())
+    # 已播：第1季3集、第2季2集；库内：第1季1集 → 第1季缺2、第2季缺2（库内0）
+    _seed_emby_seasons(db_session, 123, {1: 1})
+    engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3], 2: [1, 2]}))
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
@@ -88,17 +100,16 @@ async def test_subscribe_tv_creates_per_missing_season(db_session):
     await db_session.commit()
 
     rows = (await db_session.execute(select(MpSubscription))).scalars().all()
-    assert len(rows) == 2
-    seasons = sorted(r.season for r in rows)
-    assert seasons == [1, 2]
+    assert sorted(r.season for r in rows) == [1, 2]
     assert len(fake.created) == 2
+    assert fake.notexists_calls == 0  # 走本地，未调 notexists
 
 
-async def test_subscribe_tv_no_missing_seasons_skips(db_session):
-    """剧集无缺集季时不创建 MP 订阅。"""
+async def test_subscribe_tv_season_full_not_subscribed(db_session):
+    """库内集数 >= 已播的季不缺集，不建订阅。"""
     fake = FakeMp()
-    fake.missing_seasons = []
-    engine = MpSyncEngine(fake, FakeTmdb())
+    _seed_emby_seasons(db_session, 123, {1: 3, 2: 2})  # 两季都已补齐
+    engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3], 2: [1, 2]}))
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
@@ -111,14 +122,10 @@ async def test_subscribe_tv_no_missing_seasons_skips(db_session):
     assert fake.created == []
 
 
-async def test_subscribe_tv_skips_special_season_zero(db_session):
-    """缺集季含特典季（season=0）时应跳过，不对其建订阅。"""
+async def test_subscribe_tv_not_in_emby_subscribes_all_aired(db_session):
+    """剧不在 Emby 库（无 emby_cache）→ 所有已播季都缺，本地判定建订阅，不调 notexists。"""
     fake = FakeMp()
-    fake.missing_seasons = [
-        {"season": 0, "episodes": [1], "total_episode": 5},  # 特典季，应跳过
-        {"season": 1, "episodes": [3], "total_episode": 10},
-    ]
-    engine = MpSyncEngine(fake, FakeTmdb())
+    engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3], 2: [1]}))
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
@@ -127,14 +134,34 @@ async def test_subscribe_tv_skips_special_season_zero(db_session):
     await db_session.commit()
 
     rows = (await db_session.execute(select(MpSubscription))).scalars().all()
-    assert [r.season for r in rows] == [1]  # 只有第 1 季，season=0 被跳过
+    assert sorted(r.season for r in rows) == [1, 2]
+    assert fake.notexists_calls == 0
 
 
-async def test_subscribe_tv_query_failure_skips(db_session):
-    """缺集查询失败（返回 error dict）时降级跳过，不建订阅。"""
+async def test_subscribe_tv_sync_gap_falls_back_to_notexists(db_session):
+    """剧在库但无按季缓存（同步缺口）→ 回退 notexists 兜底一次。"""
     fake = FakeMp()
-    fake.missing_seasons = {"error": "HTTP 500", "detail": "down"}
-    engine = MpSyncEngine(fake, FakeTmdb())
+    fake.missing_seasons = [{"season": 1, "episodes": [3], "total_episode": 3}]
+    _seed_emby_show(db_session, 123)  # 在库，但无 emby_season_cache
+    engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3]}))
+    sub = _make_sub()
+    db_session.add(sub)
+    await db_session.flush()
+
+    await engine.subscribe(db_session, sub)
+    await db_session.commit()
+
+    assert fake.notexists_calls == 1  # 触发了兜底
+    rows = (await db_session.execute(select(MpSubscription))).scalars().all()
+    assert [r.season for r in rows] == [1]
+
+
+async def test_subscribe_tv_fallback_failure_skips(db_session):
+    """兜底 notexists 失败时降级跳过，不建订阅。"""
+    fake = FakeMp()
+    fake.missing_seasons = {"error": "HTTP 502", "detail": "down"}
+    _seed_emby_show(db_session, 123)
+    engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3]}))
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
@@ -192,45 +219,37 @@ async def test_unsubscribe_deletes_all_rows(db_session):
 async def test_sync_refreshes_progress_and_adds_new_season(db_session):
     """sync 应回写存量季进度，并为新出现的缺集季建订阅。"""
     fake = FakeMp()
-    engine = MpSyncEngine(fake, FakeTmdb())
+    # 剧不在 Emby 库 → 所有已播季（1、2）都缺
+    engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3], 2: [1, 2]}))
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
-    # 存量：第 1 季已建 MP 订阅
     db_session.add(MpSubscription(subscription_id=sub.id, tmdb_id=sub.tmdb_id, season=1, mp_sub_id=301))
     await db_session.commit()
-    # 现在 MP 报告第 1、2 季都缺集
-    fake.missing_seasons = [
-        {"season": 1, "episodes": [5], "total_episode": 10},
-        {"season": 2, "episodes": [1, 2], "total_episode": 8},
-    ]
 
     await engine.sync(db_session)
 
     rows = (await db_session.execute(select(MpSubscription))).scalars().all()
     by_season = {r.season: r for r in rows}
     assert set(by_season) == {1, 2}
-    # 存量季进度已回写
     assert by_season[1].mp_status == "R"
     assert by_season[1].mp_missing_eps == 3
     assert by_season[1].mp_completed_eps == 7
-    # 新季已建订阅
     assert by_season[2].mp_sub_id == 100
 
 
 async def test_sync_removes_filled_season(db_session):
-    """sync 应删除已完结且补齐（MP 不再缺集）的季订阅与子表行。"""
+    """sync 应删除已完结且补齐（库内 >= 已播）的季订阅与子表行。"""
     fake = FakeMp()
-    # 第 2 季已完结 → 补齐后应删；第 1 季仍缺集 → 保留
-    engine = MpSyncEngine(fake, FakeTmdb(completion={1: False, 2: True}))
+    # 库内：第2季已补齐（2集）；第1季无库内记录 → 缺。第2季完结 → 删
+    _seed_emby_seasons(db_session, 123, {2: 2})
+    engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3], 2: [1, 2]}, completion={1: False, 2: True}))
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
     db_session.add(MpSubscription(subscription_id=sub.id, tmdb_id=sub.tmdb_id, season=1, mp_sub_id=401))
     db_session.add(MpSubscription(subscription_id=sub.id, tmdb_id=sub.tmdb_id, season=2, mp_sub_id=402))
     await db_session.commit()
-    # 现在只有第 1 季缺集，第 2 季已补齐
-    fake.missing_seasons = [{"season": 1, "episodes": [5], "total_episode": 10}]
 
     await engine.sync(db_session)
 
@@ -240,24 +259,22 @@ async def test_sync_removes_filled_season(db_session):
 
 
 async def test_sync_keeps_unfinished_filled_season(db_session):
-    """已订阅的季即便暂不缺集，只要未完结（后续还有集）就保留订阅，不删除。"""
+    """已订阅的季即便补齐，只要未完结就保留订阅，不删除。"""
     fake = FakeMp()
-    # 第 2 季未完结 → 即便补齐也保留
-    engine = MpSyncEngine(fake, FakeTmdb(completion={1: False, 2: False}))
+    _seed_emby_seasons(db_session, 123, {2: 2})  # 第2季补齐但未完结
+    engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3], 2: [1, 2]}, completion={1: False, 2: False}))
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
     db_session.add(MpSubscription(subscription_id=sub.id, tmdb_id=sub.tmdb_id, season=1, mp_sub_id=501))
     db_session.add(MpSubscription(subscription_id=sub.id, tmdb_id=sub.tmdb_id, season=2, mp_sub_id=502))
     await db_session.commit()
-    # 现在只有第 1 季缺集，第 2 季暂不缺集但未完结
-    fake.missing_seasons = [{"season": 1, "episodes": [5], "total_episode": 10}]
 
     await engine.sync(db_session)
 
     rows = (await db_session.execute(select(MpSubscription))).scalars().all()
-    assert sorted(r.season for r in rows) == [1, 2]  # 第 2 季保留
-    assert fake.deleted == []  # 未删除任何订阅
+    assert sorted(r.season for r in rows) == [1, 2]  # 第2季保留
+    assert fake.deleted == []
 
 
 def test_extract_sub_id_variants():

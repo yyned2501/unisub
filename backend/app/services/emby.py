@@ -13,10 +13,41 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.http_client import http_client
 from app.core.logger import init_logger
 from app.models.emby_cache import EmbyCache
+from app.models.emby_season_cache import EmbySeasonCache
 from app.models.tmdb_cache import TmdbCache
 from app.services.tmdb import TMDBService
 
 logger = init_logger()
+
+
+def _aggregate_episodes(ep_items: list[dict]) -> tuple[dict[str, int], dict[str, dict[int, int]]]:
+    """把一批 Emby Episode 项聚合为整剧集数与按季集数。
+
+    Args:
+        ep_items: Emby /Items 返回的 Episode 项列表（需含 SeriesId、ParentIndexNumber）
+
+    Returns:
+        ``(episode_counts, season_counts)``：
+        episode_counts = ``{series_id: 整剧集数}``；
+        season_counts = ``{series_id: {季号: 该季集数}}``（跳过无 SeriesId 的项，
+        特典季 ParentIndexNumber<1 不计入按季统计）。
+    """
+    episode_counts: dict[str, int] = {}
+    season_counts: dict[str, dict[int, int]] = {}
+    for ep in ep_items:
+        sid = ep.get("SeriesId")
+        if not sid:
+            continue
+        episode_counts[sid] = episode_counts.get(sid, 0) + 1
+        sn = ep.get("ParentIndexNumber")
+        if sn is None:
+            continue
+        sn = int(sn)
+        if sn < 1:
+            continue  # 特典季/异常季号不计入按季统计
+        per_season = season_counts.setdefault(sid, {})
+        per_season[sn] = per_season.get(sn, 0) + 1
+    return episode_counts, season_counts
 
 
 class EmbyService:
@@ -343,9 +374,11 @@ class EmbyService:
             fields="ProviderIds,Path,Overview,UserData,RecursiveItemCount,ProductionYear",
         )
 
-        # 批量分页查询所有 episode，按 SeriesId 统计实际集数
+        # 批量分页查询所有 episode，按 SeriesId 统计整剧集数、按季集数
+        # （带 ParentIndexNumber 字段，同一次请求即可拿到按季数据，零额外 Emby 调用）
         logger.info(f"Emby 缓存同步: 获取 {len(items)} 部剧集的集数统计...")
         episode_counts: dict[str, int] = {}
+        season_counts: dict[str, dict[int, int]] = {}
         url = f"{self.base_url}/Items"
         limit = 50000
         start_index = 0
@@ -354,7 +387,7 @@ class EmbyService:
             params = {
                 "Recursive": "true",
                 "IncludeItemTypes": "Episode",
-                "Fields": "SeriesId",
+                "Fields": "SeriesId,ParentIndexNumber",
                 "Limit": str(limit),
                 "StartIndex": str(start_index),
             }
@@ -364,10 +397,13 @@ class EmbyService:
             ep_items = result.get("Items", [])
             if not ep_items:
                 break
-            for ep in ep_items:
-                sid = ep.get("SeriesId")
-                if sid:
-                    episode_counts[sid] = episode_counts.get(sid, 0) + 1
+            batch_ep, batch_season = _aggregate_episodes(ep_items)
+            for sid, cnt in batch_ep.items():
+                episode_counts[sid] = episode_counts.get(sid, 0) + cnt
+            for sid, seasons in batch_season.items():
+                target = season_counts.setdefault(sid, {})
+                for sn, cnt in seasons.items():
+                    target[sn] = target.get(sn, 0) + cnt
             total = result.get("TotalRecordCount", 0)
             start_index += len(ep_items)
             logger.info(f"  已获取 {start_index}/{total} 个 episode")
@@ -378,6 +414,7 @@ class EmbyService:
 
         # 写入 emby_cache（只写 emby 字段，TMDB 字段留空后续补充）
         synced_tmdb_ids = set()
+        synced_season_pairs: set[tuple[int, int]] = set()
 
         for tmdb_id, item in items.items():
             synced_tmdb_ids.add(tmdb_id)
@@ -424,6 +461,15 @@ class EmbyService:
                 )
                 db.add(cache)
 
+            # 按季库集数写入 emby_season_cache（供 MP 订阅本地算缺集，零额外 Emby 调用）
+            for sn, cnt in (season_counts.get(emby_id, {}) if emby_id else {}).items():
+                synced_season_pairs.add((tmdb_id, sn))
+                existing_season = await db.get(EmbySeasonCache, (tmdb_id, sn))
+                if existing_season:
+                    existing_season.episode_count = cnt
+                else:
+                    db.add(EmbySeasonCache(tmdb_id=tmdb_id, season=sn, episode_count=cnt))
+
         # 删除不再存在的旧记录（只在成功获取到 Emby 数据时执行）
         if synced_tmdb_ids:
             stmt = select(EmbyCache)
@@ -436,6 +482,13 @@ class EmbyService:
         else:
             deleted = 0
             logger.warning("Emby 缓存同步未获取到数据，跳过删除旧记录")
+
+        # 删除按季缓存中不再存在的记录（季被删 / 剧从 Emby 移除）
+        if synced_season_pairs:
+            all_season_rows = (await db.execute(select(EmbySeasonCache))).scalars().all()
+            for row in all_season_rows:
+                if (row.tmdb_id, row.season) not in synced_season_pairs:
+                    await db.delete(row)
 
         await db.commit()
         logger.info(f"Emby 缓存同步完成: 更新 {len(synced_tmdb_ids)} 条, 删除 {deleted} 条")
