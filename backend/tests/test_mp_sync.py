@@ -122,8 +122,8 @@ async def test_subscribe_tv_season_full_not_subscribed(db_session):
     assert fake.created == []
 
 
-async def test_subscribe_tv_not_in_emby_subscribes_all_aired(db_session):
-    """剧不在 Emby 库（无 emby_cache）→ 所有已播季都缺，本地判定建订阅，不调 notexists。"""
+async def test_subscribe_tv_not_in_emby_skips(db_session):
+    """剧不在 Emby 库（无 emby_cache）→ 不镜像（只补已在库剧的缺集），不建订阅。"""
     fake = FakeMp()
     engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3], 2: [1]}))
     sub = _make_sub()
@@ -134,7 +134,8 @@ async def test_subscribe_tv_not_in_emby_subscribes_all_aired(db_session):
     await db_session.commit()
 
     rows = (await db_session.execute(select(MpSubscription))).scalars().all()
-    assert sorted(r.season for r in rows) == [1, 2]
+    assert rows == []
+    assert fake.created == []
     assert fake.notexists_calls == 0
 
 
@@ -219,7 +220,9 @@ async def test_unsubscribe_deletes_all_rows(db_session):
 async def test_sync_refreshes_progress_and_adds_new_season(db_session):
     """sync 应回写存量季进度，并为新出现的缺集季建订阅。"""
     fake = FakeMp()
-    # 剧不在 Emby 库 → 所有已播季（1、2）都缺
+    # 剧在 Emby 库；库内第1季1集（缺2）、第2季无记录（缺）→ 两季都缺
+    _seed_emby_show(db_session, 123)
+    _seed_emby_seasons(db_session, 123, {1: 1})
     engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3], 2: [1, 2]}))
     sub = _make_sub()
     db_session.add(sub)
@@ -242,6 +245,7 @@ async def test_sync_removes_filled_season(db_session):
     """sync 应删除已完结且补齐（库内 >= 已播）的季订阅与子表行。"""
     fake = FakeMp()
     # 库内：第2季已补齐（2集）；第1季无库内记录 → 缺。第2季完结 → 删
+    _seed_emby_show(db_session, 123)
     _seed_emby_seasons(db_session, 123, {2: 2})
     engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3], 2: [1, 2]}, completion={1: False, 2: True}))
     sub = _make_sub()
@@ -261,6 +265,7 @@ async def test_sync_removes_filled_season(db_session):
 async def test_sync_keeps_unfinished_filled_season(db_session):
     """已订阅的季即便补齐，只要未完结就保留订阅，不删除。"""
     fake = FakeMp()
+    _seed_emby_show(db_session, 123)
     _seed_emby_seasons(db_session, 123, {2: 2})  # 第2季补齐但未完结
     engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3], 2: [1, 2]}, completion={1: False, 2: False}))
     sub = _make_sub()
@@ -275,6 +280,25 @@ async def test_sync_keeps_unfinished_filled_season(db_session):
     rows = (await db_session.execute(select(MpSubscription))).scalars().all()
     assert sorted(r.season for r in rows) == [1, 2]  # 第2季保留
     assert fake.deleted == []
+
+
+async def test_sync_cleans_not_in_emby_show(db_session):
+    """剧不在 Emby 库（如被移除）→ sync 应清掉其全部 MP 镜像订阅。"""
+    fake = FakeMp()
+    engine = MpSyncEngine(fake, FakeTmdb(seasons_map={1: [1, 2, 3]}))
+    sub = _make_sub()
+    db_session.add(sub)
+    await db_session.flush()
+    db_session.add(MpSubscription(subscription_id=sub.id, tmdb_id=sub.tmdb_id, season=1, mp_sub_id=601))
+    db_session.add(MpSubscription(subscription_id=sub.id, tmdb_id=sub.tmdb_id, season=2, mp_sub_id=602))
+    await db_session.commit()
+    # 无 emby_cache 记录 → 剧不在库
+
+    await engine.sync(db_session)
+
+    rows = (await db_session.execute(select(MpSubscription))).scalars().all()
+    assert rows == []
+    assert sorted(fake.deleted) == [601, 602]
 
 
 def test_extract_sub_id_variants():

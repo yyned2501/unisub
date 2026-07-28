@@ -125,6 +125,21 @@ class MpSyncEngine:
         )
         rows_by_season: dict[int | None, MpSubscription] = {r.season: r for r in rows}
 
+        # 电视剧：只镜像已在 Emby 库的剧（补 gap）。不在库 → 清掉已有镜像、不新建，
+        # 先于进度回写处理，避免对将被清理的订阅做无效 MP 调用。
+        if sub.media_type != "movie" and not await self._show_in_emby(db, sub.tmdb_id):
+            for row in rows:
+                if row.mp_sub_id is not None:
+                    result = await self.mp.delete_subscription(row.mp_sub_id)
+                    if "error" in result:
+                        logger.warning("MP 清理不在库剧订阅失败: %s 第%s季, %s", sub.title, row.season, result)
+                await db.delete(row)
+            if rows:
+                logger.info(
+                    "MP 镜像 — 剧不在 Emby 库，清理镜像: %s (tmdb_id=%d, %d 条)", sub.title, sub.tmdb_id, len(rows)
+                )
+            return
+
         # 存量行：回写 MP 进度
         for row in rows:
             await self._refresh_row(sub, row)
@@ -269,8 +284,9 @@ class MpSyncEngine:
             return self._diff_missing(seasons_map, emby_counts)
 
         if not await self._show_in_emby(db, sub.tmdb_id):
-            # 剧不在 Emby 库 → 已播集全缺，本地直接判定，不调 notexists
-            return self._diff_missing(seasons_map, {})
+            # 剧不在 Emby 库 → 不镜像（只补已在库剧的缺集，不整部下载），返回"无缺集"
+            logger.debug("剧不在 Emby 库，跳过 MP 镜像: %s (tmdb_id=%d)", sub.title, sub.tmdb_id)
+            return []
 
         # 剧在库但无按季缓存（同步缺口）→ notexists 兜底一次
         logger.debug("本地无按季库缓存，notexists 兜底: %s (tmdb_id=%d)", sub.title, sub.tmdb_id)
