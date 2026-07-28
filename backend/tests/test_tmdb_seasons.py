@@ -220,3 +220,15 @@ async def test_get_seasons_map_ttl_refresh_after_day(db_session, monkeypatch):
     result = await svc.get_seasons_map(db_session, 900)
     assert called["hit"] is True  # 过 TTL → 触发复核
     assert result == {1: [1, 2, 3, 4, 5]}  # 复核后该季已播，纳入结构
+
+
+async def test_get_season_completion(db_session):
+    """完结判定：已播>=总集数（且总集数>0）为完结；未播满或脏数据为未完结。"""
+    db_session.add(TmdbSeason(tmdb_id=1000, season=1, episode_count=10, aired_count=10))  # 完结
+    db_session.add(TmdbSeason(tmdb_id=1000, season=2, episode_count=10, aired_count=3))  # 连载中
+    db_session.add(TmdbSeason(tmdb_id=1000, season=3, episode_count=0, aired_count=0))  # 脏数据
+    await db_session.commit()
+
+    svc = _make_service()
+    result = await svc.get_season_completion(db_session, 1000)
+    assert result == {1: True, 2: False, 3: False}

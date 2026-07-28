@@ -416,6 +416,30 @@ class TMDBService:
         # 只纳入已播季，集数范围以已播集数为准
         return {row.season: list(range(1, (row.aired_count or 0) + 1)) for row in rows if (row.aired_count or 0) > 0}
 
+    async def get_season_completion(self, db: AsyncSession, tmdb_id: int) -> dict[int, bool]:
+        """返回每季是否已完结 ``{季号: 是否完结}``，依据本地 tmdb_season 缓存。
+
+        已播集数达到总集数（aired_count >= episode_count 且总集数>0）视为该季完结。
+        供 MP 镜像同步判断：已订阅的季即便暂不缺集，只要未完结（后续还有集要播）
+        就保留订阅。纯本地读取，不发外部请求。
+
+        Args:
+            db: 数据库会话
+            tmdb_id: TMDB ID
+
+        Returns:
+            ``{季号: 是否完结}``；无缓存数据的季不包含在内（调用方按未完结保守处理）。
+        """
+        from sqlalchemy import select
+
+        from app.models.tmdb_season import TmdbSeason
+
+        rows = (await db.execute(select(TmdbSeason).where(TmdbSeason.tmdb_id == tmdb_id))).scalars().all()
+        return {
+            row.season: (row.episode_count or 0) > 0 and (row.aired_count or 0) >= (row.episode_count or 0)
+            for row in rows
+        }
+
     def _unaired_needs_refresh(self, rows: list) -> bool:
         """判断是否需要为未播季重新拉 TMDB 复核。
 

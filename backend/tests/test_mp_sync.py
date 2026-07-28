@@ -42,16 +42,21 @@ class FakeMp:
 
 
 class FakeTmdb:
-    """TMDBService 测试桩 — get_seasons_map 返回可配置的季集结构。"""
+    """TMDBService 测试桩 — get_seasons_map / get_season_completion 返回可配置结果。"""
 
-    def __init__(self, seasons_map=None):
+    def __init__(self, seasons_map=None, completion=None):
         # 默认给一个非空季集结构，使 mp_sync 的缺集查询流程能走下去
         self.seasons_map = seasons_map if seasons_map is not None else {1: [1, 2, 3]}
+        # 每季是否已完结 {季号: bool}；默认空 → 所有季按未完结处理（保留订阅）
+        self.completion = completion if completion is not None else {}
         self.calls: list[int] = []
 
     async def get_seasons_map(self, db, tmdb_id):
         self.calls.append(tmdb_id)
         return self.seasons_map
+
+    async def get_season_completion(self, db, tmdb_id):
+        return self.completion
 
 
 def _make_sub(media_type: str = "tv", **kw) -> Subscription:
@@ -214,9 +219,10 @@ async def test_sync_refreshes_progress_and_adds_new_season(db_session):
 
 
 async def test_sync_removes_filled_season(db_session):
-    """sync 应删除已补齐（MP 不再缺集）的季订阅与子表行。"""
+    """sync 应删除已完结且补齐（MP 不再缺集）的季订阅与子表行。"""
     fake = FakeMp()
-    engine = MpSyncEngine(fake, FakeTmdb())
+    # 第 2 季已完结 → 补齐后应删；第 1 季仍缺集 → 保留
+    engine = MpSyncEngine(fake, FakeTmdb(completion={1: False, 2: True}))
     sub = _make_sub()
     db_session.add(sub)
     await db_session.flush()
@@ -231,6 +237,27 @@ async def test_sync_removes_filled_season(db_session):
     rows = (await db_session.execute(select(MpSubscription))).scalars().all()
     assert [r.season for r in rows] == [1]
     assert fake.deleted == [402]
+
+
+async def test_sync_keeps_unfinished_filled_season(db_session):
+    """已订阅的季即便暂不缺集，只要未完结（后续还有集）就保留订阅，不删除。"""
+    fake = FakeMp()
+    # 第 2 季未完结 → 即便补齐也保留
+    engine = MpSyncEngine(fake, FakeTmdb(completion={1: False, 2: False}))
+    sub = _make_sub()
+    db_session.add(sub)
+    await db_session.flush()
+    db_session.add(MpSubscription(subscription_id=sub.id, tmdb_id=sub.tmdb_id, season=1, mp_sub_id=501))
+    db_session.add(MpSubscription(subscription_id=sub.id, tmdb_id=sub.tmdb_id, season=2, mp_sub_id=502))
+    await db_session.commit()
+    # 现在只有第 1 季缺集，第 2 季暂不缺集但未完结
+    fake.missing_seasons = [{"season": 1, "episodes": [5], "total_episode": 10}]
+
+    await engine.sync(db_session)
+
+    rows = (await db_session.execute(select(MpSubscription))).scalars().all()
+    assert sorted(r.season for r in rows) == [1, 2]  # 第 2 季保留
+    assert fake.deleted == []  # 未删除任何订阅
 
 
 def test_extract_sub_id_variants():

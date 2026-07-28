@@ -92,7 +92,7 @@ class MpSyncEngine:
         遍历未完成的本地订阅：
             - 存量子表行：拉 MP 详情回写缺集/完成数
             - 电视剧新出现的缺集季：建 MP 订阅
-            - 已补齐（缺集清零）的季：删 MP 订阅 + 删子表行
+            - 已完结且补齐的季：删 MP 订阅 + 删子表行（未完结的季即便暂不缺集也保留）
 
         Args:
             db: 数据库会话
@@ -149,17 +149,25 @@ class MpSyncEngine:
             if sn not in rows_by_season:
                 await self._create_mp_sub(db, sub, season=sn, missing_info=item)
 
-        # 已补齐的季（子表有但 MP 已不缺）→ 删订阅 + 删子表行
-        for sn, row in rows_by_season.items():
-            if sn is None or sn in missing_seasons:
+        # 已补齐的季（子表有但 MP 已不缺）：仅当该季已完结才删订阅。
+        # 未完结的季（已播 < 总集数，后续还有集要播）即便暂不缺集也保留订阅，
+        # 避免"追平即删、下集播出又重建"的反复。
+        filled = [sn for sn in rows_by_season if sn is not None and sn not in missing_seasons]
+        completion: dict[int, bool] = {}
+        if filled and self.tmdb:
+            completion = await self.tmdb.get_season_completion(db, sub.tmdb_id)
+        for sn in filled:
+            if not completion.get(sn, False):
+                logger.debug("MP 镜像 — 季暂不缺集但未完结，保留订阅: %s 第%d季", sub.title, sn)
                 continue
+            row = rows_by_season[sn]
             if row.mp_sub_id is not None:
                 result = await self.mp.delete_subscription(row.mp_sub_id)
                 if "error" in result:
-                    logger.warning("MP 删除已补齐季失败: %s 第%d季, %s", sub.title, sn, result)
+                    logger.warning("MP 删除已完结季失败: %s 第%d季, %s", sub.title, sn, result)
                     continue
             await db.delete(row)
-            logger.info("MP 镜像 — 季已补齐，删除订阅: %s 第%d季", sub.title, sn)
+            logger.info("MP 镜像 — 季已完结且补齐，删除订阅: %s 第%d季", sub.title, sn)
 
     async def _create_mp_sub(
         self,
