@@ -25,6 +25,9 @@ class TmdbSeason(Base):
     tmdb_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False, comment="TMDB ID")
     season: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False, comment="季号（不含特典季 0）")
     episode_count: Mapped[int] = mapped_column(Integer, default=0, comment="该季总集数")
+    aired_count: Mapped[int] = mapped_column(
+        Integer, default=0, comment="该季已播出集数（0=未开播，MP 订阅据此过滤 TMDB 脏数据季）"
+    )
     air_date: Mapped[str | None] = mapped_column(String(20), nullable=True, comment="该季首播日期")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

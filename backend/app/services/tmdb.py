@@ -3,12 +3,18 @@
 用于计算连载中剧集的实际已播出集数，避免以 TMDB 总量作为缺集基准。
 """
 
+from datetime import UTC, date, datetime, timedelta
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.http_client import http_client
 from app.core.logger import init_logger
 
 logger = init_logger()
+
+# 未播季重新识别间隔：一旦识别出某季无已播集数并过滤，此间隔内不再查 TMDB 复核，
+# 过期后才重新识别（届时该季可能已开播）。过滤掉的季 1 天内直接复用缓存跳过。
+SEASON_CACHE_TTL = timedelta(days=1)
 
 
 class TMDBService:
@@ -108,6 +114,53 @@ class TMDBService:
 
         total += last_episode
         return total
+
+    @staticmethod
+    def aired_count_by_season(detail: dict) -> dict[int, int]:
+        """从剧集详情计算每季已播出集数 ``{季号: 已播集数}``（纯计算，不发请求）。
+
+        用于过滤 TMDB 脏数据：announced 但未开播的季会带 episode_count（计划总集数），
+        若据此订阅会让 MP 去追根本不存在的集。此方法算出每季真实已播集数，
+        已播为 0 的季不应被 MP 订阅。
+
+        判定规则：
+            - 季首播日 air_date 缺失或晚于今天 → 0（未开播）
+            - 连载剧（Returning Series）：早于当前播出季的视为全部播出（=总集数）；
+              当前季用 last_episode_to_air 的集号；晚于当前季的为 0
+            - 其他状态（已完结/取消等）且已开播 → 视为全部播出（=总集数）
+
+        Args:
+            detail: /tv/{id} 返回的详情字典（含 seasons / status / last_episode_to_air）
+
+        Returns:
+            ``{季号: 已播集数}``，不含特典季（season_number=0）
+        """
+        today = datetime.now(UTC).date()
+        status = detail.get("status", "")
+        last = detail.get("last_episode_to_air") or {}
+        last_season = last.get("season_number") or 0
+        last_episode = last.get("episode_number") or 0
+
+        result: dict[int, int] = {}
+        for s in detail.get("seasons") or []:
+            sn = s.get("season_number")
+            if sn is None or sn == 0:
+                continue  # 跳过特典季
+            episode_count = s.get("episode_count") or 0
+            air_date = _parse_date(s.get("air_date"))
+            if air_date is None or air_date > today:
+                result[sn] = 0  # 无首播日或在未来 → 未开播
+                continue
+            if status == "Returning Series":
+                if sn < last_season:
+                    result[sn] = episode_count  # 早于当前季 → 已全部播出
+                elif sn == last_season:
+                    result[sn] = last_episode  # 当前季 → 已播到 last_episode
+                else:
+                    result[sn] = 0  # 晚于当前播出季 → 未播
+            else:
+                result[sn] = episode_count  # 已完结/取消等：已开播即视为全部播出
+        return result
 
     async def get_tv_detail(self, tmdb_id: int) -> dict:
         """获取剧集完整详情，包括 number_of_episodes、seasons 等。
@@ -297,6 +350,8 @@ class TMDBService:
         """
         from app.models.tmdb_season import TmdbSeason
 
+        # 先算每季已播集数（过滤未播季的依据），与季数据一并落库
+        aired_map = self.aired_count_by_season(detail)
         seasons = detail.get("seasons") or []
         for s in seasons:
             sn = s.get("season_number")
@@ -304,13 +359,23 @@ class TMDBService:
                 continue  # 跳过特典季
             episode_count = s.get("episode_count") or 0
             air_date = s.get("air_date")
+            aired_count = aired_map.get(sn, 0)
             # 复合主键 (tmdb_id, season)，用 get 精确取
             existing = await db.get(TmdbSeason, (tmdb_id, sn))
             if existing:
                 existing.episode_count = episode_count
+                existing.aired_count = aired_count
                 existing.air_date = air_date
             else:
-                db.add(TmdbSeason(tmdb_id=tmdb_id, season=sn, episode_count=episode_count, air_date=air_date))
+                db.add(
+                    TmdbSeason(
+                        tmdb_id=tmdb_id,
+                        season=sn,
+                        episode_count=episode_count,
+                        aired_count=aired_count,
+                        air_date=air_date,
+                    )
+                )
 
     async def get_seasons_map(self, db: AsyncSession, tmdb_id: int) -> dict[int, list[int]] | None:
         """获取剧集的季集结构（{季号: [集号列表]}），优先本地缓存，缺失时调 TMDB 补。
@@ -318,12 +383,17 @@ class TMDBService:
         MP notexists 依据此结构逐季比对算缺集。本地 tmdb_season 无数据时，
         调 update_cache_for_tv 查询 TMDB 并落库（一次请求同时刷新整剧缓存与季数据）。
 
+        过滤 TMDB 脏数据：只纳入有已播集数（aired_count>0）的季，集数范围以已播集数
+        为准（[1..aired_count]），未开播的季不出现在结构中 → MP 不会对其建订阅。
+        未播季的识别结果带 1 天 TTL：距上次评估超过 SEASON_CACHE_TTL 才重新拉 TMDB
+        复核，1 天内直接复用缓存跳过，避免每轮同步都重查未播季。
+
         Args:
             db: 数据库会话
             tmdb_id: TMDB ID
 
         Returns:
-            ``{季号: [集号列表]}``；查不到任何季数据时返回 None。
+            ``{季号: [集号列表]}``（仅含已播季）；查不到任何季数据时返回 None。
         """
         from sqlalchemy import select
 
@@ -335,7 +405,57 @@ class TMDBService:
             await self.update_cache_for_tv(db, tmdb_id)
             rows = (await db.execute(select(TmdbSeason).where(TmdbSeason.tmdb_id == tmdb_id))).scalars().all()
 
+        # 有未播季且其识别结果已过 TTL → 重新拉 TMDB 复核（该季可能已开播）
+        if rows and self._unaired_needs_refresh(rows):
+            await self.update_cache_for_tv(db, tmdb_id)
+            rows = (await db.execute(select(TmdbSeason).where(TmdbSeason.tmdb_id == tmdb_id))).scalars().all()
+
         if not rows:
             return None
 
-        return {row.season: list(range(1, (row.episode_count or 0) + 1)) for row in rows if row.episode_count}
+        # 只纳入已播季，集数范围以已播集数为准
+        return {row.season: list(range(1, (row.aired_count or 0) + 1)) for row in rows if (row.aired_count or 0) > 0}
+
+    def _unaired_needs_refresh(self, rows: list) -> bool:
+        """判断是否需要为未播季重新拉 TMDB 复核。
+
+        仅当存在 aired_count=0 的季、且其上次评估（updated_at）距今超过
+        SEASON_CACHE_TTL 时才刷新；否则 1 天内复用缓存，不重查未播季。
+
+        Args:
+            rows: tmdb_season 行列表
+
+        Returns:
+            需要刷新返回 True
+        """
+        if not self.api_key:
+            return False
+        now = datetime.now(UTC)
+        for row in rows:
+            if (row.aired_count or 0) != 0:
+                continue  # 已播季不在此处触发刷新
+            updated = row.updated_at
+            if updated is None:
+                return True
+            if updated.tzinfo is None:
+                updated = updated.replace(tzinfo=UTC)  # sqlite 可能返回 naive datetime
+            if now - updated > SEASON_CACHE_TTL:
+                return True
+        return False
+
+
+def _parse_date(value: str | None) -> date | None:
+    """把 ``YYYY-MM-DD`` 字符串解析为 date，缺失或非法格式返回 None。
+
+    Args:
+        value: 日期字符串（TMDB 的 air_date 等，可能带时间后缀）
+
+    Returns:
+        解析出的 date，或 None
+    """
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
