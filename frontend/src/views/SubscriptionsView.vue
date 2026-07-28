@@ -67,11 +67,29 @@ function mpBadge(row: Subscription) {
   )
 }
 
-/** 状态列：NF 状态 + MP 角标 */
+/** NF 订阅角标：显示 NF 订阅状态与缺集数 */
+function nfBadge(row: Subscription) {
+  if (!row.nf_subscribed) return null
+  const labels: Record<string, string> = {
+    active: '订阅中',
+    missing_fill: '补全中',
+    completed: '已完成',
+  }
+  const text = row.nf_status ? labels[row.nf_status] || row.nf_status : '订阅中'
+  const type = row.nf_status === 'completed' ? 'success' : 'primary'
+  return h(NTag, { type, size: 'tiny', round: true }, { default: () => text })
+}
+
+/** 状态列：NF 状态 + 入库/已播/全集 + MP 角标 */
 function statusColumn(row: Subscription) {
-  const badge = mpBadge(row)
-  if (!badge) return statusCell(row)
-  return h('div', { class: 'flex items-center gap-1 flex-wrap' }, [statusCell(row), badge])
+  const nfB = nfBadge(row)
+  const mpB = mpBadge(row)
+  if (!nfB && !mpB) return statusCell(row)
+  const children: any[] = []
+  if (nfB) children.push(nfB)
+  children.push(statusCell(row))
+  if (mpB) children.push(mpB)
+  return h('div', { class: 'flex items-center gap-1 flex-wrap' }, children)
 }
 
 const {
