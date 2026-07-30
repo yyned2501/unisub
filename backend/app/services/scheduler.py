@@ -14,7 +14,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from croniter import croniter
-from pydantic import BaseModel, Field
 
 from app.core.logger import init_logger
 
@@ -38,17 +37,6 @@ _task_config: dict = {
     "mp_supplement_enabled": True,
     "auto_sync_enabled": True,
 }
-
-
-class TaskConfigUpdate(BaseModel):
-    """定时任务配置更新请求。"""
-
-    interval_minutes: int | None = Field(None, ge=5, le=1440, description="全量扫描间隔（分钟）")
-    light_interval_minutes: int | None = Field(None, ge=1, le=120, description="轻量刷新间隔（分钟）")
-    sync_interval_minutes: int | None = Field(None, ge=5, le=1440, description="NF 订阅同步间隔（分钟）")
-    tmdb_interval_minutes: int | None = Field(None, ge=5, le=1440, description="TMDB 增量刷新间隔（分钟）")
-    mp_supplement_enabled: bool | None = Field(None, description="是否启用 MP 补充搜索")
-    auto_sync_enabled: bool | None = Field(None, description="是否启用自动同步")
 
 
 async def start(

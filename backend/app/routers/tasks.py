@@ -3,15 +3,15 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
+from app.schemas.task import TaskConfigUpdate, TaskStatusResponse, TaskTriggerResponse
 from app.services import get_mp_service, get_nf_service, get_tmdb_service, log_activity
 from app.services.orchestrator import OrchestratorService
-from app.services.scheduler import TaskConfigUpdate, _task_config, save_state
+from app.services.scheduler import _task_config, save_state
 
 router = APIRouter(prefix="/api/tasks", tags=["定时任务"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
@@ -22,24 +22,6 @@ _task_status: dict = {
     "last_result": None,
     "running": False,
 }
-
-
-class TaskStatusResponse(BaseModel):
-    """定时任务状态响应。"""
-
-    running: bool
-    last_run: str | None = None
-    last_result: dict | None = None
-    config: dict
-
-
-class TaskTriggerResponse(BaseModel):
-    """手动触发任务响应。"""
-
-    success: bool
-    message: str
-    sync_count: int = 0
-    mp_search_count: int = 0
 
 
 @router.get("/status", response_model=TaskStatusResponse)

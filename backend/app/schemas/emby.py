@@ -68,12 +68,6 @@ class EmbySubscribeRequest(BaseModel):
     year: int | None = None
 
 
-class EmbyActionRequest(BaseModel):
-    """Emby 通用操作请求（仅需 tmdb_id）。"""
-
-    tmdb_id: int
-
-
 class EmbyActionResponse(BaseModel):
     """Emby 操作结果响应。"""
 

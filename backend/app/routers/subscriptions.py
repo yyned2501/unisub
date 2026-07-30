@@ -12,6 +12,7 @@ from app.core.logger import init_logger
 from app.models.platform_config import PlatformConfig
 from app.models.subscription import Subscription
 from app.schemas.subscription import (
+    BlacklistToggleResponse,
     SubscriptionCreate,
     SubscriptionResponse,
     SubscriptionSyncResult,
@@ -81,7 +82,7 @@ async def delete_subscription(
     return result
 
 
-@router.patch("/{subscription_id}/blacklist")
+@router.patch("/{subscription_id}/blacklist", response_model=BlacklistToggleResponse)
 async def toggle_blacklist(
     subscription_id: str,
     db: AsyncSession = Depends(get_db),

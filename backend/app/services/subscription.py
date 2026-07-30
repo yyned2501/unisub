@@ -14,6 +14,7 @@ from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
 from app.models.tmdb_cache import TmdbCache
 from app.schemas.subscription import MpSubscriptionResponse, SubscriptionResponse
+from app.services.poster import build_tmdb_poster_url
 from app.services.tmdb import TMDBService
 
 _TMDB_SEMAPHORE = asyncio.Semaphore(5)
@@ -149,9 +150,9 @@ async def _update_tmdb_cache_for_sub(scan_db, sub, tmdb_service):
         if total:
             tc.tmdb_total_eps = total
         if poster_path and not tc.poster_url:
-            tc.poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}"
+            tc.poster_url = build_tmdb_poster_url(poster_path)
     else:
-        poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+        poster_url = build_tmdb_poster_url(poster_path)
         tc = TmdbCache(
             tmdb_id=sub.tmdb_id,
             tmdb_aired_eps=aired,

@@ -1,7 +1,6 @@
 """Emby 媒体库路由 — 缺集分析（从缓存表读取）+ 缓存同步 + 黑名单。"""
 
 import asyncio
-import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -268,42 +267,7 @@ async def resolve_tmdb_404_path(
         raise HTTPException(status_code=400, detail="该剧集没有路径信息，无法在 CD2 中定位")
 
     service = CloudDrive2Service(cd2_config.base_url, cd2_config.api_key)
-
-    # 1. 尝试精确查找
-    found = await service._client.find_file_by_path(cd2_path)
-    if found:
-        sub_files = await service._client.list_sub_files(cd2_path)
-        return {
-            "verified": True,
-            "cd2_path": found["path"],
-            "name": found["name"],
-            "file_type": "directory" if found.get("file_type") == 0 else "file",
-            "sub_items": len(sub_files),
-            "sub_file_names": [f["name"] for f in sub_files[:20]],
-            "note": "CD2 中已确认该路径",
-        }
-
-    # 2. 精确查找不到，尝试逐级查找
-    parent_path = "/".join(cd2_path.rstrip("/").split("/")[:-1]) or "/"
-    folder_name = cd2_path.rstrip("/").split("/")[-1]
-    parent_files = await service._client.list_sub_files(parent_path)
-    candidates = [f for f in parent_files if folder_name in f["name"]]
-    if candidates:
-        return {
-            "verified": True,
-            "cd2_path": candidates[0]["path"],
-            "name": candidates[0]["name"],
-            "file_type": "directory" if candidates[0].get("is_dir") else "file",
-            "sub_items": len(candidates),
-            "sub_file_names": [f["name"] for f in candidates],
-            "note": "模糊匹配找到的路径，请确认是否正确",
-        }
-
-    return {
-        "verified": False,
-        "cd2_path": cd2_path,
-        "note": "CD2 中未找到该路径，请手动检查",
-    }
+    return await service.resolve_path(cd2_path)
 
 
 @router.post("/tmdb-404/{tmdb_id}/move")
@@ -329,46 +293,18 @@ async def move_tmdb_404_to_pending(
     if not emby_path or not cd2_src_path:
         raise HTTPException(status_code=400, detail="该剧集没有 Emby 路径信息，请先同步缓存")
 
+    service = CloudDrive2Service(cd2_config.base_url, cd2_config.api_key)
     try:
-        service = CloudDrive2Service(cd2_config.base_url, cd2_config.api_key)
-
-        # 1. 先重命名文件夹，去掉 {tmdb-xxx} 标记
-        parent_path = "/".join(cd2_src_path.rstrip("/").split("/")[:-1]) or "/"
-        folder_name = cd2_src_path.rstrip("/").split("/")[-1]
-        new_name = re.sub(r"\s*\{tmdb-\d+\}\s*", "", folder_name).strip()
-        if new_name and new_name != folder_name:
-            rename_ok = await service._client.rename_file(cd2_src_path, new_name)
-            if rename_ok:
-                cd2_src_path = f"{parent_path}/{new_name}" if parent_path != "/" else f"/{new_name}"
-                logger.info(f"已重命名: {folder_name} → {new_name}")
-            else:
-                logger.warning(f"重命名失败，继续使用原路径: {folder_name}")
-        else:
-            new_name = folder_name
-
-        # 2. 确保目标目录存在
-        dest = cd2_config.target_path
-        await service._client.ensure_directory(dest)
-
-        # 3. 移动文件
-        success = await service._client.move_file([cd2_src_path], dest)
-        if not success:
-            await log_activity(
-                db, "sync", f"CD2 移动失败: {item['emby_series_name']} (tmdb_id={tmdb_id})", tmdb_id=tmdb_id
-            )
-            await db.commit()
-            raise HTTPException(status_code=500, detail="CD2 移动文件失败，请检查路径和权限")
-
-        # 4. 记录活动日志
-        await log_activity(
-            db, "sync", f"CD2 移动待整理: {item['emby_series_name']} (tmdb_id={tmdb_id})", tmdb_id=tmdb_id
-        )
+        await service.move_to_pending(cd2_src_path, cd2_config.target_path)
+    except RuntimeError as e:
+        await log_activity(db, "sync", f"CD2 移动失败: {item['emby_series_name']} (tmdb_id={tmdb_id})", tmdb_id=tmdb_id)
         await db.commit()
-
-        logger.info(f"CD2 移动成功: {item['emby_series_name']} (tmdb_id={tmdb_id}) → {dest}")
-        return {"success": True, "message": f"已移动至待整理目录: {item['emby_series_name']}"}
-    except HTTPException:
-        raise
+        raise HTTPException(status_code=500, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"CD2 移动异常: {e}")
-        raise HTTPException(status_code=500, detail=f"CD2 移动异常: {e}")
+        logger.error("CD2 移动异常: %s", e)
+        raise HTTPException(status_code=500, detail=f"CD2 移动异常: {e}") from e
+
+    await log_activity(db, "sync", f"CD2 移动待整理: {item['emby_series_name']} (tmdb_id={tmdb_id})", tmdb_id=tmdb_id)
+    await db.commit()
+    logger.info("CD2 移动成功: %s (tmdb_id=%s)", item["emby_series_name"], tmdb_id)
+    return {"success": True, "message": f"已移动至待整理目录: {item['emby_series_name']}"}

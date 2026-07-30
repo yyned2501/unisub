@@ -11,28 +11,10 @@ from app.models.subscription import Subscription
 from app.schemas.search import SearchResponse, SearchResultItem
 from app.services import require_nf_service
 from app.services.nextfind import NextFindService
+from app.services.poster import resolve_nf_poster
 
 router = APIRouter(prefix="/api/search", tags=["搜索"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
-
-
-def _resolve_poster(poster_value: str | None, base_url: str) -> str | None:
-    """解析海报 URL，将 NextFind 的相对 poster 路径转为完整 URL。
-
-    Args:
-        poster_value: poster 字段原始值（可能为相对路径、完整 URL 或 None）
-        base_url: NextFind 基础地址（如 http://192.168.31.10:8092）
-
-    Returns:
-        完整 URL 或 None
-    """
-    if not poster_value:
-        return None
-    if poster_value.startswith("http://") or poster_value.startswith("https://"):
-        return poster_value
-    if poster_value.startswith("/"):
-        return f"{base_url}{poster_value}"
-    return poster_value
 
 
 @router.get("", response_model=SearchResponse)
@@ -64,7 +46,7 @@ async def search_media(
                 title=item.get("title") or item.get("name", ""),
                 media_type=item.get("raw_type") or item.get("media_type") or item.get("type", type),
                 year=item.get("year") or item.get("release_date", "")[:4] if item.get("release_date") else None,
-                poster_url=_resolve_poster(poster_raw, nf.base_url),
+                poster_url=resolve_nf_poster(poster_raw, nf.base_url),
                 overview=item.get("overview"),
                 is_subscribed=int(tmdb_id) in subscribed_ids,
             )

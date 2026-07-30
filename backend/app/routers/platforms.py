@@ -14,10 +14,13 @@ from app.schemas.platform import (
     PlatformTestResult,
 )
 from app.services import invalidate_platform_cache
-from app.services.emby import EmbyService
-from app.services.moviepilot import MoviePilotService
-from app.services.nextfind import NextFindService
-from app.services.platform import create_platform, delete_platform, list_platforms, update_platform
+from app.services.platform import (
+    create_platform,
+    delete_platform,
+    list_platforms,
+    test_platform_connection,
+    update_platform,
+)
 
 router = APIRouter(prefix="/api/platforms", tags=["平台配置"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
@@ -77,63 +80,9 @@ async def delete_platform_endpoint(platform_id: str, db: AsyncSession = Depends(
 
 
 @router.post("/{platform_id}/test", response_model=PlatformTestResult)
-async def test_platform_connection(platform_id: str, db: AsyncSession = Depends(get_db)):
+async def test_platform_connection_endpoint(platform_id: str, db: AsyncSession = Depends(get_db)):
     """测试平台连接 — 对 NextFind 调 /quota，对 MoviePilot 调 /site/statistic。"""
     config = await db.get(PlatformConfig, platform_id)
     if not config:
         raise HTTPException(status_code=404, detail="平台配置不存在")
-
-    try:
-        if config.name == "nextfind":
-            service = NextFindService(config.base_url, config.api_key)
-            result = await service.get_quota()
-            if "error" in result:
-                return PlatformTestResult(
-                    success=False,
-                    message=f"连接失败: {result.get('detail', result['error'])}",
-                    details=result,
-                )
-            return PlatformTestResult(
-                success=True,
-                message="NextFind 连接正常",
-                details=result,
-            )
-        elif config.name == "moviepilot":
-            service = MoviePilotService(config.base_url, config.api_key)
-            result = await service.test_connection()
-            if "error" in result:
-                return PlatformTestResult(
-                    success=False,
-                    message=f"连接失败: {result.get('detail', result['error'])}",
-                    details=result,
-                )
-            return PlatformTestResult(
-                success=True,
-                message="MoviePilot 连接正常",
-                details={"sites": result.get("sites", 0)},
-            )
-        elif config.name == "emby":
-            service = EmbyService(config.base_url, config.api_key)
-            result = await service.test_connection()
-            if "error" in result or "ServerName" not in result:
-                return PlatformTestResult(
-                    success=False,
-                    message=f"连接失败: {result.get('detail', result.get('error', '未知错误'))}",
-                    details=result,
-                )
-            return PlatformTestResult(
-                success=True,
-                message=f"Emby 连接正常: {result.get('ServerName')}",
-                details={"ServerName": result.get("ServerName"), "Version": result.get("Version")},
-            )
-        else:
-            return PlatformTestResult(
-                success=False,
-                message=f"未知平台类型: {config.name}",
-            )
-    except Exception as e:
-        logger.error("平台连接测试异常 (%s): %s", config.name, e)
-        return PlatformTestResult(
-            success=False,
-            message=f"连接测试异常: {str(e)}",
-        )
+    return await test_platform_connection(config)

@@ -4,9 +4,6 @@
 Emby API 通过 X-Emby-Token 头鉴权。
 """
 
-import asyncio
-from datetime import date
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +11,6 @@ from app.core.http_client import http_client
 from app.core.logger import init_logger
 from app.models.emby_cache import EmbyCache
 from app.models.emby_season_cache import EmbySeasonCache
-from app.models.tmdb_cache import TmdbCache
 from app.services.tmdb import TMDBService
 
 logger = init_logger()
@@ -497,163 +493,11 @@ class EmbyService:
             "deleted": deleted,
         }
 
-    async def _update_tmdb_data_internal(
-        self,
-        db: AsyncSession,
-        tmdb_service: TMDBService,
-        mode: str = "all",
-        progress_callback=None,
-    ) -> dict:
-        """补充 TMDB 数据到 tmdb_cache（内部统一方法）。
-
-        Args:
-            db: 数据库会话
-            tmdb_service: TMDB 服务实例
-            mode: "subscribed" 仅已订阅 / "missing" 仅缺失 / "all" 全部
-            progress_callback: 进度回调 async func(current, total)
-
-        Returns:
-            更新统计信息
-        """
-        today_str = date.today().isoformat()
-
-        # 获取已订阅 ID（仅 subscribed 模式需要）
-        subscribed_ids: set[int] = set()
-        if mode == "subscribed":
-            from app.models.subscription import Subscription
-
-            sub_stmt = select(Subscription.tmdb_id).where(
-                Subscription.media_type == "tv",
-                Subscription.nf_subscribed == True,
-            )
-            sub_result = await db.execute(sub_stmt)
-            subscribed_ids = {row[0] for row in sub_result.all()}
-
-        # 获取所有有 emby_episode_count 的缓存记录
-        stmt = select(EmbyCache).where(
-            EmbyCache.emby_episode_count.isnot(None),
-            EmbyCache.emby_episode_count > 0,
-        )
-        emby_cached = (await db.execute(stmt)).scalars().all()
-
-        # 筛选需要刷新的
-        to_update = []
-        for c in emby_cached:
-            if mode == "subscribed" and c.tmdb_id not in subscribed_ids:
-                continue
-            tc = await db.get(TmdbCache, c.tmdb_id)
-            if mode == "missing":
-                if tc is not None:
-                    continue  # 已有则跳过
-            else:
-                if tc is not None and not (tc.tmdb_next_air_date and tc.tmdb_next_air_date < today_str):
-                    continue  # 不需要刷新
-            to_update.append(c)
-
-        total = len(to_update)
-        if total == 0:
-            logger.info("TMDB 更新: 无记录需要刷新，跳过")
-            return {"updated": 0, "total": 0}
-
-        # 并发参数
-        if mode == "subscribed":
-            sem_count, batch_size, batch_sleep = None, total, 0
-        elif mode == "missing":
-            sem_count, batch_size, batch_sleep = 3, 3, 0.3
-        else:
-            sem_count, batch_size, batch_sleep = 5, 5, 0.5
-
-        sem = asyncio.Semaphore(sem_count) if sem_count else None
-
-        async def _fetch(tid: int) -> tuple[int, dict]:
-            if sem:
-                async with sem:
-                    return await _do_fetch(tid)
-            return await _do_fetch(tid)
-
-        async def _do_fetch(tid: int) -> tuple[int, dict]:
-            try:
-                detail = await tmdb_service.get_tv_detail(tid)
-                if detail and "error" not in detail:
-                    # 复用同一份 detail 纯计算，避免对 /tv/{id} 重复发请求
-                    aired = tmdb_service.aired_from_detail(detail)
-                    next_date = tmdb_service.next_air_date_from_detail(detail)
-                    poster = detail.get("poster_path")
-                    poster_url = f"https://image.tmdb.org/t/p/w500{poster}" if poster else None
-                    return tid, {
-                        "total_eps": detail.get("number_of_episodes"),
-                        "aired_eps": aired,
-                        "next_air_date": next_date,
-                        "poster_path": poster,
-                        "poster_url": poster_url,
-                    }
-                if detail and "404" in detail.get("error", ""):
-                    return tid, {"tmdb_404": True}
-            except Exception:
-                pass
-            return tid, {}
-
-        async def _upsert(cache: EmbyCache, data: dict) -> bool:
-            tc = await db.get(TmdbCache, cache.tmdb_id)
-            if data.get("tmdb_404"):
-                if tc:
-                    tc.tmdb_404 = True
-                else:
-                    tc = TmdbCache(tmdb_id=cache.tmdb_id, tmdb_404=True)
-                    db.add(tc)
-                return True
-            if tc:
-                tc.tmdb_total_eps = data.get("total_eps")
-                tc.tmdb_aired_eps = data.get("aired_eps")
-                tc.tmdb_next_air_date = data.get("next_air_date")
-                tc.tmdb_poster_path = data.get("poster_path")
-                tc.poster_url = data.get("poster_url")
-            else:
-                tc = TmdbCache(
-                    tmdb_id=cache.tmdb_id,
-                    tmdb_total_eps=data.get("total_eps"),
-                    tmdb_aired_eps=data.get("aired_eps"),
-                    tmdb_next_air_date=data.get("next_air_date"),
-                    tmdb_poster_path=data.get("poster_path"),
-                    poster_url=data.get("poster_url"),
-                )
-                db.add(tc)
-            return True
-
-        log_label = {"subscribed": "已订阅", "missing": "缺失补充", "all": "全量"}[mode]
-        logger.info(f"TMDB {log_label}: {total} 条记录, 开始扫描...")
-
-        updated = 0
-        for i in range(0, total, batch_size):
-            batch = to_update[i : i + batch_size]
-            tasks = [_fetch(c.tmdb_id) for c in batch]
-            results = await asyncio.gather(*tasks)
-            tmdb_map = dict(results)
-
-            for cache in batch:
-                data = tmdb_map.get(cache.tmdb_id, {})
-                if not data:
-                    continue
-                if await _upsert(cache, data):
-                    updated += 1
-
-            if progress_callback:
-                await progress_callback(min(i + batch_size, total), total)
-
-            if mode != "subscribed":
-                if (i + batch_size) % (batch_size * 10) == 0 or i + batch_size >= total:
-                    await db.commit()
-                    logger.info(f"TMDB {log_label} 进度: {min(i + batch_size, total)}/{total}, 已更新 {updated}")
-                if batch_sleep:
-                    await asyncio.sleep(batch_sleep)
-
-        await db.commit()
-        logger.info(f"TMDB {log_label} 完成: 更新 {updated}/{total} 条")
-        return {"updated": updated, "total": total}
-
     async def update_tmdb_data(self, db: AsyncSession, tmdb_service: TMDBService) -> dict:
         """补充 emby_cache 表的 TMDB 数据 — 只更新已订阅的连载剧集。"""
-        return await self._update_tmdb_data_internal(db, tmdb_service, mode="subscribed")
+        from app.services.emby_tmdb_update import update_tmdb_data_batch
+
+        return await update_tmdb_data_batch(db, tmdb_service, mode="subscribed")
 
     async def update_tmdb_data_all(
         self,
@@ -662,12 +506,9 @@ class EmbyService:
         progress_callback=None,
     ) -> dict:
         """补充 TMDB 数据到 tmdb_cache（不限已订阅，慢速批量）。"""
-        return await self._update_tmdb_data_internal(
-            db,
-            tmdb_service,
-            mode="all",
-            progress_callback=progress_callback,
-        )
+        from app.services.emby_tmdb_update import update_tmdb_data_batch
+
+        return await update_tmdb_data_batch(db, tmdb_service, mode="all", progress_callback=progress_callback)
 
     async def update_tmdb_data_missing(
         self,
@@ -675,4 +516,6 @@ class EmbyService:
         tmdb_service: TMDBService,
     ) -> dict:
         """补充 tmdb_cache 缺失 TMDB 数据的记录 — 轻量增量。"""
-        return await self._update_tmdb_data_internal(db, tmdb_service, mode="missing")
+        from app.services.emby_tmdb_update import update_tmdb_data_batch
+
+        return await update_tmdb_data_batch(db, tmdb_service, mode="missing")

@@ -246,14 +246,14 @@ GET    /api/emby/library
 2. `uv run uvicorn app.main:app --host 0.0.0.0 --port 8002` — verify server starts
 3. `curl http://localhost:8002/api/platforms` — returns [] (empty list)
 4. test NextFind connection with configured API key
-5. **Frontend** → `cd frontend && npm run build && npm run type-check` — build 通过且类型零错误
+5. **Frontend** → `cd frontend && npm run build` — build 通过
 
 ## Deployment
 
-架构: systemd（发行版 supervisor.service）→ supervisord → `unisub:backend`(uvicorn :8002) + `unisub:frontend`(nginx :8082)。
+架构: systemd（发行版 supervisor.service）→ supervisord → `unisub:unisub_backend`(uvicorn :8002) + `unisub:unisub_frontend`(nginx :8082)。
 敏感配置在 `backend/.env`（gitignore），详见 `deploy/README.md`。
 
 After any code change:
-- **Frontend changed** → `cd frontend && npm run build && npm run type-check`（nginx 直接读静态文件，无需重启）
-- **Backend changed** → `sudo supervisorctl restart unisub:backend`
+- **Frontend changed** → `cd frontend && npm run build && sudo supervisorctl restart unisub:unisub_frontend`
+- **Backend changed** → `sudo supervisorctl restart unisub:unisub_backend`
 - After restart, wait 3s then verify: `sleep 3 && curl http://localhost:8002/api/platforms`

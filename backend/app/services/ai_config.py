@@ -1,4 +1,4 @@
-"""AI 配置持久化 — 独立 JSON 文件存储。"""
+"""AI 配置持久化 — 独立 JSON 文件存储 + 模型列表获取。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from app.core.http_client import http_client
 from app.core.logger import init_logger
 
 logger = init_logger(__name__)
@@ -101,3 +102,30 @@ _default_store = AiConfigStore()
 def get_ai_config_store() -> AiConfigStore:
     """获取默认 AI 配置存储器。"""
     return _default_store
+
+
+async def fetch_ai_models(api_base: str, api_key: str) -> list[dict[str, str]]:
+    """获取兼容 OpenAI API 的模型列表。
+
+    Args:
+        api_base: API 基础地址
+        api_key: API 密钥
+
+    Returns:
+        模型列表，每项包含 id 和 object 字段
+
+    Raises:
+        ValueError: API 返回错误信息
+    """
+    url = f"{api_base}/v1/models"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    data: dict[str, Any] = await http_client.get(url, headers=headers)
+    if "error" in data:
+        raise ValueError("获取 AI 模型列表失败")
+
+    models = data.get("data", [])
+    return [
+        {"id": item["id"], "object": item.get("object", "model")}
+        for item in models
+        if isinstance(item, dict) and item.get("id")
+    ]

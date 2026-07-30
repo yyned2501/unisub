@@ -81,3 +81,11 @@ class PaginatedSubscriptionResponse(BaseModel):
     page_size: int = 50
     total_pages: int = 1
     items: list[SubscriptionResponse] = Field(default_factory=list)
+
+
+class BlacklistToggleResponse(BaseModel):
+    """切换黑名单状态响应。"""
+
+    success: bool = True
+    blacklisted: bool = False
+    message: str = ""

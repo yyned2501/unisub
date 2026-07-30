@@ -28,7 +28,14 @@ from app.schemas.forward import (
 )
 from app.schemas.platform import PlatformConfigCreate, PlatformConfigResponse, PlatformConfigUpdate, PlatformTestResult
 from app.schemas.search import SearchQuery, SearchResponse, SearchResultItem
-from app.schemas.subscription import SubscriptionCreate, SubscriptionResponse, SubscriptionSyncResult
+from app.schemas.subscription import (
+    MpSubscriptionResponse,
+    PaginatedSubscriptionResponse,
+    SubscriptionCreate,
+    SubscriptionResponse,
+    SubscriptionSyncResult,
+)
+from app.schemas.task import TaskConfigUpdate, TaskStatusResponse, TaskTriggerResponse
 
 __all__ = [
     "ActivityLogResponse",
@@ -69,4 +76,9 @@ __all__ = [
     "SubscriptionCreate",
     "SubscriptionResponse",
     "SubscriptionSyncResult",
+    "MpSubscriptionResponse",
+    "PaginatedSubscriptionResponse",
+    "TaskConfigUpdate",
+    "TaskStatusResponse",
+    "TaskTriggerResponse",
 ]

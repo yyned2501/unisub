@@ -1,5 +1,7 @@
 """自动订阅路由。"""
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.auth import get_current_user
@@ -97,7 +99,7 @@ async def get_history() -> AutoSubHistoryResponse:
 
 def _is_history_key(key: str) -> bool:
     """判断是否为内部去重用的 history_key（tv:123 / movie:123 / tv:123:s1）。"""
-    return bool(__import__("re").match(r"^(tv|movie):\d+(:\w+)?$", key))
+    return bool(re.match(r"^(tv|movie):\d+(:\w+)?$", key))
 
 
 @router.delete("/history", response_model=dict)
