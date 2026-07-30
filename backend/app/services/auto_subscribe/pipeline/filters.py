@@ -20,9 +20,9 @@ def source_options(cfg: dict, src_name: str) -> dict:
 
 
 def passes_global_filter(cfg: dict, item: RankMediaItem) -> tuple[bool, str]:
-    """全局过滤检查。
+    """全局过滤检查——仅检查媒体类型。
 
-    年份过滤仅对电影生效；电视剧由搜索后基于 TMDB 数据判断（支持多季最新季年份）。
+    年份过滤统一推迟到搜索后（`year_filter_reason`），基于 TMDB 准确数据判断。
 
     Returns:
         (通过, 原因字符串)
@@ -31,25 +31,14 @@ def passes_global_filter(cfg: dict, item: RankMediaItem) -> tuple[bool, str]:
     if media_type != "all" and item.type_hint and item.type_hint != media_type:
         return False, f"全局媒体类型过滤: 配置={media_type}, 条目={item.type_hint}"
 
-    # 电视剧的年份过滤推迟到搜索后（需要 TMDB 数据判断多季最新季）
-    if item.type_hint == "tv":
-        return True, ""
-
-    min_year = cfg.get("min_year", 0) or 0
-    if min_year > 0 and item.year:
-        try:
-            if int(item.year) < min_year:
-                return False, f"全局最小年份过滤: {item.year} < {min_year}"
-        except ValueError:
-            pass
-
+    # 年份过滤统一推迟到搜索后，基于 TMDB 准确数据判断
     return True, ""
 
 
 def passes_source_filter(cfg: dict, src_name: str, item: RankMediaItem) -> tuple[bool, str]:
-    """每源过滤检查。
+    """每源过滤检查——仅检查媒体类型。
 
-    年份过滤仅对电影生效；电视剧由搜索后基于 TMDB 数据判断。
+    年份过滤统一推迟到搜索后（`year_filter_reason`），基于 TMDB 准确数据判断。
 
     Returns:
         (通过, 原因字符串)
@@ -59,18 +48,7 @@ def passes_source_filter(cfg: dict, src_name: str, item: RankMediaItem) -> tuple
     if media_type and media_type != "all" and item.type_hint and item.type_hint != media_type:
         return False, f"{SOURCE_NAMES.get(src_name, src_name)} 媒体类型过滤: 配置={media_type}, 条目={item.type_hint}"
 
-    # 电视剧的年份过滤推迟到搜索后
-    if item.type_hint == "tv":
-        return True, ""
-
-    min_year = cfg.get(f"{prefix}min_year", 0) or 0
-    if min_year > 0 and item.year:
-        try:
-            if int(item.year) < min_year:
-                return False, f"{SOURCE_NAMES.get(src_name, src_name)} 最小年份过滤: {item.year} < {min_year}"
-        except ValueError:
-            pass
-
+    # 年份过滤统一推迟到搜索后，基于 TMDB 准确数据判断
     return True, ""
 
 
