@@ -59,6 +59,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: '自动订阅' },
   },
   {
+    path: '/settings/ai',
+    name: 'AiSettings',
+    component: () => import('../views/settings/AiSettings.vue'),
+    meta: { title: 'AI 辅助识别' },
+  },
+  {
     path: '/settings/logs',
     name: 'LogViewer',
     component: () => import('../views/settings/LogViewer.vue'),

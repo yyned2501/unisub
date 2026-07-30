@@ -9,6 +9,7 @@ import {
   clearAutoSubHistory,
   getAutoSubMeta,
 } from '@/service/api/autoSubscribe'
+import { getAiConfig, updateAiConfig } from '@/service/api/ai'
 import { DEFAULT_CONFIG, DEFAULT_META } from '@/components/auto-subscribe/defaults'
 import SourceConfigPanel from '@/components/auto-subscribe/SourceConfigPanel.vue'
 import HistoryTable from '@/components/auto-subscribe/HistoryTable.vue'
@@ -30,6 +31,7 @@ const statusLabels = ref<Record<string, string>>({})
 const sourceNames = ref<Record<string, string>>({})
 const scheduleRunning = ref(false)
 const scheduleError = ref('')
+const aiAssistEnabled = ref(false)
 const activeTab = ref('config')
 
 /* ---------- helpers ---------- */
@@ -45,7 +47,12 @@ function toggleArray(key: string, val: string) {
 async function load() {
   loading.value = true
   try {
-    const [cfg, remoteMeta, hist] = await Promise.all([getAutoSubConfig(), getAutoSubMeta(), getAutoSubHistory()])
+    const [cfg, remoteMeta, hist, aiConfig] = await Promise.all([
+      getAutoSubConfig(),
+      getAutoSubMeta(),
+      getAutoSubHistory(),
+      getAiConfig(),
+    ])
     Object.assign(config, DEFAULT_CONFIG, cfg.config || {})
     for (const key of ['douban_ranks', 'maoyan_web_platforms', 'maoyan_web_types'] as const) {
       if (!Array.isArray(config[key])) config[key] = [...DEFAULT_CONFIG[key]]
@@ -56,6 +63,7 @@ async function load() {
     lastStats.value = cfg.last_stats
     scheduleRunning.value = Boolean(cfg.running)
     scheduleError.value = cfg.last_error || ''
+    aiAssistEnabled.value = Boolean(aiConfig.config.ai_assist_enabled)
     const metaPayload = remoteMeta || {}
     meta.value = {
       ...DEFAULT_META,
@@ -83,7 +91,10 @@ async function load() {
 async function handleSave() {
   saving.value = true
   try {
-    await updateAutoSubConfig({ config: { ...config } })
+    await Promise.all([
+      updateAutoSubConfig({ config: { ...config } }),
+      updateAiConfig({ config: { ai_assist_enabled: aiAssistEnabled.value } }),
+    ])
     msg.success('配置已保存')
   } catch (error: unknown) {
     msg.error((error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '保存失败')
@@ -184,6 +195,10 @@ onMounted(() => load())
                   style="max-width: 300px"
                 />
               </div>
+              <div class="flex items-center justify-between">
+                <label class="text-xs opacity-50 font-medium">AI 辅助识别</label>
+                <n-switch v-model:value="aiAssistEnabled" />
+              </div>
             </div>
           </n-card>
 
@@ -234,6 +249,7 @@ onMounted(() => load())
           :loading="loading"
           :last-run="lastRun"
           :status-labels="statusLabels"
+          :source-names="sourceNames"
           @clear-history="handleClearHistory"
         />
       </n-tab-pane>

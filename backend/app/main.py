@@ -22,6 +22,7 @@ from app.core.http_client import http_client
 from app.core.logger import init_logger
 from app.models.platform_config import PlatformConfig
 from app.routers import (
+    ai,
     auto_subscribe,
     cd2,
     dashboard,
@@ -102,6 +103,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("默认平台配置创建失败: %s", e)
 
+    # 迁移旧自动订阅配置中的 AI 字段到独立文件
+    try:
+        from app.services.ai_config import get_ai_config_store
+
+        get_ai_config_store().load_config()
+    except Exception as e:
+        logger.error("AI 配置迁移失败: %s", e)
+
     # TMDB 缓存数据迁移（从旧表复制到独立 tmdb_cache 表）
     try:
         from app.services.tmdb_cache_migration import migrate_tmdb_cache
@@ -169,6 +178,7 @@ app.add_middleware(
 )
 
 # 注册路由
+app.include_router(ai.router)
 app.include_router(auto_subscribe.router)
 app.include_router(logs.router)
 app.include_router(platforms.router)

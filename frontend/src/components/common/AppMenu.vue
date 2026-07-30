@@ -36,6 +36,7 @@ const menuOptions = [
     children: [
       { label: '平台配置', key: '/settings/platforms', icon: riIcon('ri-database-2-line') },
       { label: 'CloudDrive2', key: '/settings/cd2', icon: riIcon('ri-cloud-line') },
+      { label: 'AI 辅助识别', key: '/settings/ai', icon: riIcon('ri-robot-2-line') },
       { label: '定时任务', key: '/settings/tasks', icon: riIcon('ri-time-line') },
       { label: '日志查看', key: '/settings/logs', icon: riIcon('ri-file-list-3-line') },
       { label: '账号设置', key: '/settings/account', icon: riIcon('ri-user-settings-line') },

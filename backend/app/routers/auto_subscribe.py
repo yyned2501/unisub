@@ -70,22 +70,34 @@ async def trigger_run() -> AutoSubRunResponse:
 async def get_history() -> AutoSubHistoryResponse:
     """获取自动订阅处理历史。"""
     history = get_auto_subscribe_service().get_history()
-    items = [
-        {
-            "key": key,
-            "status": value.get("status", ""),
-            "time": value.get("time"),
-            "tmdb_id": value.get("tmdb_id"),
-            "media_type": value.get("media_type"),
-        }
-        for key, value in history.get("handled", {}).items()
-    ]
+    items = []
+    for key, value in history.get("handled", {}).items():
+        # 跳过内部去重标记（tv:123 / movie:123 / tv:123:s1），仅保留原始 seed 条目
+        if _is_history_key(key):
+            continue
+        items.append(
+            {
+                "key": key,
+                "status": value.get("status", ""),
+                "title": value.get("title", ""),
+                "reason": value.get("reason", ""),
+                "source": value.get("source", ""),
+                "time": value.get("time"),
+                "tmdb_id": value.get("tmdb_id"),
+                "media_type": value.get("media_type"),
+            }
+        )
     items.sort(key=lambda item: item.get("time") or "", reverse=True)
     return AutoSubHistoryResponse(
         items=items[:200],
         last_run=history.get("last_run"),
         stats=history.get("last_stats"),
     )
+
+
+def _is_history_key(key: str) -> bool:
+    """判断是否为内部去重用的 history_key（tv:123 / movie:123 / tv:123:s1）。"""
+    return bool(__import__("re").match(r"^(tv|movie):\d+(:\w+)?$", key))
 
 
 @router.delete("/history", response_model=dict)

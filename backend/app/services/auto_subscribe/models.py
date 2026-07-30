@@ -138,6 +138,7 @@ DEFAULT_CONFIG = {
     "maoyan_min_year": 0,
     "maoyan_min_vote": 0,
     "maoyan_media_type": "all",
+    # 代理
     "proxy_url": "",
 }
 

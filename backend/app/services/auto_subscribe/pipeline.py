@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import uuid
 from collections import Counter
 from datetime import UTC, datetime
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +18,7 @@ from app.models.activity_log import ActivityLog
 from app.models.subscription import Subscription
 
 # 导入各来源模块以触发 @register 自注册（不直接使用模块对象）。
+from app.services.ai_config import get_ai_config_store
 from app.services.auto_subscribe import douban, maoyan, mikan  # noqa: F401
 from app.services.auto_subscribe.base import get_provider
 from app.services.auto_subscribe.models import (
@@ -31,6 +34,7 @@ from app.services.auto_subscribe.models import (
     RankMediaItem,
     make_history_key,
 )
+from app.services.bangumi import BangumiService
 from app.services.nextfind import NextFindAuthError, NextFindService
 from app.services.tmdb import TMDBService
 
@@ -192,19 +196,45 @@ async def _search_and_subscribe(
         return
 
     # 全局过滤
-    if not _passes_global_filter(cfg, item):
+    passed, reason = _passes_global_filter(cfg, item)
+    if not passed:
         _inc_stat(stats, src_name, STATUS_FILTERED)
-        new_handled[seed] = {"status": STATUS_FILTERED, "time": _now_str()}
+        new_handled[seed] = {
+            "status": STATUS_FILTERED,
+            "title": title,
+            "reason": reason,
+            "source": src_name,
+            "time": _now_str(),
+        }
         return
 
     # 每源过滤
-    if not _passes_source_filter(cfg, src_name, item):
+    passed, reason = _passes_source_filter(cfg, src_name, item)
+    if not passed:
         _inc_stat(stats, src_name, STATUS_FILTERED)
-        new_handled[seed] = {"status": STATUS_FILTERED, "time": _now_str()}
+        new_handled[seed] = {
+            "status": STATUS_FILTERED,
+            "title": title,
+            "reason": reason,
+            "source": src_name,
+            "time": _now_str(),
+        }
         return
 
     # 搜索 — 优先用 TMDB 直搜，fallback 到 NextFind
     search_queries = [title]
+
+    # Bangumi 年份补充 item.year（为空时），辅助 TMDB 年份匹配与 _pick_best
+    bgm_subject = None  # 缓存，供 _bangumi_assisted_search 复用
+    if item.bangumi_id or item.source_meta.get("bangumi_id"):
+        bgm_id = item.bangumi_id or item.source_meta["bangumi_id"]
+        bangumi_svc = BangumiService()
+        bgm_subject = await bangumi_svc.get_subject(bgm_id)
+        if bgm_subject and bangumi_svc.is_anime(bgm_subject):
+            if not item.year:
+                bgm_year = bangumi_svc.get_year(bgm_subject)
+                if bgm_year:
+                    item.year = bgm_year
 
     # 剧集类标题：剥离 "第十季" / "第三季" 等季节后缀，用基础标题搜索
     season_match = re.search(r"[第]([一二三四五六七八九十百\d]+)[季]", title)
@@ -212,12 +242,12 @@ async def _search_and_subscribe(
         raw = season_match.group(1)
         _ = int(raw) if raw.isdigit() else None  # 只用于判断是否匹配到季号
         base_title = title[: season_match.start()].strip()
-        if base_title:
+        if base_title and base_title not in search_queries:
             search_queries = [base_title]
     else:
         # 冒号分割副标题："复仇者联盟5：毁灭之日" → "复仇者联盟5"
         colon_parts = re.split(r"[：:]\s*", title, maxsplit=1)
-        if len(colon_parts) > 1 and len(colon_parts[0]) >= 2:
+        if len(colon_parts) > 1 and len(colon_parts[0]) >= 2 and colon_parts[0].strip() not in search_queries:
             search_queries.append(colon_parts[0].strip())
 
         # 数字结尾标题先保留完整名称搜索；无候选时才剥离后缀重试。
@@ -270,24 +300,45 @@ async def _search_and_subscribe(
             if search_results:
                 break
 
+    # 搜索失败时走 fallback 链（Bangumi → AI），缓存结果供后续复用
+    _fallback_result: list[dict] | None = None
+
+    async def _get_fallback() -> list[dict] | None:
+        nonlocal _fallback_result
+        if _fallback_result is None:
+            _fallback_result = await _run_fallback_chain(title, item, bgm_subject, type_hint, nf_service, tmdb_service)
+        return _fallback_result
+
+    if not search_results:
+        search_results = await _get_fallback()
+
     if not search_results:
         _inc_stat(stats, src_name, STATUS_UNRECOGNIZED)
-        new_handled[seed] = {"status": STATUS_UNRECOGNIZED, "time": _now_str()}
+        new_handled[seed] = {"status": STATUS_UNRECOGNIZED, "title": title, "source": src_name, "time": _now_str()}
         return
 
     # 取最佳匹配
     best = _pick_best(search_results, title, type_hint, item.year)
     if not best:
+        fallback = await _get_fallback()
+        if fallback:
+            best = _pick_best(fallback, title, type_hint, item.year)
+    if not best:
         _inc_stat(stats, src_name, STATUS_UNRECOGNIZED)
-        new_handled[seed] = {"status": STATUS_UNRECOGNIZED, "time": _now_str()}
+        new_handled[seed] = {"status": STATUS_UNRECOGNIZED, "title": title, "source": src_name, "time": _now_str()}
         return
 
     # 标题相似度校验：防止完全不匹配的条目被错误订阅
     best_title = (best.get("title") or best.get("name") or "").strip()
     if best_title and not _title_similar_enough(title, best_title):
-        _inc_stat(stats, src_name, STATUS_UNRECOGNIZED)
-        new_handled[seed] = {"status": STATUS_UNRECOGNIZED, "time": _now_str()}
-        return
+        fallback = await _get_fallback()
+        if fallback:
+            best = _pick_best(fallback, title, type_hint, item.year)
+            best_title = (best.get("title") or best.get("name") or "").strip() if best else ""
+        if not best or not best_title or not _title_similar_enough(title, best_title):
+            _inc_stat(stats, src_name, STATUS_UNRECOGNIZED)
+            new_handled[seed] = {"status": STATUS_UNRECOGNIZED, "title": title, "source": src_name, "time": _now_str()}
+            return
 
     tmdb_id = int(best["id"])
     matched_title = (best.get("title") or best.get("name") or title).strip() or title
@@ -306,7 +357,14 @@ async def _search_and_subscribe(
 
     def _mark_terminal(status: str) -> None:
         """正向终态：同时按 seed 与 tmdb 历史键记录，供跨轮 + 跨源去重。"""
-        entry = {"status": status, "tmdb_id": tmdb_id, "media_type": media_type, "time": _now_str()}
+        entry = {
+            "status": status,
+            "tmdb_id": tmdb_id,
+            "media_type": media_type,
+            "title": matched_title,
+            "source": src_name,
+            "time": _now_str(),
+        }
         new_handled[seed] = entry
         new_handled[history_key] = entry
 
@@ -316,7 +374,15 @@ async def _search_and_subscribe(
     effective_min_vote = max(min_vote, src_min_vote)
     if effective_min_vote > 0 and (vote < effective_min_vote or vote == 0):
         _inc_stat(stats, src_name, STATUS_FILTERED)
-        new_handled[seed] = {"status": STATUS_FILTERED, "time": _now_str()}
+        new_handled[seed] = {
+            "status": STATUS_FILTERED,
+            "title": matched_title,
+            "reason": f"评分过滤: {vote} < {effective_min_vote}",
+            "tmdb_id": tmdb_id,
+            "media_type": media_type,
+            "source": src_name,
+            "time": _now_str(),
+        }
         return
 
     # 年份过滤（全局 + 每源，取较高者；基于 TMDB 搜索结果年份）
@@ -333,7 +399,15 @@ async def _search_and_subscribe(
                     last_air = str(detail.get("last_air_date") or "")[:4]
                     if not (last_air.isdigit() and int(last_air) >= effective_min_year):
                         _inc_stat(stats, src_name, STATUS_FILTERED)
-                        new_handled[seed] = {"status": STATUS_FILTERED, "time": _now_str()}
+                        new_handled[seed] = {
+                            "status": STATUS_FILTERED,
+                            "title": matched_title,
+                            "reason": f"最小年份过滤: 首播={item_year_int}, 最新季={last_air} < {effective_min_year}",
+                            "tmdb_id": tmdb_id,
+                            "media_type": media_type,
+                            "source": src_name,
+                            "time": _now_str(),
+                        }
                         return
                     logger.info(
                         f"[自动订阅] 多季剧最新季满足年份: {matched_title} "
@@ -341,7 +415,15 @@ async def _search_and_subscribe(
                     )
                 else:
                     _inc_stat(stats, src_name, STATUS_FILTERED)
-                    new_handled[seed] = {"status": STATUS_FILTERED, "time": _now_str()}
+                    new_handled[seed] = {
+                        "status": STATUS_FILTERED,
+                        "title": matched_title,
+                        "reason": f"最小年份过滤: {item_year_int} < {effective_min_year}",
+                        "tmdb_id": tmdb_id,
+                        "media_type": media_type,
+                        "source": src_name,
+                        "time": _now_str(),
+                    }
                     return
         except (ValueError, TypeError):
             pass
@@ -381,13 +463,262 @@ async def _search_and_subscribe(
                 _mark_terminal(STATUS_EXISTS)
             else:
                 _inc_stat(stats, src_name, STATUS_ERROR)
-                new_handled[seed] = {"status": STATUS_ERROR, "time": _now_str()}
+                new_handled[seed] = {
+                    "status": STATUS_ERROR,
+                    "title": matched_title,
+                    "source": src_name,
+                    "time": _now_str(),
+                }
         except NextFindAuthError:
             raise  # 鉴权失败向上传播以中止整轮
         except Exception as e:
             logger.error(f"[自动订阅] 订阅失败: {title}: {e}")
             _inc_stat(stats, src_name, STATUS_ERROR)
-            new_handled[seed] = {"status": STATUS_ERROR, "time": _now_str()}
+            new_handled[seed] = {"status": STATUS_ERROR, "title": matched_title, "source": src_name, "time": _now_str()}
+
+
+async def _search_tmdb_or_nf(
+    query: str,
+    search_type: str,
+    nf_service: NextFindService,
+    tmdb_service: TMDBService | None,
+) -> list[dict] | None:
+    """对单一查询词优先搜 TMDB，空结果时回退 NextFind。"""
+    if tmdb_service:
+        try:
+            tmdb_results = await tmdb_service.search(query, search_type)
+            if tmdb_results:
+                return tmdb_results
+        except Exception as e:
+            logger.warning(f"[自动订阅] TMDB 搜索异常: {query}: {e}")
+    try:
+        nf_results = await nf_service.search_tmdb(query, search_type)
+        if nf_results:
+            return nf_results
+    except NextFindAuthError:
+        raise
+    except Exception as e:
+        logger.warning(f"[自动订阅] NF 搜索异常: {query}: {e}")
+    return None
+
+
+async def _bangumi_assisted_search(
+    title: str,
+    bgm_subject: dict | None,
+    type_hint: str,
+    nf_service: NextFindService,
+    tmdb_service: TMDBService | None,
+) -> list[dict] | None:
+    """Bangumi 候选标题辅助搜索：用现有 bgm_subject 的别名扩展搜索。"""
+    if not bgm_subject:
+        return None
+    bangumi_svc = BangumiService()
+    if not bangumi_svc.is_anime(bgm_subject):
+        return None
+    candidates = bangumi_svc.get_candidate_titles(bgm_subject)
+    # 去掉已经在搜索词里用过的原始标题
+    candidates = [c for c in candidates if c != title]
+    if not candidates:
+        return None
+
+    logger.info(f"[自动订阅] Bangumi 辅助搜索: {title} → {candidates[:3]}")
+    search_types = [type_hint] if type_hint in ("movie", "tv") else ["all"]
+    for search_type in search_types:
+        for candidate in candidates:
+            result = await _search_tmdb_or_nf(candidate, search_type, nf_service, tmdb_service)
+            if result:
+                return result
+    return None
+
+
+def _parse_ai_media(text: str) -> dict | None:
+    """解析 LLM 返回的 JSON，验证媒体识别结果。
+
+    Args:
+        text: LLM 原始输出文本
+
+    Returns:
+        验证后的 dict，包含 ``title``、``media_type``、``season``、``year``; 或 None
+    """
+    # 尝试从 markdown 代码块中提取 JSON
+    code_block = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if code_block:
+        text = code_block.group(1).strip()
+
+    text = text.strip()
+    # 尝试直接解析 JSON
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        # 尝试找第一个 { 到最后一个 }
+        brace_start = text.find("{")
+        brace_end = text.rfind("}")
+        if brace_start >= 0 and brace_end > brace_start:
+            try:
+                data = json.loads(text[brace_start : brace_end + 1])
+            except json.JSONDecodeError:
+                return None
+        else:
+            return None
+
+    if not isinstance(data, dict):
+        return None
+
+    title = (data.get("title") or "").strip()
+    if not title or len(title) > 200:
+        return None
+
+    media_type = str(data.get("media_type") or "").lower()
+    if media_type not in ("movie", "tv"):
+        return None
+
+    season = data.get("season")
+    if season is not None:
+        try:
+            season = int(season)
+            if not 1 <= season <= 200:
+                season = None
+        except (ValueError, TypeError):
+            season = None
+
+    year = data.get("year")
+    if year is not None:
+        try:
+            year = str(int(str(year)[:4]))
+        except (ValueError, TypeError):
+            year = None
+
+    return {"title": title, "media_type": media_type, "season": season, "year": year}
+
+
+async def _ai_assisted_search(
+    title: str,
+    item: RankMediaItem,
+    type_hint: str,
+    nf_service: NextFindService,
+    tmdb_service: TMDBService | None,
+) -> list[dict] | None:
+    """AI 辅助识别：调用 LLM 解析媒体标题，再用 TMDB 验证结果。"""
+    ai_config = get_ai_config_store().load_config()
+    ai_enabled = ai_config["ai_assist_enabled"]
+    if not ai_enabled:
+        return None
+
+    api_key = ai_config["ai_api_key"]
+    api_base = ai_config["ai_api_base"]
+    model = ai_config["ai_model"] or "gpt-4o-mini"
+    if not api_key or not api_base:
+        logger.warning("[自动订阅] AI 辅助已启用但缺少 ai_api_key 或 ai_api_base")
+        return None
+
+    # 构建 prompt
+    prompt = (
+        "你是一个媒体识别助手。请根据用户提供的标题文本，识别出对应的媒体名称。\n\n"
+        f"标题: {title}\n"
+        f"类别提示: {type_hint if type_hint in ('movie', 'tv') else '未知'}\n"
+        f"附加信息: 年份={item.year or '未知'}"
+    )
+    if item.bangumi_id:
+        prompt += f", Bangumi ID={item.bangumi_id}"
+    if item.douban_id:
+        prompt += f", 豆瓣 ID={item.douban_id}"
+    prompt += (
+        "\n\n请返回 JSON 格式，不要包含额外文字:\n"
+        '{"title": "标准化的媒体名称", "media_type": "movie|tv", "season": 1, "year": "2024"}\n'
+        "其中 season 仅在 media_type 为 tv 且涉及特定季时填写，否则为 null。"
+    )
+
+    logger.info(f"[自动订阅] AI 辅助识别: {title}")
+    try:
+        text = await _call_llm_and_parse(prompt, api_base, api_key, model)
+        if not text:
+            return None
+    except Exception as e:
+        logger.warning(f"[自动订阅] AI 调用失败: {title}: {e}")
+        return None
+
+    parsed = _parse_ai_media(text)
+    if not parsed:
+        logger.warning(f"[自动订阅] AI 返回格式异常: {title}, raw={text[:200]}")
+        return None
+
+    ai_title = parsed["title"]
+    ai_type = parsed["media_type"]
+    logger.info(f"[自动订阅] AI 识别结果: {ai_title} ({ai_type})")
+
+    # 用 TMDB 验证 AI 识别结果
+    search_type = ai_type if type_hint in ("movie", "tv", "all") else "all"
+    result = await _search_tmdb_or_nf(ai_title, search_type, nf_service, tmdb_service)
+    if result:
+        return result
+
+    # 如果指定类型没搜到，用 all 兜底
+    if search_type != "all":
+        result = await _search_tmdb_or_nf(ai_title, "all", nf_service, tmdb_service)
+        if result:
+            return result
+
+    return None
+
+
+async def _call_llm_and_parse(
+    prompt: str,
+    api_base: str,
+    api_key: str,
+    model: str,
+    timeout: int = 30,
+) -> str | None:
+    """调用 openai 兼容的 LLM API 并返回文本响应。"""
+    base = api_base.rstrip("/")
+    url = f"{base}/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    body = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.1,
+        "max_tokens": 300,
+    }
+    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), follow_redirects=True) as client:
+        response = await client.post(url, headers=headers, json=body)
+        response.raise_for_status()
+        data = response.json()
+    choices = data.get("choices")
+    if not choices:
+        return None
+    content = choices[0].get("message", {}).get("content", "").strip()
+    return content or None
+
+
+async def _run_fallback_chain(
+    title: str,
+    item: RankMediaItem,
+    bgm_subject: dict | None,
+    type_hint: str,
+    nf_service: NextFindService,
+    tmdb_service: TMDBService | None,
+) -> list[dict] | None:
+    """fallback 链：Bangumi 候选标题 → AI 辅助识别。
+
+    仅在主搜索无结果时调用，依次尝试：
+    1. Bangumi 候选项（已有 bgm_subject 且为动画时）
+    2. AI 辅助识别（ai_assist_enabled 开启时）
+    """
+    # 1. Bangumi 候选标题辅助搜索
+    result = await _bangumi_assisted_search(title, bgm_subject, type_hint, nf_service, tmdb_service)
+    if result:
+        logger.info(f"[自动订阅] Bangumi 辅助搜索成功: {title}")
+        return result
+
+    # 2. AI 辅助识别
+    result = await _ai_assisted_search(title, item, type_hint, nf_service, tmdb_service)
+    if result:
+        logger.info(f"[自动订阅] AI 辅助识别成功: {title}")
+        return result
+
+    return None
 
 
 async def _create_subscription(
@@ -459,53 +790,59 @@ def _source_options(cfg: dict, src_name: str) -> dict:
     return opts
 
 
-def _passes_global_filter(cfg: dict, item: RankMediaItem) -> bool:
+def _passes_global_filter(cfg: dict, item: RankMediaItem) -> tuple[bool, str]:
     """全局过滤检查。
 
     年份过滤仅对电影生效；电视剧由搜索后基于 TMDB 数据判断（支持多季最新季年份）。
+
+    Returns:
+        (通过, 原因字符串)
     """
     media_type = cfg.get("media_type", "all")
     if media_type != "all" and item.type_hint and item.type_hint != media_type:
-        return False
+        return False, f"全局媒体类型过滤: 配置={media_type}, 条目={item.type_hint}"
 
     # 电视剧的年份过滤推迟到搜索后（需要 TMDB 数据判断多季最新季）
     if item.type_hint == "tv":
-        return True
+        return True, ""
 
     min_year = cfg.get("min_year", 0) or 0
     if min_year > 0 and item.year:
         try:
             if int(item.year) < min_year:
-                return False
+                return False, f"全局最小年份过滤: {item.year} < {min_year}"
         except ValueError:
             pass
 
-    return True
+    return True, ""
 
 
-def _passes_source_filter(cfg: dict, src_name: str, item: RankMediaItem) -> bool:
+def _passes_source_filter(cfg: dict, src_name: str, item: RankMediaItem) -> tuple[bool, str]:
     """每源过滤检查。
 
     年份过滤仅对电影生效；电视剧由搜索后基于 TMDB 数据判断。
+
+    Returns:
+        (通过, 原因字符串)
     """
     prefix = f"{src_name}_"
     media_type = cfg.get(f"{prefix}media_type", "all")
     if media_type and media_type != "all" and item.type_hint and item.type_hint != media_type:
-        return False
+        return False, f"{SOURCE_NAMES.get(src_name, src_name)} 媒体类型过滤: 配置={media_type}, 条目={item.type_hint}"
 
     # 电视剧的年份过滤推迟到搜索后
     if item.type_hint == "tv":
-        return True
+        return True, ""
 
     min_year = cfg.get(f"{prefix}min_year", 0) or 0
     if min_year > 0 and item.year:
         try:
             if int(item.year) < min_year:
-                return False
+                return False, f"{SOURCE_NAMES.get(src_name, src_name)} 最小年份过滤: {item.year} < {min_year}"
         except ValueError:
             pass
 
-    return True
+    return True, ""
 
 
 def _pick_best(results: list[dict], title: str, type_hint: str, item_year: str | None = None) -> dict | None:

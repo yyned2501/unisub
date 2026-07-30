@@ -137,9 +137,10 @@ class AutoSubscribeConfigStore:
             return copy.deepcopy(self._config_cache)
 
     def save_config(self, config: Mapping[str, Any]) -> dict[str, Any]:
-        """校验、迁移并持久化完整或部分自动订阅配置。"""
+        """合并局部更新、校验并持久化自动订阅配置。"""
         with self._lock:
-            normalized = self._normalize_config(config)
+            merged = deep_merge(self.load_config(), config)
+            normalized = self._normalize_config(merged)
             self._write_json(self._config_path, normalized)
             self._config_cache = normalized
             return copy.deepcopy(normalized)

@@ -54,6 +54,9 @@ export interface AutoSubRunResponse {
 export interface AutoSubHistoryItem {
   key: string
   status: string
+  title: string
+  reason: string
+  source: string
   time: string | null
   tmdb_id: number | null
   media_type: string | null

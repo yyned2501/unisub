@@ -11,6 +11,7 @@ const props = defineProps<{
   loading: boolean
   lastRun: string
   statusLabels: Record<string, string>
+  sourceNames: Record<string, string>
 }>()
 
 const emit = defineEmits<{
@@ -22,33 +23,58 @@ function rowKey(row: AutoSubHistoryItem): string {
 }
 
 const columns = [
-  { title: '标题', key: 'key', ellipsis: { tooltip: true }, minWidth: 200 },
+  {
+    title: '来源',
+    key: 'source',
+    width: 80,
+    render: (row: AutoSubHistoryItem) => props.sourceNames[row.source] || row.source,
+  },
+  {
+    title: '标题',
+    key: 'title',
+    render: (row: AutoSubHistoryItem) => h('span', { style: 'word-break: break-all; white-space: normal;' }, row.title),
+  },
   {
     title: '状态',
     key: 'status',
-    width: 100,
-    render: (row: AutoSubHistoryItem) =>
-      h(
+    width: 80,
+    render: (row: AutoSubHistoryItem) => {
+      const label = props.statusLabels[row.status] || row.status
+      const statusTypeMap: Record<string, 'default' | 'error' | 'warning' | 'success' | 'info'> = {
+        subscribed: 'success',
+        subscribed_exists: 'success',
+        in_library: 'info',
+        filtered: 'warning',
+        unrecognized: 'error',
+        error: 'error',
+      }
+      return h(
         NTag,
         {
           size: 'tiny',
-          type: row.status === 'subscribed' ? 'success' : 'default',
+          type: statusTypeMap[row.status] || 'default',
           round: true,
         },
-        { default: () => props.statusLabels[row.status] || row.status }
-      ),
+        { default: () => label }
+      )
+    },
   },
   {
-    title: 'TMDB ID',
-    key: 'tmdb_id',
-    width: 100,
-    render: (row: AutoSubHistoryItem) => (row.tmdb_id != null ? String(row.tmdb_id) : '-'),
+    title: '过滤原因',
+    key: 'reason',
+    render: (row: AutoSubHistoryItem) => h('span', { style: 'word-break: break-all; white-space: normal;' }, row.reason || '-'),
   },
   {
     title: '类别',
     key: 'media_type',
     width: 80,
     render: (row: AutoSubHistoryItem) => (row.media_type === 'movie' ? '电影' : row.media_type === 'tv' ? '剧集' : '-'),
+  },
+  {
+    title: 'TMDB ID',
+    key: 'tmdb_id',
+    width: 100,
+    render: (row: AutoSubHistoryItem) => (row.tmdb_id != null ? String(row.tmdb_id) : '-'),
   },
   { title: '时间', key: 'time', width: 180, render: (row: AutoSubHistoryItem) => formatDateTime(row.time) },
 ]
@@ -75,7 +101,7 @@ const columns = [
         :data="history"
         :bordered="false"
         :single-line="false"
-        :scroll-x="660"
+        :scroll-x="800"
         size="small"
         :row-key="rowKey"
       />

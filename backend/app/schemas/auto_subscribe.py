@@ -35,6 +35,9 @@ class AutoSubHistoryItem(BaseModel):
 
     key: str
     status: str
+    title: str = ""
+    reason: str = ""
+    source: str = ""
     time: str | None = None
     tmdb_id: int | None = None
     media_type: str | None = None
