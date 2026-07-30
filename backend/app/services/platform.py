@@ -83,6 +83,10 @@ async def update_platform(db: AsyncSession, platform_id: str, update_data: dict)
         return None
 
     for key, value in update_data.items():
+        # GET 响应会将 api_key 脱敏为 "xxxx****xxxx"，前端保存时会原样回传；
+        # 回传值为空或含脱敏占位符（****）时视为"不修改"，避免覆盖真实密钥
+        if key == "api_key" and (not value or not str(value).strip() or "****" in str(value)):
+            continue
         setattr(config, key, value)
     config.updated_at = datetime.now(UTC)
 

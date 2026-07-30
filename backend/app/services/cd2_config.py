@@ -41,7 +41,11 @@ async def update_cd2_config(
     """保存 CloudDrive2 配置。"""
     config = await get_cd2_config(db)
     config.base_url = base_url.strip().rstrip("/")
-    config.api_key = api_key.strip()
+    # GET 响应会将 api_key 脱敏为 "xxxx****xxxx"，前端保存时会原样回传；
+    # 回传值为空或含脱敏占位符（****）时视为"不修改"，避免覆盖真实密钥
+    new_api_key = api_key.strip()
+    if new_api_key and "****" not in new_api_key:
+        config.api_key = new_api_key
     config.target_path = normalize_target_path(target_path)
     config.path_prefix = path_prefix.strip()
     config.path_replacement = path_replacement.strip()
