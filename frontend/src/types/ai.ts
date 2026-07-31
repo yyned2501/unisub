@@ -4,6 +4,7 @@ export interface AiConfig {
   ai_api_base: string
   ai_api_key: string
   ai_model: string
+  ai_enable_search: boolean
 }
 
 /** AI 配置响应。 */

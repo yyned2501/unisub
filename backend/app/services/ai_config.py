@@ -20,6 +20,7 @@ DEFAULT_AI_CONFIG: dict[str, Any] = {
     "ai_api_key": "",
     "ai_api_base": "",
     "ai_model": "gpt-4o-mini",
+    "ai_enable_search": False,
 }
 _AI_KEYS = frozenset(DEFAULT_AI_CONFIG)
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"

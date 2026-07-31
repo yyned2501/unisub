@@ -78,10 +78,9 @@ async def create_subscription(
         )
     )
     try:
-        await db.commit()
+        await db.flush()
         await db.refresh(sub)
     except Exception:
-        await db.rollback()
         logger.exception("[自动订阅] NextFind 已成功但本地持久化失败: tmdb_id=%s", tmdb_id)
         raise
     return remote.outcome, sub

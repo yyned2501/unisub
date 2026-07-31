@@ -148,8 +148,16 @@ class TMDBService:
                 continue  # 跳过特典季
             episode_count = s.get("episode_count") or 0
             air_date = _parse_date(s.get("air_date"))
-            if air_date is None or air_date > today:
-                result[sn] = 0  # 无首播日或在未来 → 未开播
+            if air_date is None:
+                # 无首播日：若季号早于当前播出季，视为已全部播出
+                # TMDB 对连载老剧的早期季可能不设 air_date，但实际已播完
+                if status == "Returning Series" and sn < last_season:
+                    result[sn] = episode_count
+                else:
+                    result[sn] = 0
+                continue
+            if air_date > today:
+                result[sn] = 0  # 首播日在未来 → 未开播
                 continue
             if status == "Returning Series":
                 if sn < last_season:
@@ -329,9 +337,8 @@ class TMDBService:
         await self._save_seasons(db, tmdb_id, detail)
 
         try:
-            await db.commit()
+            await db.flush()
         except Exception:
-            await db.rollback()
             logger.debug("TMDB 缓存写入失败: tmdb_id=%d", tmdb_id, exc_info=True)
             return None
 

@@ -119,30 +119,47 @@ async def _ai_assisted_search(
     api_key = ai_config["ai_api_key"]
     api_base = ai_config["ai_api_base"]
     model = ai_config["ai_model"] or "gpt-4o-mini"
+    enable_search = ai_config.get("ai_enable_search", False)
     if not api_key or not api_base:
         logger.warning("[自动订阅] AI 辅助已启用但缺少 ai_api_key 或 ai_api_base")
         return None
 
-    # 构建 prompt
+    # 构建 prompt — 附加上下文来源信息
+    source_hints = []
+    src = item.source_meta.get("source", "")
+    if src == "douban":
+        source_hints.append("来源: 豆瓣榜单")
+        if item.douban_id:
+            source_hints.append(f"豆瓣 ID: {item.douban_id}")
+    elif src == "maoyan":
+        source_hints.append("来源: 猫眼榜单")
+        mtype = item.source_meta.get("type", "")
+        if mtype == "movie_box":
+            source_hints.append("类型: 电影票房榜")
+        elif mtype == "web_heat":
+            source_hints.append("类型: 网络热度榜")
+    elif src == "mikan":
+        source_hints.append("来源: Mikan 新番")
+        source_hints.append("类型: 动画")
+
     prompt = (
         "你是一个媒体识别助手。请根据用户提供的标题文本，识别出对应的媒体名称。\n\n"
         f"标题: {title}\n"
         f"类别提示: {type_hint if type_hint in ('movie', 'tv') else '未知'}\n"
-        f"附加信息: 年份={item.year or '未知'}"
     )
-    if item.bangumi_id:
-        prompt += f", Bangumi ID={item.bangumi_id}"
-    if item.douban_id:
-        prompt += f", 豆瓣 ID={item.douban_id}"
+    if item.year:
+        prompt += f"年份: {item.year}\n"
+    if source_hints:
+        prompt += f"{'，'.join(source_hints)}\n"
     prompt += (
-        "\n\n请返回 JSON 格式，不要包含额外文字:\n"
+        "\n请返回 JSON 格式，不要包含额外文字:\n"
         '{"title": "标准化的媒体名称", "media_type": "movie|tv", "season": 1, "year": "2024"}\n'
         "其中 season 仅在 media_type 为 tv 且涉及特定季时填写，否则为 null。"
     )
 
     logger.info(f"[自动订阅] AI 辅助识别: {title}")
     try:
-        text = await _call_llm(prompt, api_base, api_key, model)
+        text = await _call_llm(prompt, api_base, api_key, model, enable_search=enable_search)
         if not text:
             return None
     except Exception as e:
@@ -179,6 +196,7 @@ async def _call_llm(
     api_key: str,
     model: str,
     timeout: int = 30,
+    enable_search: bool = False,
 ) -> str | None:
     """调用 openai 兼容的 LLM API 并返回文本响应。"""
     base = api_base.rstrip("/")
@@ -187,12 +205,15 @@ async def _call_llm(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    body = {
+    body: dict = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.1,
         "max_tokens": 300,
     }
+    # Qwen 系列模型支持 enable_search 联网搜索参数
+    if enable_search:
+        body["enable_search"] = True
     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), follow_redirects=True) as client:
         response = await client.post(url, headers=headers, json=body)
         response.raise_for_status()
