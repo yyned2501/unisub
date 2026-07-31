@@ -127,15 +127,16 @@ def _r_year(r: dict) -> int | None:
 
 
 def _normalize(s: str) -> str:
-    """归一化：全角/半角标点统一、多余空格去除。"""
-    s = s.replace("，", ",").replace("？", "?").replace("！", "!").replace("。", ".")
+    """归一化：全角/半角标点统一、日文中点转换、多余空格去除。"""
+    s = s.replace("，", ",").replace("？", "?").replace("！", "!").replace("。", "")
     s = s.replace("（", "(").replace("）", ")").replace("、", ",").replace(" ", "")
+    s = s.replace("・", "")  # 日文中点 → 移除，使含・标题与无标点版本精确相等
     return s
 
 
 def _strip_season(s: str) -> str:
-    """剥离季节后缀、副标题和末尾数字。"""
-    s = re.sub(r"[第][一二三四五六七八九十百\d]+[季]", "", s).strip()
+    """剥离季节后缀、章节后缀（章/篇/话）、副标题和末尾数字。"""
+    s = re.sub(r"[第][一二三四五六七八九十百\d]+[季章篇话]", "", s).strip()
     s = re.sub(r"[\s\-_]*\d{1,4}$", "", s).strip()
     # 剥离冒号副标题："复仇者联盟5：毁灭之日" → "复仇者联盟5"
     s = re.split(r"[：:]\s*", s, maxsplit=1)[0].strip()

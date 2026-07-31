@@ -17,30 +17,70 @@ def build_search_queries(title: str) -> list[str]:
 
     规则：
         - 含 "第X季" 后缀：剥离季节后缀，仅用基础标题搜索
+        - 含中文句号「。」分割的副标题：追加句号前部分
+          （"靠死亡游戏混饭吃。 44:CLOUDY BEACH" → "靠死亡游戏混饭吃"）
         - 含冒号副标题：追加冒号前部分（"复仇者联盟5：毁灭之日" → "复仇者联盟5"）
+        - 含「第X章/篇/话」等分段标识：追加分段前部分
+          （"剧场版 鬼灭之刃 无限城篇 第一章 猗窝座再袭" → "剧场版 鬼灭之刃 无限城篇"）
+        - 以「剧场版/劇場版」开头：追加移除前缀的变体
         - 数字结尾：追加剥离末尾数字的基础名（保留完整名在前）
+        - 变体去重
     """
-    queries = [title]
+    queries: list[str] = [title]
 
     season_match = re.search(r"[第]([一二三四五六七八九十百\d]+)[季]", title)
     if season_match:
         # 剧集类标题：剥离季节后缀，仅用基础标题搜索
         base_title = title[: season_match.start()].strip()
         if base_title:
-            queries = [base_title]
+            return [base_title]
         return queries
+
+    seen: set[str] = {title}
+
+    def _add(v: str) -> None:
+        v = v.strip()
+        if v and v not in seen:
+            seen.add(v)
+            queries.append(v)
+
+    # 中文句号「。」分割副标题
+    if "。" in title:
+        period_idx = title.index("。")
+        if period_idx < len(title) - 1 and title[period_idx + 1 :].strip():
+            before_period = title[:period_idx].strip()
+            if len(before_period) >= 2:
+                _add(before_period)
 
     # 冒号分割副标题
     colon_parts = re.split(r"[：:]\s*", title, maxsplit=1)
-    if len(colon_parts) > 1 and len(colon_parts[0]) >= 2 and colon_parts[0].strip() not in queries:
-        queries.append(colon_parts[0].strip())
+    if len(colon_parts) > 1 and len(colon_parts[0]) >= 2:
+        _add(colon_parts[0].strip())
+
+    # 「第X章/篇/话」分段标识（数字或中文数词紧跟在「第」后）
+    chapter_match = re.search(r"第([一二三四五六七八九十百\d]+)[章篇话]", title)
+    if chapter_match:
+        base = title[: chapter_match.start()].strip()
+        if len(base) >= 2:
+            _add(base)
+
+    # 「剧场版/劇場版」前缀；同时组合处理后续章节标识
+    for prefix in ("剧场版", "劇場版"):
+        if title.startswith(prefix):
+            rest = title[len(prefix) :].strip()
+            if len(rest) >= 2:
+                _add(rest)
+            rest_chapter = re.search(r"第([一二三四五六七八九十百\d]+)[章篇话]", rest)
+            if rest_chapter:
+                _add(rest[: rest_chapter.start()])
+            break
 
     # 数字结尾标题先保留完整名称搜索；无候选时才剥离后缀重试
     numeric_tail = re.search(r"(\d{1,4})$", title)
     if numeric_tail:
         base_title = title[: numeric_tail.start()].strip()
-        if len(base_title) >= 2 and base_title not in queries:
-            queries.append(base_title)
+        if len(base_title) >= 2:
+            _add(base_title)
 
     return queries
 

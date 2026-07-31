@@ -23,6 +23,9 @@ YEAR_RE = re.compile(r"(19\d\d|20\d\d)")
 SEASON_MAP = {"春": 1, "夏": 2, "秋": 3, "冬": 4}
 SEASON_NAMES = ["春", "夏", "秋", "冬"]
 
+# 保守的电影关键词：命中时视为电影而非 TV 番剧
+MOVIE_KEYWORDS_RE = re.compile(r"(?:剧场版|劇場版|电影版|電影版|OVA|OAD|特别篇|特別篇|总集篇|総集編)")
+
 # 缓存 _find_available_base 的结果，避免每次详情页都重新请求
 _available_base_cache: str | None = None
 _available_base_lock = asyncio.Lock()
@@ -105,7 +108,7 @@ class MikanRankProvider(RankProvider):
             items.append(
                 RankMediaItem(
                     title=title,
-                    type_hint="tv",
+                    type_hint="movie" if MOVIE_KEYWORDS_RE.search(title) else "tv",
                     poster=cover,
                     source_meta={"mikan_id": mikan_id, "source": "mikan"},
                     unique_seed=f"mikan:{mikan_id}",
