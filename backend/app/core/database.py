@@ -7,7 +7,14 @@ from app.config import parse_config
 
 config = parse_config()
 
-engine = create_async_engine(config.database_url, echo=config.debug)
+# pool_pre_ping: 取连接前先探活，避免夜间闲置连接被服务端掐断后整轮同步失败
+# pool_recycle: 连接存活 30 分钟即回收重建，规避 NAS/防火墙的闲置断连
+engine = create_async_engine(
+    config.database_url,
+    echo=config.debug,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
