@@ -4,10 +4,17 @@
 MoviePilot 的 API 返回 307 重定向，httpx 通过 follow_redirects=True 自动跟随。
 """
 
+import time
+from collections.abc import Awaitable, Callable
+
 from app.core.http_client import http_client
 from app.core.logger import init_logger
 
 logger = init_logger()
+
+# 连接失败熔断参数：连续 N 次网络层连接失败后暂停调用，冷却期后半开重试
+_CONN_FAIL_THRESHOLD = 5
+_CONN_FAIL_COOLDOWN = 300
 
 # UniSub 内部媒体类型（movie/tv）→ MoviePilot API 类型值。
 # MP 的 MediaType 枚举认中文「电影」/「电视剧」，传英文 tv/movie 会触发
@@ -50,6 +57,48 @@ class MoviePilotService:
             "X-API-Key": api_key,
             "accept": "application/json",
         }
+        # 连接失败熔断状态
+        self._conn_failures = 0
+        self._breaker_until = 0.0
+
+    async def _guarded(
+        self,
+        request_fn: Callable[..., Awaitable[dict | list]],
+        url: str,
+        **kwargs,
+    ) -> dict | list:
+        """执行请求并施加连接失败熔断。
+
+        MP 宕机时同步循环会逐条硬试（历史上单次同步产生过 364 条连接失败日志），
+        连续连接失败达到阈值后暂停调用，冷却期过后半开放行一次尝试。
+        HTTP 状态码错误（服务存活）不计入熔断。
+
+        Args:
+            request_fn: http_client 的请求方法（get/post/delete 等）
+            url: 请求地址
+            **kwargs: 透传给请求方法的参数
+
+        Returns:
+            响应结果；熔断打开时返回 request_failed 错误字典。
+        """
+        if self._conn_failures >= _CONN_FAIL_THRESHOLD and time.monotonic() < self._breaker_until:
+            return {"error": "request_failed", "detail": "MoviePilot 熔断中（连续连接失败），暂停调用"}
+
+        result = await request_fn(url, headers=self._headers, **kwargs)
+
+        if isinstance(result, dict) and result.get("error") == "request_failed":
+            self._conn_failures += 1
+            if self._conn_failures == _CONN_FAIL_THRESHOLD:
+                self._breaker_until = time.monotonic() + _CONN_FAIL_COOLDOWN
+                logger.error(
+                    "MoviePilot 连续 %d 次连接失败，熔断 %d 秒",
+                    self._conn_failures,
+                    _CONN_FAIL_COOLDOWN,
+                )
+        elif self._conn_failures:
+            self._conn_failures = 0
+
+        return result
 
     async def search_media(self, tmdb_id: int, media_type: str) -> dict:
         """调用 MoviePilot 搜索媒体资源。
@@ -66,7 +115,7 @@ class MoviePilotService:
         """
         url = f"{self.base_url}/api/v1/search/media"
         body = {"tmdbid": tmdb_id, "media_type": media_type}
-        result = await http_client.post(url, headers=self._headers, json=body)
+        result = await self._guarded(http_client.post, url, json=body)
         if "error" in result:
             logger.error(f"MoviePilot 搜索失败 (tmdb_id={tmdb_id}, type={media_type}): {result}")
         return result
@@ -109,7 +158,7 @@ class MoviePilotService:
             body["year"] = str(year)
         if season is not None:
             body["season"] = season
-        result = await http_client.post(url, headers=self._headers, json=body)
+        result = await self._guarded(http_client.post, url, json=body)
         if "error" in result:
             logger.error(
                 "MoviePilot 创建订阅失败 (tmdb_id=%d, type=%s, season=%s): %s", tmdb_id, media_type, season, result
@@ -161,7 +210,7 @@ class MoviePilotService:
         if seasons:
             body["seasons"] = {str(sn): eps for sn, eps in seasons.items()}
 
-        result = await http_client.post(url, headers=self._headers, json=body)
+        result = await self._guarded(http_client.post, url, json=body)
         if "error" in result:
             logger.error("MoviePilot 查询缺集失败 (tmdb_id=%d): %s", tmdb_id, result)
             return result
@@ -180,7 +229,7 @@ class MoviePilotService:
             失败时含 ``error`` 键。
         """
         url = f"{self.base_url}/api/v1/subscribe/{mp_sub_id}"
-        result = await http_client.get(url, headers=self._headers)
+        result = await self._guarded(http_client.get, url)
         if "error" in result:
             logger.error("MoviePilot 获取订阅详情失败 (sub_id=%d): %s", mp_sub_id, result)
         return result
@@ -195,7 +244,7 @@ class MoviePilotService:
             MP 响应字典；失败时含 ``error`` 键。
         """
         url = f"{self.base_url}/api/v1/subscribe/{mp_sub_id}"
-        result = await http_client.delete(url, headers=self._headers)
+        result = await self._guarded(http_client.delete, url)
         if "error" in result:
             logger.error("MoviePilot 删除订阅失败 (sub_id=%d): %s", mp_sub_id, result)
         return result
@@ -212,7 +261,7 @@ class MoviePilotService:
         """
         url = f"{self.base_url}/api/v1/subscribe/media/tmdb:{tmdb_id}"
         params = {"season": season} if season is not None else None
-        result = await http_client.get(url, headers=self._headers, params=params)
+        result = await self._guarded(http_client.get, url, params=params)
         if "error" in result:
             # 404 等"不存在"视为未找到，不算错误
             return None
@@ -225,7 +274,7 @@ class MoviePilotService:
             站点统计列表
         """
         url = f"{self.base_url}/api/v1/site/statistic"
-        result = await http_client.get(url, headers=self._headers)
+        result = await self._guarded(http_client.get, url)
         if "error" in result:
             logger.error(f"MoviePilot 获取站点统计失败: {result}")
             return []
@@ -240,6 +289,7 @@ class MoviePilotService:
 
         与 get_site_statistic 不同，本方法保留原始 error 信息，
         使调用方能区分"连接失败"和"连上了但无站点"。
+        本方法有意绕过熔断，便于用户在熔断期间随时探测 MP 是否恢复。
 
         Returns:
             成功：``{"success": True, "sites": <站点数>}``；
