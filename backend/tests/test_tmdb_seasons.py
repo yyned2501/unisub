@@ -1,4 +1,4 @@
-"""TMDB 季集缓存测试 — _save_seasons 写库与 get_seasons_map 本地/补缓存逻辑。"""
+"""TMDB 季集缓存测试 — save_seasons 写库与 get_seasons_map 本地/补缓存逻辑。"""
 
 from datetime import UTC, datetime, timedelta
 
@@ -6,6 +6,8 @@ from sqlalchemy import select
 
 from app.models.tmdb_season import TmdbSeason
 from app.services.tmdb import TMDBService
+from app.services.tmdb_cache import save_seasons
+from app.services.tmdb_detail import aired_count_by_season
 
 
 def _make_service() -> TMDBService:
@@ -14,8 +16,7 @@ def _make_service() -> TMDBService:
 
 
 async def test_save_seasons_writes_rows_skip_special(db_session):
-    """_save_seasons 应按季写库，跳过特典季（season_number=0）。"""
-    svc = _make_service()
+    """save_seasons 应按季写库，跳过特典季（season_number=0）。"""
     detail = {
         "seasons": [
             {"season_number": 0, "episode_count": 5},  # 特典季，应跳过
@@ -23,7 +24,7 @@ async def test_save_seasons_writes_rows_skip_special(db_session):
             {"season_number": 2, "episode_count": 10, "air_date": "2023-10-01"},
         ]
     }
-    await svc._save_seasons(db_session, 209311, detail)
+    await save_seasons(db_session, 209311, detail)
 
     rows = (await db_session.execute(select(TmdbSeason).where(TmdbSeason.tmdb_id == 209311))).scalars().all()
     seasons = sorted(r.season for r in rows)
@@ -39,11 +40,10 @@ async def test_save_seasons_writes_rows_skip_special(db_session):
 
 async def test_save_seasons_updates_existing(db_session):
     """已存在的季应更新 episode_count，而非重复插入。"""
-    svc = _make_service()
     db_session.add(TmdbSeason(tmdb_id=100, season=1, episode_count=5))
     await db_session.flush()
 
-    await svc._save_seasons(db_session, 100, {"seasons": [{"season_number": 1, "episode_count": 8}]})
+    await save_seasons(db_session, 100, {"seasons": [{"season_number": 1, "episode_count": 8}]})
     await db_session.flush()
 
     rows = (await db_session.execute(select(TmdbSeason).where(TmdbSeason.tmdb_id == 100))).scalars().all()
@@ -76,7 +76,7 @@ async def test_get_seasons_map_local_miss_triggers_tmdb(db_session, monkeypatch)
 
     async def fake_update(self, db, tmdb_id):
         # 模拟调 TMDB 后写入季数据（air_date 在过去 → 已播 4 集）
-        await self._save_seasons(
+        await save_seasons(
             db, tmdb_id, {"seasons": [{"season_number": 1, "episode_count": 4, "air_date": "2020-01-01"}]}
         )
         await db.commit()
@@ -117,7 +117,7 @@ def test_aired_count_by_season_returning_series():
             {"season_number": 4, "episode_count": 8},  # 无首播日
         ],
     }
-    assert TMDBService.aired_count_by_season(detail) == {1: 10, 2: 3, 3: 0, 4: 0}
+    assert aired_count_by_season(detail) == {1: 10, 2: 3, 3: 0, 4: 0}
 
 
 def test_aired_count_by_season_completed():
@@ -129,12 +129,11 @@ def test_aired_count_by_season_completed():
             {"season_number": 2, "episode_count": 10, "air_date": "2019-01-01"},
         ],
     }
-    assert TMDBService.aired_count_by_season(detail) == {1: 12, 2: 10}
+    assert aired_count_by_season(detail) == {1: 12, 2: 10}
 
 
 async def test_save_seasons_writes_aired_count_zero_for_unaired(db_session):
     """未开播的季（air_date 在未来）应落库 aired_count=0。"""
-    svc = _make_service()
     detail = {
         "status": "Returning Series",
         "last_episode_to_air": {"season_number": 1, "episode_number": 5},
@@ -143,7 +142,7 @@ async def test_save_seasons_writes_aired_count_zero_for_unaired(db_session):
             {"season_number": 2, "episode_count": 10, "air_date": "2099-01-01"},  # 未播
         ],
     }
-    await svc._save_seasons(db_session, 500, detail)
+    await save_seasons(db_session, 500, detail)
     rows = (await db_session.execute(select(TmdbSeason).where(TmdbSeason.tmdb_id == 500))).scalars().all()
     by_season = {r.season: r for r in rows}
     assert by_season[1].aired_count == 5  # 当前季 = last_episode

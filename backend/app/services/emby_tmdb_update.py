@@ -18,6 +18,7 @@ from app.models.emby_cache import EmbyCache
 from app.models.tmdb_cache import TmdbCache
 from app.services.poster import build_tmdb_poster_url
 from app.services.tmdb import TMDBService
+from app.services.tmdb_detail import aired_from_detail, next_air_date_from_detail
 
 logger = init_logger(__name__)
 
@@ -99,8 +100,8 @@ async def update_tmdb_data_batch(
         try:
             detail = await tmdb_service.get_tv_detail(tid)
             if detail and "error" not in detail:
-                aired = tmdb_service.aired_from_detail(detail)
-                next_date = tmdb_service.next_air_date_from_detail(detail)
+                aired = aired_from_detail(detail)
+                next_date = next_air_date_from_detail(detail)
                 poster = detail.get("poster_path")
                 return tid, {
                     "total_eps": detail.get("number_of_episodes"),
