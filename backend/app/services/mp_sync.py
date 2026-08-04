@@ -5,7 +5,8 @@
     - unsubscribe: 删除该订阅在 MP 的所有订阅条目与子表行
     - sync: 对存量订阅重算缺集季，新增季建订阅、已补齐季删订阅、存量季回写进度
 
-MP 的缺集判断来自 ``POST /api/v1/mediaserver/notexists``（依赖 MP 已配置媒体服务器）。
+MP 的缺集判断优先本地计算（见 mp_missing.py），同步缺口才回退
+``POST /api/v1/mediaserver/notexists`` 兜底。
 所有 MP 操作均为 best-effort：失败只记日志，不阻塞 NF 主通道。
 """
 
@@ -16,12 +17,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import init_logger
-from app.models.emby_cache import EmbyCache
-from app.models.emby_season_cache import EmbySeasonCache
 from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
 from app.services.activity import log_activity
 from app.services.moviepilot import MoviePilotService
+from app.services.mp_missing import query_missing_seasons, show_in_emby
 from app.services.tmdb import TMDBService
 
 logger = init_logger()
@@ -55,7 +55,7 @@ class MpSyncEngine:
             await self._create_mp_sub(db, sub, season=None)
             return
 
-        seasons = await self._query_missing_seasons(db, sub)
+        seasons = await query_missing_seasons(self, db, sub)
         if seasons is None:
             # 查询失败，跳过镜像（不阻塞）
             return
@@ -123,7 +123,7 @@ class MpSyncEngine:
 
         # 电视剧：只镜像已在 Emby 库的剧（补 gap）。不在库 → 清掉已有镜像、不新建，
         # 先于进度回写处理，避免对将被清理的订阅做无效 MP 调用。
-        if sub.media_type != "movie" and not await self._show_in_emby(db, sub.tmdb_id):
+        if sub.media_type != "movie" and not await show_in_emby(db, sub.tmdb_id):
             for row in rows:
                 if row.mp_sub_id is not None:
                     result = await self.mp.delete_subscription(row.mp_sub_id)
@@ -147,7 +147,7 @@ class MpSyncEngine:
             return
 
         # 电视剧：重算缺集季
-        seasons = await self._query_missing_seasons(db, sub)
+        seasons = await query_missing_seasons(self, db, sub)
         if seasons is None:
             return  # 查询失败，本轮跳过
         missing_seasons: dict[int, dict] = {}
@@ -256,86 +256,6 @@ class MpSyncEngine:
         elif total:
             row.mp_completed_eps = max(0, total - lack)
         row.updated_at = datetime.now(UTC)
-
-    async def _query_missing_seasons(self, db: AsyncSession, sub: Subscription) -> list[dict] | None:
-        """查询剧集缺集季 — 优先本地计算，同步缺口才用 MP notexists 兜底。
-
-        缺集 = 已播集数（tmdb_season）- 库内集数（emby_season_cache），纯本地 DB 计算，
-        不再每轮实时调 MP notexists（其频繁打 Emby、慢且易 502）。判定路径：
-            - 本地有按季库数据 → 本地算缺集
-            - 本地无按季数据且剧不在 Emby 库 → 所有已播集都缺（本地判定，不调 notexists）
-            - 本地无按季数据但剧在库（同步缺口）→ 回退调一次 notexists 兜底
-
-        Returns:
-            缺集季列表（``[{"season","episodes","total_episode"}, ...]``）；
-            失败/无季集结构返回 None，无缺集返回 []。
-        """
-        seasons_map: dict[int, list[int]] | None = None
-        if self.tmdb:
-            try:
-                seasons_map = await self.tmdb.get_seasons_map(db, sub.tmdb_id)
-            except Exception as e:
-                logger.warning("获取季集结构失败: %s (tmdb_id=%d), %s", sub.title, sub.tmdb_id, e)
-
-        if not seasons_map:
-            logger.debug("无季集结构，跳过 MP 缺集查询: %s (tmdb_id=%d)", sub.title, sub.tmdb_id)
-            return None
-
-        emby_counts = await self._emby_season_counts(db, sub.tmdb_id)
-        if emby_counts:
-            return self._diff_missing(seasons_map, emby_counts)
-
-        if not await self._show_in_emby(db, sub.tmdb_id):
-            # 剧不在 Emby 库 → 不镜像（只补已在库剧的缺集，不整部下载），返回"无缺集"
-            logger.debug("剧不在 Emby 库，跳过 MP 镜像: %s (tmdb_id=%d)", sub.title, sub.tmdb_id)
-            return []
-
-        # 剧在库但无按季缓存（同步缺口）→ notexists 兜底一次
-        logger.debug("本地无按季库缓存，notexists 兜底: %s (tmdb_id=%d)", sub.title, sub.tmdb_id)
-        return await self._query_missing_via_mp(sub, seasons_map)
-
-    @staticmethod
-    def _diff_missing(seasons_map: dict[int, list[int]], emby_counts: dict[int, int]) -> list[dict]:
-        """本地计算缺集季，返回与 MP notexists 兼容的结构。
-
-        假设库内集按序补齐（1..have），缺集为 have+1..aired。
-
-        Args:
-            seasons_map: ``{季号: [已播集号列表]}``（来自 tmdb_season）
-            emby_counts: ``{季号: 库内集数}``（来自 emby_season_cache）
-
-        Returns:
-            缺集季列表（仅含 已播 > 库内 的季）
-        """
-        missing: list[dict] = []
-        for sn, eps in seasons_map.items():
-            aired = len(eps)
-            have = emby_counts.get(sn, 0)
-            if aired > have:
-                missing.append({"season": sn, "episodes": list(range(have + 1, aired + 1)), "total_episode": aired})
-        return missing
-
-    async def _emby_season_counts(self, db: AsyncSession, tmdb_id: int) -> dict[int, int]:
-        """读取本地 emby_season_cache 的按季库内集数 ``{季号: 集数}``。"""
-        rows = (await db.execute(select(EmbySeasonCache).where(EmbySeasonCache.tmdb_id == tmdb_id))).scalars().all()
-        return {row.season: (row.episode_count or 0) for row in rows}
-
-    async def _show_in_emby(self, db: AsyncSession, tmdb_id: int) -> bool:
-        """判断剧是否在 Emby 库中（emby_cache 有该 tmdb_id 记录）。"""
-        row = (await db.execute(select(EmbyCache.tmdb_id).where(EmbyCache.tmdb_id == tmdb_id))).first()
-        return row is not None
-
-    async def _query_missing_via_mp(self, sub: Subscription, seasons_map: dict[int, list[int]]) -> list[dict] | None:
-        """兜底：调 MP notexists 查缺集（仅本地按季缓存缺口时使用）。"""
-        result = await self.mp.get_missing_seasons(
-            sub.tmdb_id, sub.media_type, sub.title, year=sub.year, seasons=seasons_map
-        )
-        if isinstance(result, dict) and "error" in result:
-            logger.warning("MP 缺集查询失败（跳过镜像）: %s, %s", sub.title, result)
-            return None
-        if not isinstance(result, list):
-            return None
-        return result
 
 
 def _extract_sub_id(payload: dict | list | None) -> int | None:
