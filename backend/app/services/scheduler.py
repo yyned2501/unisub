@@ -4,12 +4,12 @@
   - 轻量刷新 (light scan): sync-cache + 补充缺失 TMDB 数据, 默认 10 分钟
   - 全量扫描 (full scan): sync-cache + 全量 TMDB + 同步订阅, 默认 60 分钟
 
-配置由本模块管理，routers/tasks.py 通过导入获取。
+配置由本模块管理，外部通过 get_task_config / update_task_config 读写。
 """
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -122,6 +122,26 @@ def save_state():
         logger.error(f"调度状态持久化失败: {e}")
 
 
+def get_task_config() -> dict:
+    """获取当前调度任务配置的副本。"""
+    return dict(_task_config)
+
+
+def update_task_config(updates: Mapping[str, object]) -> dict:
+    """合并更新调度任务配置并持久化。
+
+    Args:
+        updates: 局部配置更新项
+
+    Returns:
+        更新后的完整配置副本
+    """
+    _task_config.update(updates)
+    save_state()
+    logger.info("任务配置已更新: %s", _task_config)
+    return dict(_task_config)
+
+
 async def _run_auto_subscribe_if_due(
     runner: Callable[[], Awaitable[None]],
 ) -> None:
@@ -170,8 +190,6 @@ async def _loop(
 
     while not stop_event.is_set():
         try:
-            from app.services.scheduler import _task_config
-
             enabled = _task_config.get("auto_sync_enabled", True)
             light_interval = _task_config.get("light_interval_minutes", 10)
             full_interval = _task_config.get("interval_minutes", 60)

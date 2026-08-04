@@ -9,9 +9,8 @@ from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
 from app.schemas.task import TaskConfigUpdate, TaskStatusResponse, TaskTriggerResponse
-from app.services import get_mp_service, get_nf_service, get_tmdb_service, log_activity
+from app.services import get_mp_service, get_nf_service, get_tmdb_service, log_activity, scheduler
 from app.services.orchestrator import OrchestratorService
-from app.services.scheduler import _task_config, save_state
 
 router = APIRouter(prefix="/api/tasks", tags=["定时任务"], dependencies=[Depends(get_current_user)])
 logger = init_logger()
@@ -31,7 +30,7 @@ async def get_task_status():
         running=_task_status["running"],
         last_run=_task_status["last_run"],
         last_result=_task_status["last_result"],
-        config=_task_config,
+        config=scheduler.get_task_config(),
     )
 
 
@@ -62,10 +61,11 @@ async def trigger_task(db: AsyncSession = Depends(get_db)):
         sync_count = len(sync_results)
 
         # 2. 触发 MP 补充搜索（如果启用且有 MP 配置）
-        if _task_config["mp_supplement_enabled"] and mp:
+        mp_supplement_enabled = scheduler.get_task_config()["mp_supplement_enabled"]
+        if mp_supplement_enabled and mp:
             mp_results = await orchestrator.trigger_mp_supplement(db)
             mp_search_count = len(mp_results)
-        elif _task_config["mp_supplement_enabled"] and not mp:
+        elif mp_supplement_enabled and not mp:
             logger.info("MP 补充搜索跳过: MoviePilot 未配置")
 
         # 记录系统活动
@@ -98,8 +98,5 @@ async def trigger_task(db: AsyncSession = Depends(get_db)):
 async def update_task_config(body: TaskConfigUpdate):
     """更新定时任务配置。"""
     update_data = body.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        _task_config[key] = value
-    save_state()
-    logger.info(f"任务配置已更新: {_task_config}")
-    return {"success": True, "config": _task_config}
+    new_config = scheduler.update_task_config(update_data)
+    return {"success": True, "config": new_config}
