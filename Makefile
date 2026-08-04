@@ -47,16 +47,16 @@ status: ## 查看服务状态
 	sudo supervisorctl status unisub:*
 
 restart: ## 重启后端 + 前端
-	sudo supervisorctl restart unisub:backend unisub:frontend
+	sudo supervisorctl restart unisub:unisub_backend unisub:unisub_frontend
 
 restart-backend: ## 重启后端
-	sudo supervisorctl restart unisub:backend
+	sudo supervisorctl restart unisub:unisub_backend
 
 restart-frontend: ## 重启前端 nginx（纯静态改动只需 make build，无需重启）
-	sudo supervisorctl restart unisub:frontend
+	sudo supervisorctl restart unisub:unisub_frontend
 
 logs: ## 实时跟踪后端日志
-	sudo supervisorctl tail -f unisub:backend
+	tail -f backend/logs/unisub.log
 
 clean: ## 清理构建产物和缓存
 	rm -rf frontend/dist
