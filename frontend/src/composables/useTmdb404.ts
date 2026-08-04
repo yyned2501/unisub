@@ -2,8 +2,8 @@ import { ref, onMounted } from 'vue'
 import { getTmdb404List, moveTmdb404Item, resolveTmdb404Path } from '@/service/api/emby'
 import { getCd2Config } from '@/service/api/cd2'
 import { msg, confirmDialog } from '@/utils/message'
+import { extractError, toArray } from '@/utils/common'
 import { useIdSet } from '@/composables/useIdSet'
-import type { AxiosError } from 'axios'
 import type { Tmdb404Item, Tmdb404ResolveResult } from '@/types'
 
 /** 管理无 TMDB 数据媒体列表的加载和移动操作。 */
@@ -19,7 +19,7 @@ export function useTmdb404() {
     loading.value = true
     try {
       const data = await getTmdb404List()
-      items.value = Array.isArray(data) ? data : []
+      items.value = toArray(data)
     } catch {
       items.value = []
     } finally {
@@ -48,8 +48,7 @@ export function useTmdb404() {
         msg.warning(data.note || 'CD2 中未找到该路径')
       }
     } catch (e: unknown) {
-      const err = e as AxiosError<{ detail?: string }>
-      msg.error(err.response?.data?.detail || '路径确认失败')
+      msg.error(extractError(e, '路径确认失败'))
     } finally {
       resolvingIds.remove(item.tmdb_id)
     }
@@ -80,8 +79,7 @@ export function useTmdb404() {
         msg.error(data?.message || '移动失败')
       }
     } catch (e: unknown) {
-      const err = e as AxiosError<{ detail?: string }>
-      msg.error(err.response?.data?.detail || '移动失败')
+      msg.error(extractError(e, '移动失败'))
     } finally {
       movingIds.remove(item.tmdb_id)
     }

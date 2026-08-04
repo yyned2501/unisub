@@ -13,7 +13,7 @@ import {
 import { useIdSet } from '@/composables/useIdSet'
 import { usePolling } from '@/composables/usePolling'
 import { msg, confirmDialog } from '@/utils/message'
-import type { AxiosError } from 'axios'
+import { extractError } from '@/utils/common'
 import type { EmbyMissingAnalysis, EmbyCacheResponse } from '@/types'
 
 /**
@@ -149,7 +149,7 @@ export function useEmbyAnalysis() {
       scanPolling.resume()
       msg.success('全量扫描已启动')
     } catch (e: unknown) {
-      msg.error((e as AxiosError<{ detail?: string }>)?.response?.data?.detail || '启动扫描失败')
+      msg.error(extractError(e, '启动扫描失败'))
     }
   }
 
@@ -193,7 +193,7 @@ export function useEmbyAnalysis() {
         msg.error(data?.message || '订阅失败')
       }
     } catch (e: unknown) {
-      msg.error((e as AxiosError<{ detail?: string }>)?.response?.data?.detail || '订阅失败')
+      msg.error(extractError(e, '订阅失败'))
     } finally {
       subscribingIds.remove(s.tmdb_id)
     }
@@ -221,7 +221,7 @@ export function useEmbyAnalysis() {
         msg.error(data?.message || '删除失败')
       }
     } catch (e: unknown) {
-      msg.error((e as AxiosError<{ detail?: string }>)?.response?.data?.detail || '删除失败')
+      msg.error(extractError(e, '删除失败'))
     } finally {
       deletingIds.remove(s.tmdb_id)
     }

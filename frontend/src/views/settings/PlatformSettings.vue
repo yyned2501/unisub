@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { getPlatforms, updatePlatform, deletePlatform, testPlatform } from '@/service/api/platforms'
 import { getNextFindQuota } from '@/service/api/dashboard'
 import { msg, confirmDialog } from '@/utils/message'
+import { toArray, nfQuotaEntries } from '@/utils/common'
 import type { PlatformConfig } from '@/types'
 
 defineOptions({ name: 'PlatformSettings' })
@@ -33,7 +34,7 @@ async function loadPlatforms() {
   loading.value = true
   try {
     const data = await getPlatforms()
-    platforms.value = Array.isArray(data) ? data : []
+    platforms.value = toArray(data)
   } finally {
     loading.value = false
   }
@@ -49,10 +50,7 @@ async function loadQuota() {
 }
 
 /** NextFind 有效额度列表（过滤掉"未开启"的空条目） */
-const nfQuotaList = computed(() => {
-  if (!nfQuota.value) return []
-  return Object.values(nfQuota.value).filter((v) => v && v !== '未开启')
-})
+const nfQuotaList = computed(() => nfQuotaEntries(nfQuota.value))
 
 async function handleSave(p: PlatformConfig) {
   savingId.value = p.id

@@ -14,6 +14,7 @@ import { DEFAULT_CONFIG, DEFAULT_META } from '@/components/auto-subscribe/defaul
 import SourceConfigPanel from '@/components/auto-subscribe/SourceConfigPanel.vue'
 import HistoryTable from '@/components/auto-subscribe/HistoryTable.vue'
 import { msg } from '@/utils/message'
+import { extractError } from '@/utils/common'
 import type { AutoSubConfig, AutoSubMetaResponse, AutoSubHistoryItem } from '@/types'
 
 defineOptions({ name: 'AutoSubscribeSettings' })
@@ -79,9 +80,7 @@ async function load() {
     }
     history.value = hist.items || []
   } catch (error: unknown) {
-    msg.error(
-      (error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '自动订阅配置加载失败'
-    )
+    msg.error(extractError(error, '自动订阅配置加载失败'))
   } finally {
     loading.value = false
   }
@@ -97,7 +96,7 @@ async function handleSave() {
     ])
     msg.success('配置已保存')
   } catch (error: unknown) {
-    msg.error((error as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '保存失败')
+    msg.error(extractError(error, '保存失败'))
   } finally {
     saving.value = false
   }
@@ -110,7 +109,7 @@ async function handleRun() {
     msg.success(data.message || '自动订阅已启动')
     await load()
   } catch (e: unknown) {
-    msg.error((e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '启动失败')
+    msg.error(extractError(e, '启动失败'))
   } finally {
     running.value = false
   }

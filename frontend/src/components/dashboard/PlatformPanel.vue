@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { nfQuotaEntries } from '@/utils/common'
 import type { PlatformStatus } from '@/types'
 
 const props = defineProps<{
@@ -20,10 +21,7 @@ const PLATFORM_LABELS: Record<string, string> = {
 }
 
 /** NextFind 有效额度列表（过滤掉"未开启"的空条目） */
-const nfQuotaList = computed(() => {
-  if (!props.nfQuota) return []
-  return Object.values(props.nfQuota).filter((v) => v && v !== '未开启')
-})
+const nfQuotaList = computed(() => nfQuotaEntries(props.nfQuota))
 </script>
 
 <template>
