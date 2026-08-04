@@ -10,8 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import init_logger
-from app.models.activity_log import ActivityLog
 from app.models.subscription import Subscription
+from app.services.activity import log_activity
 from app.services.auto_subscribe.models import (
     STATUS_ERROR,
     STATUS_EXISTS,
@@ -68,15 +68,7 @@ async def create_subscription(
         updated_at=datetime.now(UTC),
     )
     db.add(sub)
-    db.add(
-        ActivityLog(
-            id=str(uuid.uuid4()),
-            action="subscribe",
-            tmdb_id=tmdb_id,
-            message=f"自动订阅: {title} ({media_type})",
-            created_at=datetime.now(UTC),
-        )
-    )
+    await log_activity(db, "subscribe", f"自动订阅: {title} ({media_type})", tmdb_id=tmdb_id)
     try:
         await db.flush()
         await db.refresh(sub)

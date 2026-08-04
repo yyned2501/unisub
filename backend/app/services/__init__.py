@@ -5,17 +5,15 @@
 """
 
 import time
-import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.models.activity_log import ActivityLog
 from app.models.platform_config import PlatformConfig
+from app.services.activity import log_activity
 from app.services.emby import EmbyService
 from app.services.forward import ForwardService
 from app.services.moviepilot import MoviePilotService
@@ -147,30 +145,3 @@ async def require_tmdb_service(db: AsyncSession = Depends(get_db)) -> TMDBServic
     if not tmdb:
         raise HTTPException(status_code=503, detail="TMDB 平台未配置或未启用")
     return tmdb
-
-
-# === 通用活动日志 ===
-
-
-async def log_activity(
-    db: AsyncSession,
-    action: str,
-    message: str,
-    tmdb_id: int | None = None,
-) -> None:
-    """写入活动日志。
-
-    Args:
-        db: 数据库会话
-        action: 操作类型（subscribe / unsubscribe / sync / system 等）
-        message: 日志消息
-        tmdb_id: 关联的 TMDB ID（可选）
-    """
-    entry = ActivityLog(
-        id=str(uuid.uuid4()),
-        action=action,
-        tmdb_id=tmdb_id,
-        message=message,
-        created_at=datetime.now(UTC),
-    )
-    db.add(entry)

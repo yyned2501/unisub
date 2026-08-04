@@ -14,16 +14,13 @@
     Phase 6   记录同步活动日志
 """
 
-import uuid
-from datetime import UTC, datetime
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import init_logger
-from app.models.activity_log import ActivityLog
 from app.models.subscription import Subscription
 from app.schemas.subscription import SubscriptionSyncResult
+from app.services.activity import log_activity
 from app.services.nextfind import NextFindService
 from app.services.nf_sync_phases import (
     phase0_clean_abnormal,
@@ -84,14 +81,7 @@ class NfSyncEngine:
         phase5_log_cancelled(nf_by_tmdb, local_by_tmdb)
 
         # === Phase 6: 记录同步活动 ===
-        log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
-            action="sync",
-            tmdb_id=None,
-            message=f"双向同步完成: 处理了 {len(results)} 条记录",
-            created_at=datetime.now(UTC),
-        )
-        db.add(log_entry)
+        await log_activity(db, "sync", f"双向同步完成: 处理了 {len(results)} 条记录")
         await db.commit()
 
         return results

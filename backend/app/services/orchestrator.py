@@ -17,10 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import UpstreamError
 from app.core.logger import init_logger
-from app.models.activity_log import ActivityLog
 from app.models.subscription import Subscription
 from app.models.tmdb_cache import TmdbCache
 from app.schemas.subscription import SubscriptionResponse, SubscriptionSyncResult
+from app.services.activity import log_activity
 from app.services.moviepilot import MoviePilotService
 from app.services.mp_sync import MpSyncEngine
 from app.services.nextfind import NextFindService
@@ -44,7 +44,7 @@ class OrchestratorService:
         Args:
             nf_service: NextFind 服务实例
             mp_service: MoviePilot 服务实例（可选，MP 镜像订阅/补充搜索时需要）
-            tmdb_service: TMDB 服务实例（可选，用于推断媒体类型）
+            tmdb_service: TMDB 服务实例（可选，MP 缺集计算与 TMDB 缓存同步用）
         """
         self.nf = nf_service
         self.mp = mp_service
@@ -115,14 +115,7 @@ class OrchestratorService:
             raise UpstreamError(f"NextFind 订阅失败: {nf_result.get('detail', nf_result.get('error', '未知错误'))}")
 
         # 记录活动日志
-        log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
-            action="subscribe",
-            tmdb_id=tmdb_id,
-            message=f"订阅了 {title} ({media_type})",
-            created_at=datetime.now(UTC),
-        )
-        db.add(log_entry)
+        await log_activity(db, "subscribe", f"订阅了 {title} ({media_type})", tmdb_id=tmdb_id)
 
         # 镜像到 MoviePilot（best-effort，失败不阻塞 NF 订阅）
         if self._mp_sync:
@@ -157,14 +150,7 @@ class OrchestratorService:
             return {"success": False, "message": f"NextFind 取消订阅失败: {sub.title}"}
 
         # 记录活动日志
-        log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
-            action="unsubscribe",
-            tmdb_id=sub.tmdb_id,
-            message=f"取消订阅 {sub.title}",
-            created_at=datetime.now(UTC),
-        )
-        db.add(log_entry)
+        await log_activity(db, "unsubscribe", f"取消订阅 {sub.title}", tmdb_id=sub.tmdb_id)
 
         # 清理 MoviePilot 订阅（best-effort，在删除本地记录前处理子表行）
         if self._mp_sync:
@@ -225,14 +211,12 @@ class OrchestratorService:
             )
 
             # 记录活动日志
-            log_entry = ActivityLog(
-                id=str(uuid.uuid4()),
-                action="mp_search",
+            await log_activity(
+                db,
+                "mp_search",
+                f"MP 补充搜索: {sub.title} ({sub.media_type}), 缺集 {sub.nf_missing_eps}",
                 tmdb_id=sub.tmdb_id,
-                message=(f"MP 补充搜索: {sub.title} ({sub.media_type}), 缺集 {sub.nf_missing_eps}"),
-                created_at=datetime.now(UTC),
             )
-            db.add(log_entry)
 
         await db.commit()
         logger.info(f"MP 补充搜索完成: 处理了 {len(results)} 条缺集订阅")

@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import init_logger
-from app.models.activity_log import ActivityLog
 from app.services import get_nf_service, get_tmdb_service
+from app.services.activity import log_activity
 from app.services.auto_subscribe.config_store import get_config_store
 from app.services.auto_subscribe.pipeline import run as run_pipeline
 
@@ -103,15 +102,7 @@ class AutoSubscribeService:
                     message = f"自动订阅完成: 新增 {added} 条订阅"
                     if error_count:
                         message += f"，{error_count} 个源抓取失败"
-                db.add(
-                    ActivityLog(
-                        id=str(uuid.uuid4()),
-                        action="system",
-                        tmdb_id=None,
-                        message=message,
-                        created_at=datetime.now(UTC),
-                    )
-                )
+                await log_activity(db, "system", message)
                 await db.commit()
                 logger.info("[%s] %s", trigger, message)
                 return {"success": True, "started": True, "message": message, "errors": result["errors"]}

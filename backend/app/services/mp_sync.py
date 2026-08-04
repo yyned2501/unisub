@@ -16,11 +16,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import init_logger
-from app.models.activity_log import ActivityLog
 from app.models.emby_cache import EmbyCache
 from app.models.emby_season_cache import EmbySeasonCache
 from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
+from app.services.activity import log_activity
 from app.services.moviepilot import MoviePilotService
 from app.services.tmdb import TMDBService
 
@@ -227,14 +227,7 @@ class MpSyncEngine:
         label = "电影" if season is None else f"第{season}季"
         logger.info("MP 镜像 — 创建订阅: %s %s (mp_sub_id=%s)", sub.title, label, mp_sub_id)
 
-        log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
-            action="subscribe",
-            tmdb_id=sub.tmdb_id,
-            message=f"MP 镜像订阅: {sub.title} {label}",
-            created_at=datetime.now(UTC),
-        )
-        db.add(log_entry)
+        await log_activity(db, "subscribe", f"MP 镜像订阅: {sub.title} {label}", tmdb_id=sub.tmdb_id)
 
     async def _refresh_row(self, sub: Subscription, row: MpSubscription) -> None:
         """拉取 MP 订阅详情回写进度到子表行。"""
