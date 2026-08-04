@@ -76,9 +76,7 @@ class MpSyncEngine:
             db: 数据库会话（调用方负责 commit）
             sub: 本地订阅记录
         """
-        rows = (
-            (await db.execute(select(MpSubscription).where(MpSubscription.subscription_id == sub.id))).scalars().all()
-        )
+        rows = await self._load_rows(db, sub.id)
         for row in rows:
             if row.mp_sub_id is not None:
                 result = await self.mp.delete_subscription(row.mp_sub_id)
@@ -120,9 +118,7 @@ class MpSyncEngine:
 
     async def _sync_one(self, db: AsyncSession, sub: Subscription) -> None:
         """同步单个订阅的 MP 镜像。"""
-        rows = (
-            (await db.execute(select(MpSubscription).where(MpSubscription.subscription_id == sub.id))).scalars().all()
-        )
+        rows = await self._load_rows(db, sub.id)
         rows_by_season: dict[int | None, MpSubscription] = {r.season: r for r in rows}
 
         # 电视剧：只镜像已在 Emby 库的剧（补 gap）。不在库 → 清掉已有镜像、不新建，
@@ -185,6 +181,19 @@ class MpSyncEngine:
                     continue
             await db.delete(row)
             logger.info("MP 镜像 — 季已完结且补齐，删除订阅: %s 第%d季", sub.title, sn)
+
+    async def _load_rows(self, db: AsyncSession, subscription_id: str) -> list[MpSubscription]:
+        """加载指定订阅的全部 mp_subscription 子表行。
+
+        Args:
+            db: 数据库会话
+            subscription_id: 本地订阅记录 UUID
+
+        Returns:
+            子表行列表（无记录时为空列表）
+        """
+        result = await db.execute(select(MpSubscription).where(MpSubscription.subscription_id == subscription_id))
+        return list(result.scalars().all())
 
     async def _create_mp_sub(
         self,
