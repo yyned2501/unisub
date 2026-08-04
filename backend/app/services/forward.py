@@ -20,27 +20,19 @@ from app.services.orchestrator import OrchestratorService
 
 logger = init_logger()
 
-_TYPE_MAP = {
-    "movie": "电影",
-    "tv": "电视剧",
-}
 
-
-def _infer_media_type(raw: str | None) -> str:
-    """推断媒体类型中文名。
+def _to_internal_type(raw: str | None) -> str:
+    """把外部类型输入归一化为 UniSub 内部类型。
 
     Args:
-        raw: 原始类型（movie / tv / 电影 / 电视剧）
+        raw: 原始类型（movie / tv / 电影 / 电视剧 / 剧集）
 
     Returns:
-        "电影" 或 "电视剧"
+        "tv" 或 "movie"（缺省 movie）
     """
-    if not raw:
-        return "电影"
-    raw_lower = raw.strip().lower()
-    if raw_lower in ("tv", "电视剧", "剧集"):
-        return "电视剧"
-    return "电影"
+    if raw and raw.strip().lower() in ("tv", "电视剧", "剧集"):
+        return "tv"
+    return "movie"
 
 
 def _build_subscribe_item(sub: Subscription) -> dict:
@@ -234,7 +226,7 @@ class ForwardService:
         if tmdbid <= 0:
             return ForwardActionResponse(success=False, message="tmdbid 无效", data={})
 
-        media_type = "tv" if _infer_media_type(media_type) == "电视剧" else "movie"
+        media_type = _to_internal_type(media_type)
         title = body.name or f"tmdb_{tmdbid}"
 
         try:
