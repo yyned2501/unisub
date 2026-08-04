@@ -64,12 +64,13 @@ frontend/src/
 │   └── api/*.ts           # 每个后端 router 一个文件
 ├── store/modules/         # Pinia 仓库
 ├── composables/           # 业务逻辑 + 通用 composable
-│   ├── useAction.ts       # 通用：loading 包装
 │   ├── usePolling.ts      # 通用：轮询
 │   ├── useIdSet.ts        # 通用：行级 loading 集合
+│   ├── useSettingsForm.ts # 通用：设置页加载/保存状态机
 │   └── use*.ts            # 各页面业务逻辑
 ├── utils/
 │   ├── message.ts         # msg 快捷方法 + confirmDialog
+│   ├── common.ts          # extractError/toArray/nfQuotaEntries 等跨页工具
 │   └── format.ts          # 格式化工具
 ├── types/                 # 领域类型（镜像后端 schemas）
 ├── components/            # 可复用组件
@@ -80,17 +81,22 @@ frontend/src/
 
 | 模块 | 用途 | 替代了什么 |
 |:---|:---|:---|
-| `useAction(fn)` | 包装 async fn → `{ loading, run }` | 手写 `loading.value = true/finally false` |
 | `usePolling(fn, ms, {immediate})` | 轮询，自动 onUnmounted 清理 | 手写 `setInterval` + `clearInterval` |
 | `useIdSet()` | 行级 loading → `{ add, remove, has }` | `new Set([...set, id])` 展开样板 |
 | `usePagedList(source, size)` | 前端分页 → `{ page, totalPages, pagedList, setPage, reset }` | 手写 page/slice/totalPages |
+| `useSettingsForm({defaults, fetch, persist})` | 设置页加载/保存状态机 → `{ config, loading, saving, saveConfig }`，onMounted 自动拉取 | 每个设置页手写 loading/saving/load/handleSave |
+| `extractError(e, fallback)` | 从未知异常提取后端 detail 文案 | `(e as AxiosError<{detail?: string}>)?.response?.data?.detail \|\| ...` |
+| `toArray(data)` | 可空响应归一化为数组 | `Array.isArray(data) ? data : []` |
+| `nfQuotaEntries(quota)` | NextFind 有效额度列表（过滤"未开启"） | 各页面重复的 Object.values + filter |
 | `msg.success/error/warning/info` | 消息提示 | `window.$message?.xxx` |
 | `confirmDialog({content})` | Promise 化确认框 | 手写 `window.$dialog` Promise |
 
 **示例：**
 ```ts
-const { loading, run: loadList } = useAction(async () => {
-  list.value = await getSubscriptions()
+const { config, saving, saveConfig } = useSettingsForm({
+  defaults: { enabled: false },
+  fetch: () => getMyConfig(),
+  persist: (c) => updateMyConfig({ ...c }),
 })
 const deleting = useIdSet()
 async function remove(row: Subscription) {
@@ -140,7 +146,7 @@ export function updatePlatform(id: string, data: PlatformConfigUpdate) {
 - 状态走 Pinia，不在组件内直接改共享状态。
 - 暗色模式经 `themeStore` 统一管理。
 - 文件命名：Vue 组件 PascalCase（`DashboardView.vue`），TS 模块 camelCase/kebab-case（`request.ts`、`use-action.ts` 风格二选一，现状 camelCase）。
-- 错误处理：API 错误已在拦截器统一弹消息；业务层需定制提示时用 `msg`，catch 里取 `detail` 用 `(e as AxiosError<{detail?: string}>)?.response?.data?.detail`。
+- 错误处理：API 错误已在拦截器统一弹消息；业务层需定制提示时用 `msg`，catch 里用 `extractError(e, '兜底文案')` 取后端 detail。
 
 ## 9. 验证（提交前必做）
 
@@ -154,4 +160,4 @@ npm run lint         # eslint 零错误（自动 --fix）
 - 代码风格由 **Prettier** 统一（`.prettierrc`）：无分号、单引号、printWidth 120。改完可跑 `npm run format`。
 - ESLint（flat config，`eslint.config.js`）：TS + Vue 推荐规则；视图层允许 `any`；模板排版规则交给 Prettier。
 - 改了前端 → `npm run build && npm run type-check`。
-- 改了后端 → `sudo systemctl restart unisub-backend`，`sleep 3 && curl http://localhost:8002/api/platforms`。
+- 改了后端 → `sudo supervisorctl restart unisub:unisub_backend`，`sleep 3 && curl http://localhost:8002/api/platforms`。
