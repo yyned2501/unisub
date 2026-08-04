@@ -15,7 +15,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.database import Base, get_db
+from app.core.logger import init_logger
 from app.main import app
+
+# 测试与生产共写 backend/logs/unisub.log，移除文件 handler 避免测试噪音污染生产日志
+_test_logger = init_logger()
+_test_logger.handlers = [h for h in _test_logger.handlers if h.__class__.__name__ == "StreamHandler"]
 
 # 测试用内存数据库引擎
 _test_engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
