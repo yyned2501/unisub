@@ -1,6 +1,6 @@
 """Emby 服务测试 — 按季集数聚合逻辑（sync_cache 的核心统计）。"""
 
-from app.services.emby import _aggregate_episodes
+from app.services.emby_cache_sync import aggregate_episodes
 
 
 def test_aggregate_episodes_counts_per_series_and_season():
@@ -11,7 +11,7 @@ def test_aggregate_episodes_counts_per_series_and_season():
         {"SeriesId": "A", "ParentIndexNumber": 2, "IndexNumber": 1},
         {"SeriesId": "B", "ParentIndexNumber": 1, "IndexNumber": 1},
     ]
-    episode_counts, season_counts = _aggregate_episodes(eps)
+    episode_counts, season_counts = aggregate_episodes(eps)
     assert episode_counts == {"A": 3, "B": 1}
     assert season_counts == {"A": {1: 2, 2: 1}, "B": {1: 1}}
 
@@ -22,7 +22,7 @@ def test_aggregate_episodes_skips_missing_series_id():
         {"ParentIndexNumber": 1, "IndexNumber": 1},  # 无 SeriesId
         {"SeriesId": "A", "ParentIndexNumber": 1, "IndexNumber": 1},
     ]
-    episode_counts, season_counts = _aggregate_episodes(eps)
+    episode_counts, season_counts = aggregate_episodes(eps)
     assert episode_counts == {"A": 1}
     assert season_counts == {"A": {1: 1}}
 
@@ -34,11 +34,11 @@ def test_aggregate_episodes_skips_special_season():
         {"SeriesId": "A", "IndexNumber": 2},  # 无季号
         {"SeriesId": "A", "ParentIndexNumber": 1, "IndexNumber": 3},
     ]
-    episode_counts, season_counts = _aggregate_episodes(eps)
+    episode_counts, season_counts = aggregate_episodes(eps)
     assert episode_counts == {"A": 3}  # 整剧三集都算
     assert season_counts == {"A": {1: 1}}  # 按季只统计第1季
 
 
 def test_aggregate_episodes_empty():
     """空列表返回空统计。"""
-    assert _aggregate_episodes([]) == ({}, {})
+    assert aggregate_episodes([]) == ({}, {})
