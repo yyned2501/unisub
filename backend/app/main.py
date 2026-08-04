@@ -29,6 +29,7 @@ from app.routers import (
     dashboard,
     emby,
     emby_image,
+    emby_tmdb404,
     forward,
     logs,
     platforms,
@@ -189,6 +190,7 @@ app.include_router(search.router)
 app.include_router(subscriptions.router)
 app.include_router(dashboard.router)
 app.include_router(emby.router)
+app.include_router(emby_tmdb404.router)
 app.include_router(emby_image.router)
 app.include_router(tasks.router)
 app.include_router(forward.router)
