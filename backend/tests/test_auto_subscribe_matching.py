@@ -55,6 +55,12 @@ def test_strip_season_removes_hua_suffix():
     assert _strip_season("海贼王第五话") == "海贼王"
 
 
+def test_strip_season_removes_bufen_suffix():
+    """剥离'第X部分'后缀（铠真传 武士军团 第2部分 场景）。"""
+    assert _strip_season("铠真传武士军团第2部分") == "铠真传武士军团"
+    assert _strip_season("某剧集第二部分") == "某剧集"
+
+
 def test_strip_season_keeps_normal_title():
     """无后缀的标题应保持不变。"""
     assert _strip_season("复仇者联盟") == "复仇者联盟"
@@ -98,6 +104,16 @@ def test_pick_best_matches_base_to_hua_suffix():
     matched = pick_best(results, "海贼王", "tv")
     assert matched is not None
     assert matched["title"] == "海贼王第100话"
+
+
+def test_pick_best_matches_bufen_suffix_to_base():
+    """带'第X部分'后缀的标题应匹配基础标题候选。"""
+    results = [
+        {"title": "铠真传 武士军团", "media_type": "tv", "vote_average": 7.0},
+    ]
+    matched = pick_best(results, "铠真传 武士军团 第2部分", "tv")
+    assert matched is not None
+    assert matched["title"] == "铠真传 武士军团"
 
 
 def test_pick_best_rejects_unrelated_chinese():

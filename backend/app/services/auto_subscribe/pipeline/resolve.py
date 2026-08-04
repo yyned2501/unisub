@@ -20,8 +20,9 @@ def build_search_queries(title: str) -> list[str]:
         - 含中文句号「。」分割的副标题：追加句号前部分
           （"靠死亡游戏混饭吃。 44:CLOUDY BEACH" → "靠死亡游戏混饭吃"）
         - 含冒号副标题：追加冒号前部分（"复仇者联盟5：毁灭之日" → "复仇者联盟5"）
-        - 含「第X章/篇/话」等分段标识：追加分段前部分
-          （"剧场版 鬼灭之刃 无限城篇 第一章 猗窝座再袭" → "剧场版 鬼灭之刃 无限城篇"）
+        - 含「第X章/篇/话/部分」等分段标识：追加分段前部分
+          （"剧场版 鬼灭之刃 无限城篇 第一章 猗窝座再袭" → "剧场版 鬼灭之刃 无限城篇"；
+          "铠真传 武士军团 第2部分" → "铠真传 武士军团"）
         - 以「剧场版/劇場版」开头：追加移除前缀的变体
         - 数字结尾：追加剥离末尾数字的基础名（保留完整名在前）
         - 变体去重
@@ -57,8 +58,8 @@ def build_search_queries(title: str) -> list[str]:
     if len(colon_parts) > 1 and len(colon_parts[0]) >= 2:
         _add(colon_parts[0].strip())
 
-    # 「第X章/篇/话」分段标识（数字或中文数词紧跟在「第」后）
-    chapter_match = re.search(r"第([一二三四五六七八九十百\d]+)[章篇话]", title)
+    # 「第X章/篇/话/部分」分段标识（数字或中文数词紧跟在「第」后）
+    chapter_match = re.search(r"第([一二三四五六七八九十百\d]+)(?:章|篇|话|部分)", title)
     if chapter_match:
         base = title[: chapter_match.start()].strip()
         if len(base) >= 2:
@@ -70,7 +71,7 @@ def build_search_queries(title: str) -> list[str]:
             rest = title[len(prefix) :].strip()
             if len(rest) >= 2:
                 _add(rest)
-            rest_chapter = re.search(r"第([一二三四五六七八九十百\d]+)[章篇话]", rest)
+            rest_chapter = re.search(r"第([一二三四五六七八九十百\d]+)(?:章|篇|话|部分)", rest)
             if rest_chapter:
                 _add(rest[: rest_chapter.start()])
             break

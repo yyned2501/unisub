@@ -73,6 +73,19 @@ def test_chapter_segment_chinese_word_actions() -> None:
     assert "某魔法的禁书目录" in t2
 
 
+def test_part_segment_appends_base_title() -> None:
+    """「第X部分」分段标识应追加分段前的基础标题（铠真传 武士军团 第2部分 场景）。"""
+    queries = build_search_queries("铠真传 武士军团 第2部分")
+    assert "铠真传 武士军团" in queries
+    assert queries[0] == "铠真传 武士军团 第2部分"
+
+
+def test_part_segment_chinese_number() -> None:
+    """中文数词的「第X部分」也应正确截取。"""
+    queries = build_search_queries("某剧集 第二部分")
+    assert "某剧集" in queries
+
+
 def test_movie_version_prefix_stripped() -> None:
     """以「剧场版」开头的标题应追加移除前缀的变体。"""
     queries = build_search_queries("剧场版 鬼灭之刃 无限列车篇")
