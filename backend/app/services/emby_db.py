@@ -9,6 +9,7 @@ from datetime import UTC
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.image_sign import sign_emby_image_path
 from app.models.emby_blacklist import EmbyBlacklist
 from app.models.emby_cache import EmbyCache
 from app.models.subscription import Subscription
@@ -100,7 +101,7 @@ async def analyze_missing_library(
                 emby_series_name=cache.emby_series_name,
                 emby_year=cache.emby_year,
                 emby_episode_count=cache.emby_episode_count,
-                emby_image_url=cache.emby_image_url,
+                emby_image_url=sign_emby_image_path(cache.emby_series_id) if cache.emby_series_id else None,
                 emby_library_name=cache.emby_library_name,
                 overview=cache.overview,
                 poster_url=poster_url,
@@ -211,9 +212,9 @@ async def list_tmdb_404_items(db: AsyncSession, cd2_config=None) -> list[dict]:
         SELECT
             e.tmdb_id,
             e.emby_series_name,
+            e.emby_series_id,
             e.emby_year,
             e.emby_path,
-            e.emby_image_url,
             e.updated_at
         FROM emby_cache e
         LEFT JOIN tmdb_cache t ON e.tmdb_id = t.tmdb_id
@@ -237,7 +238,7 @@ async def list_tmdb_404_items(db: AsyncSession, cd2_config=None) -> list[dict]:
                 "emby_year": row.emby_year,
                 "emby_path": emby_path,
                 "cd2_path": cd2_path,
-                "emby_image_url": row.emby_image_url,
+                "emby_image_url": sign_emby_image_path(row.emby_series_id) if row.emby_series_id else None,
                 "detected_at": row.updated_at.isoformat() if row.updated_at else None,
             }
         )

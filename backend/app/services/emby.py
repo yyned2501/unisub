@@ -176,6 +176,21 @@ class EmbyService:
             logger.info(f"Emby 删除媒体项成功: item_id={item_id}")
         return result
 
+    async def get_primary_image(self, item_id: str) -> tuple[bytes, str]:
+        """获取媒体项 Primary 海报的图片字节（供代理端点转发，避免 api_key 暴露给浏览器）。
+
+        Args:
+            item_id: Emby 中的条目 ID（Series ID）
+
+        Returns:
+            (图片字节, Content-Type)
+
+        Raises:
+            HttpRequestError: Emby 请求失败
+        """
+        url = f"{self.base_url}/Items/{item_id}/Images/Primary"
+        return await http_client.get_bytes(url, headers={"X-Emby-Token": self.api_key})
+
     async def _get_user_id(self) -> str | None:
         """获取 Emby 第一个用户的 ID（用户级 item 查询需要），结果缓存于实例。
 
@@ -425,9 +440,7 @@ class EmbyService:
             # 查找该剧集所属的媒体库
             library_name = tmdb_library_map.get(tmdb_id)
 
-            emby_image_url = (
-                f"{self.base_url}/Items/{emby_id}/Images/Primary?api_key={self.api_key}" if emby_id else None
-            )
+            emby_image_url = f"/api/emby/image/{emby_id}" if emby_id else None
             emby_path = item.get("Path")
 
             # UPSERT

@@ -28,6 +28,7 @@ from app.routers import (
     cd2,
     dashboard,
     emby,
+    emby_image,
     forward,
     logs,
     platforms,
@@ -188,6 +189,7 @@ app.include_router(search.router)
 app.include_router(subscriptions.router)
 app.include_router(dashboard.router)
 app.include_router(emby.router)
+app.include_router(emby_image.router)
 app.include_router(tasks.router)
 app.include_router(forward.router)
 

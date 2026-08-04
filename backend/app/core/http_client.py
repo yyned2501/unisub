@@ -7,6 +7,7 @@
       推荐复用 services/nextfind.py 的 ``_check`` 辅助模式消除重复判断。
     - get_text: 用于抓取 HTML/RSS 文本，失败时**抛出** ``HttpRequestError``，
       调用方需 try/except。这是文本端点的例外约定。
+    - get_bytes: 用于图片等二进制代理，契约同 get_text（抛 ``HttpRequestError``）。
 
     未来若引入 pytest 测试覆盖，可考虑将 get/post/... 迁移为抛异常契约，
     使错误无法被静默忽略；当前无测试，维持 error-dict 约定以保证稳定。
@@ -120,6 +121,34 @@ class AsyncHttpClient:
         finally:
             if proxy_url:
                 await client.aclose()
+
+    async def get_bytes(self, url: str, headers: dict[str, str] | None = None) -> tuple[bytes, str]:
+        """发送 GET 请求并返回原始字节与 Content-Type，失败时抛出 HTTP 请求异常。
+
+        用于图片等二进制内容代理（如 Emby 海报），调用方需 try/except。
+
+        Args:
+            url: 请求 URL
+            headers: 自定义请求头
+
+        Returns:
+            (响应正文字节, Content-Type)
+
+        Raises:
+            HttpRequestError: 网络请求失败或服务端返回非成功状态码
+        """
+        client = await self._ensure_client()
+        try:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            return response.content, response.headers.get("Content-Type", "application/octet-stream")
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code
+            logger.error(f"HTTP GET {url} 失败: {status_code}")
+            raise HttpRequestError(f"GET 请求返回 HTTP {status_code}: {url}") from e
+        except httpx.RequestError as e:
+            logger.error(f"GET {url} 网络请求异常: {e}")
+            raise HttpRequestError(f"GET 网络请求失败: {url}") from e
 
     async def post(
         self,

@@ -9,6 +9,7 @@ import asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.image_sign import sign_emby_image_path
 from app.core.logger import init_logger
 from app.models.emby_cache import EmbyCache
 from app.models.mp_subscription import MpSubscription
@@ -80,9 +81,9 @@ async def list_subscriptions_with_cache(
         for ec in ec_result.scalars().all():
             for sub in subs:
                 if sub.tmdb_id == ec.tmdb_id and not sub.poster_url:
-                    # emby_cache 没有 poster_url 字段，但可通过 image_url 获取
-                    if ec.emby_image_url:
-                        sub.poster_url = ec.emby_image_url
+                    # 用签名代理路径补海报（不再返回带 api_key 的 Emby 直链）
+                    if ec.emby_series_id:
+                        sub.poster_url = sign_emby_image_path(ec.emby_series_id)
                     break
 
     for sub in subs:
