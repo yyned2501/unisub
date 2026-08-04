@@ -41,6 +41,29 @@ def _parse_year(year_val: str | int | None) -> int | None:
         return None
 
 
+def _nf_status(entry: dict) -> str:
+    """提取 NF 订阅状态（sub_status 优先，回退 status/nf_status），统一小写。
+
+    Args:
+        entry: NF 订阅数据字典
+
+    Returns:
+        小写状态字符串，缺失时为空串
+    """
+    raw = entry.get("sub_status") or entry.get("status") or entry.get("nf_status") or ""
+    return str(raw).lower()
+
+
+def _is_active_status(entry: dict) -> bool:
+    """NF 条目是否处于活跃状态。"""
+    return _nf_status(entry) in ("active", "subscribing")
+
+
+def _is_cancelled_status(entry: dict) -> bool:
+    """NF 条目是否处于已取消状态。"""
+    return _nf_status(entry) in ("cancelled", "canceled", "stopped")
+
+
 async def phase0_clean_abnormal(
     nf: NextFindService,
     nf_subs: list[dict],
@@ -55,8 +78,7 @@ async def phase0_clean_abnormal(
         tid = int(tid_raw)
         title = (nf_sub.get("title") or nf_sub.get("name") or "").strip()
         poster = nf_sub.get("poster") or nf_sub.get("poster_path") or ""
-        nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or ""
-        if str(nf_status).lower() in ("cancelled", "canceled", "stopped"):
+        if _is_cancelled_status(nf_sub):
             continue
         if title and poster:
             continue
@@ -100,19 +122,15 @@ async def phase1_nf_to_local(
     for tid, entries in nf_by_tmdb.items():
         # 选代表条目：优先 active + 有标题 + 有封面
         def _score(e: dict) -> tuple:
-            st = (e.get("sub_status") or e.get("status") or "").lower()
             has_title = bool((e.get("title") or e.get("name") or "").strip())
             has_poster = bool(e.get("poster") or e.get("poster_path") or "")
-            is_active = st in ("active", "subscribing")
-            return (is_active, has_title, has_poster)
+            return (_is_active_status(e), has_title, has_poster)
 
         nf_sub = max(entries, key=_score)
-        nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or nf_sub.get("nf_status")
+        nf_status = _nf_status(nf_sub)
 
         # 检查该 tmdb_id 是否有任何 active 条目
-        has_active = any(
-            (e.get("sub_status") or e.get("status") or "").lower() in ("active", "subscribing") for e in entries
-        )
+        has_active = any(_is_active_status(e) for e in entries)
 
         # NF 全部已取消：本地有记录且未完成则重新订阅
         if not has_active:
@@ -225,8 +243,7 @@ async def _cancel_orphan_nf_entries(
     """本地无记录时，从 NF 取消该 tmdb_id 的所有未取消条目。"""
     title = nf_sub.get("title") or nf_sub.get("name") or f"tmdb_{tid}"
     for entry in entries:
-        st = (entry.get("sub_status") or entry.get("status") or "").lower()
-        if st in ("cancelled", "canceled", "stopped"):
+        if _is_cancelled_status(entry):
             continue  # 已取消的不用再取消
         nf_result = await nf.remove_subscription(tid, media_type=entry.get("media_type", "tv"))
         if "error" not in nf_result:
@@ -253,9 +270,7 @@ async def phase1_5_blacklist(
         if not local_sub.blacklisted:
             continue
         entries = nf_by_tmdb.get(local_sub.tmdb_id, [])
-        has_active = any(
-            (e.get("sub_status") or e.get("status") or "").lower() in ("active", "subscribing") for e in entries
-        )
+        has_active = any(_is_active_status(e) for e in entries)
         if not has_active:
             # NF 端已无活跃条目，仅更新本地标记
             if local_sub.nf_subscribed:
@@ -293,9 +308,7 @@ async def phase2_local_to_nf(
         if local_sub.completed or local_sub.blacklisted:
             continue
         entries = nf_by_tmdb.get(local_sub.tmdb_id, [])
-        has_active = any(
-            (e.get("sub_status") or e.get("status") or "").lower() in ("active", "subscribing") for e in entries
-        )
+        has_active = any(_is_active_status(e) for e in entries)
         if has_active:
             continue
         push_candidates.append(local_sub)
@@ -340,8 +353,7 @@ def phase3_movie_completed(
         if not local_sub or local_sub.media_type != "movie":
             continue
         for nf_sub in entries:
-            nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or nf_sub.get("nf_status")
-            if nf_status and str(nf_status) in ("completed", "finished"):
+            if _nf_status(nf_sub) in ("completed", "finished"):
                 local_sub.completed = True
                 local_sub.updated_at = datetime.now(UTC)
                 break
@@ -398,8 +410,7 @@ def phase5_log_cancelled(
     for tid, entries in nf_by_tmdb.items():
         local_sub = local_by_tmdb.get(tid)
         for nf_sub in entries:
-            nf_status = nf_sub.get("sub_status") or nf_sub.get("status") or nf_sub.get("nf_status")
-            if not nf_status or str(nf_status).lower() not in ("cancelled", "canceled", "stopped"):
+            if not _is_cancelled_status(nf_sub):
                 continue
             if local_sub and not local_sub.completed and not local_sub.blacklisted:
                 continue  # 未完成且未拉黑，Phase 1 会重新订阅
