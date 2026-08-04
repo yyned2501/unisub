@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import secrets
 from dataclasses import dataclass, field
 
 
@@ -13,16 +14,17 @@ class UniSubConfig:
     debug: bool = False
     database_url: str = "postgresql+asyncpg://unisub:unisub@192.168.31.10:5432/unisub"
     cors_origins: list[str] = field(default_factory=lambda: ["http://localhost:5173", "http://localhost:3000"])
-    jwt_secret: str = "unisub-forward-jwt-secret"
+    jwt_secret: str = ""
     proxy_url: str | None = None
 
 
-def _ensure_env(key: str, default: str) -> str:
-    """读取环境变量，如使用默认值则打 warning（延迟导入避免循环引用）。"""
-    val = os.getenv(key) or default
-    if val == default and key not in os.environ:
-        logging.getLogger("unisub").warning("环境变量 %s 未设置，使用默认值（生产环境请务必配置）", key)
-    return val
+def _jwt_secret_from_env() -> str:
+    """读取 JWT 密钥；未配置时生成进程级随机密钥（不落盘、重启失效），避免代码中硬编码密钥。"""
+    val = os.getenv("UNISUB_JWT_SECRET")
+    if val:
+        return val
+    logging.getLogger("unisub").warning("环境变量 UNISUB_JWT_SECRET 未设置，已生成随机密钥（生产环境请务必配置）")
+    return secrets.token_hex(32)
 
 
 def parse_config() -> UniSubConfig:
@@ -47,7 +49,7 @@ def parse_config() -> UniSubConfig:
     except (json.JSONDecodeError, TypeError):
         cors_origins = ["http://localhost:5173", "http://localhost:3000"]
 
-    jwt_secret = _ensure_env("UNISUB_JWT_SECRET", "unisub-forward-jwt-secret")
+    jwt_secret = _jwt_secret_from_env()
     proxy_url = os.getenv("UNISUB_PROXY_URL") or None
 
     return UniSubConfig(
