@@ -21,7 +21,14 @@ const { stats, platforms, activities, nfQuota, loading, scanStatus, loadPlatform
       :tmdb-data-filled="stats.tmdb_data_filled"
     />
 
-    <ScanProgress :scan-status="scanStatus" />
+    <ScanProgress
+      v-if="scanStatus"
+      :running="scanStatus.running"
+      :progress="scanStatus.progress"
+      :step-name="scanStatus.step_name"
+      :current-item="scanStatus.current_item ? String(scanStatus.current_item) : undefined"
+      :total-items="scanStatus.total_items"
+    />
 
     <PlatformPanel
       :platforms="platforms"

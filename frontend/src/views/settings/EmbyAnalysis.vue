@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useEmbyAnalysis } from '@/composables/useEmbyAnalysis'
 import EmbyStatsCards from '@/components/emby/EmbyStatsCards.vue'
-import EmbyScanProgress from '@/components/emby/EmbyScanProgress.vue'
+import ScanProgress from '@/components/dashboard/ScanProgress.vue'
 import EmbySeriesItem from '@/components/emby/EmbySeriesItem.vue'
 
 defineOptions({ name: 'EmbyAnalysis' })
@@ -88,7 +88,7 @@ const {
     </div>
 
     <!-- 扫描进度条 -->
-    <EmbyScanProgress
+    <ScanProgress
       :running="scanRunning"
       :progress="scanProgress"
       :step-name="scanStepName"
