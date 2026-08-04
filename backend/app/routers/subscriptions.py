@@ -1,7 +1,5 @@
 """订阅管理路由 — 订阅列表、创建、取消、同步。"""
 
-import asyncio
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
+from app.core.tasks import spawn_background_task
 from app.models.platform_config import PlatformConfig
 from app.models.subscription import Subscription
 from app.schemas.subscription import (
@@ -42,7 +41,7 @@ async def list_subscriptions(db: AsyncSession = Depends(get_db)):
     tmdb = await get_tmdb_service(db)
     if tmdb:
         tv_subs = [s for s in subs if s.media_type == "tv" and s.nf_missing_eps > 0]
-        asyncio.create_task(background_update_tmdb_cache(tmdb, tv_subs))
+        spawn_background_task(background_update_tmdb_cache(tmdb, tv_subs), "tmdb-cache-refresh")
 
     return subs
 

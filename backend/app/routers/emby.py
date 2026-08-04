@@ -1,7 +1,5 @@
 """Emby 媒体库路由 — 缺集分析（从缓存表读取）+ 缓存同步 + 黑名单。"""
 
-import asyncio
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.database import async_session, get_db
 from app.core.logger import init_logger
+from app.core.tasks import spawn_background_task
 from app.models.emby_cache import EmbyCache
 from app.schemas.emby import (
     BlacklistActionResponse,
@@ -161,7 +160,7 @@ async def trigger_scan(
         async with async_session() as scan_db:
             await EmbyScanService.run_full_scan(scan_db, emby, tmdb, nf, mp)
 
-    asyncio.create_task(_run_scan())
+    spawn_background_task(_run_scan(), "emby-full-scan")
 
     return {"success": True, "message": "扫描已启动"}
 

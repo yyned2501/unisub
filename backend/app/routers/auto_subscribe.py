@@ -42,9 +42,8 @@ async def update_config(body: AutoSubConfigUpdate) -> dict:
 @router.post("/run", response_model=AutoSubRunResponse)
 async def trigger_run() -> AutoSubRunResponse:
     """手动触发一次自动订阅运行（后台执行，立即返回）。"""
-    import asyncio
-
     from app.core.database import async_session
+    from app.core.tasks import spawn_background_task
 
     svc = get_auto_subscribe_service()
     if svc.get_status()["running"]:
@@ -64,7 +63,7 @@ async def trigger_run() -> AutoSubRunResponse:
                     orchestrator = OrchestratorService(nf, mp, tmdb)
                     await orchestrator.sync_subscriptions(bg_db)
 
-    asyncio.create_task(_background_run())
+    spawn_background_task(_background_run(), "auto-subscribe-run")
     return AutoSubRunResponse(success=True, started=True, message="自动订阅已启动，正在后台运行")
 
 

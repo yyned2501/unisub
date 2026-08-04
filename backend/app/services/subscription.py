@@ -9,6 +9,7 @@ import asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logger import init_logger
 from app.models.emby_cache import EmbyCache
 from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
@@ -16,6 +17,8 @@ from app.models.tmdb_cache import TmdbCache
 from app.schemas.subscription import MpSubscriptionResponse, SubscriptionResponse
 from app.services.poster import build_tmdb_poster_url
 from app.services.tmdb import TMDBService
+
+logger = init_logger()
 
 _TMDB_SEMAPHORE = asyncio.Semaphore(5)
 
@@ -180,6 +183,9 @@ async def background_update_tmdb_cache(
 
     async with _TMDB_SEMAPHORE:
         for sub in tv_subs:
-            async with async_session() as scan_db:
-                await _update_tmdb_cache_for_sub(scan_db, sub, tmdb_service)
-                await asyncio.sleep(0.5)
+            try:
+                async with async_session() as scan_db:
+                    await _update_tmdb_cache_for_sub(scan_db, sub, tmdb_service)
+            except Exception as e:
+                logger.warning("TMDB 缓存刷新失败（跳过）: %s (tmdb_id=%s): %s", sub.title, sub.tmdb_id, e)
+            await asyncio.sleep(0.5)
