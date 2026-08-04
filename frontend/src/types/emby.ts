@@ -75,9 +75,3 @@ export interface Tmdb404ResolveResult {
   sub_file_names?: string[]
   note?: string
 }
-
-/** 黑名单条目 */
-export interface EmbyBlacklistEntry {
-  tmdb_id: number
-  created_at: string
-}

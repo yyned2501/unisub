@@ -49,13 +49,11 @@ declare module 'vue' {
     NTag: typeof import('naive-ui')['NTag']
     NVirtualList: typeof import('naive-ui')['NVirtualList']
     PlatformPanel: typeof import('./../components/dashboard/PlatformPanel.vue')['default']
-    PlatformStatus: typeof import('./../components/PlatformStatus.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     ScanProgress: typeof import('./../components/dashboard/ScanProgress.vue')['default']
     SourceConfigPanel: typeof import('./../components/auto-subscribe/SourceConfigPanel.vue')['default']
     StatsCards: typeof import('./../components/dashboard/StatsCards.vue')['default']
-    StatusBadge: typeof import('./../components/StatusBadge.vue')['default']
     SubDialog: typeof import('./../components/SubDialog.vue')['default']
   }
 }

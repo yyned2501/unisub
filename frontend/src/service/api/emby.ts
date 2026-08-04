@@ -2,7 +2,6 @@ import apiClient from '../request'
 import type {
   EmbyMissingAnalysis,
   EmbySyncResult,
-  EmbyBlacklistEntry,
   EmbyScanStatus,
   Tmdb404Item,
   Tmdb404ResolveResult,
@@ -22,14 +21,6 @@ export function backfillOverview() {
   return apiClient.post<{ success: boolean; checked: number; filled: number; message: string }>(
     '/emby/backfill-overview'
   )
-}
-
-export function updateEmbyTmdb() {
-  return apiClient.post<ActionResponse>('/emby/update-tmdb')
-}
-
-export function getBlacklist() {
-  return apiClient.get<EmbyBlacklistEntry[]>('/emby/blacklist')
 }
 
 export function addToBlacklist(tmdbId: number) {

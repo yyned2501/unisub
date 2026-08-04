@@ -22,11 +22,3 @@ export interface TaskConfigUpdate {
   interval?: number
   mp_supplement_enabled?: boolean
 }
-
-/** 手动触发任务响应 */
-export interface TaskTriggerResponse {
-  success: boolean
-  message: string
-  sync_count: number
-  mp_search_count: number
-}
