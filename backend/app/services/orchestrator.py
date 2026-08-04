@@ -12,10 +12,10 @@
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import UpstreamError
 from app.core.logger import init_logger
 from app.models.activity_log import ActivityLog
 from app.models.subscription import Subscription
@@ -112,10 +112,7 @@ class OrchestratorService:
         else:
             logger.error("NextFind 订阅失败: %s (%s, tmdb_id=%d), %s", title, media_type, tmdb_id, nf_result)
             await db.rollback()
-            raise HTTPException(
-                status_code=502,
-                detail=f"NextFind 订阅失败: {nf_result.get('detail', nf_result.get('error', '未知错误'))}",
-            )
+            raise UpstreamError(f"NextFind 订阅失败: {nf_result.get('detail', nf_result.get('error', '未知错误'))}")
 
         # 记录活动日志
         log_entry = ActivityLog(

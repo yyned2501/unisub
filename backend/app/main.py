@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from app.config import parse_config
 from app.core.database import async_session, init_db
+from app.core.errors import AppError
 from app.core.http_client import http_client
 from app.core.logger import init_logger
 from app.models.platform_config import PlatformConfig
@@ -189,6 +190,13 @@ app.include_router(dashboard.router)
 app.include_router(emby.router)
 app.include_router(tasks.router)
 app.include_router(forward.router)
+
+
+# 业务异常处理 — AppError 子类按各自状态码返回中文消息
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    """业务异常处理器 — 服务层抛出的 AppError 转为对应状态码的 JSON 响应。"""
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.message})
 
 
 # 全局异常处理（排除 HTTPException，让 FastAPI 内置处理器处理）
