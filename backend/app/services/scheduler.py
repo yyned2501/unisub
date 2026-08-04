@@ -91,7 +91,10 @@ async def stop():
 
 
 def load_state():
-    """从 JSON 文件加载调度状态到内存。"""
+    """从 JSON 文件加载调度状态到内存。
+
+    只接受已知配置项，丢弃历史遗留键（如已下线功能的残留配置）。
+    """
     if not _STATE_FILE.exists():
         logger.info("调度状态文件不存在，使用默认配置")
         return
@@ -99,9 +102,14 @@ def load_state():
     try:
         raw = _STATE_FILE.read_text(encoding="utf-8")
         data = json.loads(raw)
-        if "config" in data:
-            _task_config.update(data["config"])
-        logger.info(f"调度状态已从文件加载: config={_task_config}")
+        config = data.get("config")
+        if isinstance(config, dict):
+            known = {key: value for key, value in config.items() if key in _task_config}
+            dropped = sorted(set(config) - set(known))
+            if dropped:
+                logger.info("调度状态忽略未知配置项: %s", dropped)
+            _task_config.update(known)
+        logger.info("调度状态已从文件加载: config=%s", _task_config)
     except (json.JSONDecodeError, OSError, TypeError) as e:
         logger.warning(f"调度状态文件解析失败: {e}，使用默认配置")
 
