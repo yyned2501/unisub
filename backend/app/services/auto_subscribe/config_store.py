@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 import copy
-import json
-import os
 import re
 import threading
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from app.core.logger import init_logger
-
-logger = init_logger(__name__)
+from app.core.json_store import read_json_object, write_json_atomic
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "min_year": 0,
@@ -132,7 +128,7 @@ class AutoSubscribeConfigStore:
         """加载、迁移并以默认值补全自动订阅配置。"""
         with self._lock:
             if self._config_cache is None:
-                raw = self._read_json(self._config_path, self._defaults, "配置")
+                raw = read_json_object(self._config_path, "自动订阅配置", self._defaults)
                 self._config_cache = self._normalize_config(raw)
             return copy.deepcopy(self._config_cache)
 
@@ -141,7 +137,7 @@ class AutoSubscribeConfigStore:
         with self._lock:
             merged = deep_merge(self.load_config(), config)
             normalized = self._normalize_config(merged)
-            self._write_json(self._config_path, normalized)
+            write_json_atomic(self._config_path, normalized)
             self._config_cache = normalized
             return copy.deepcopy(normalized)
 
@@ -154,7 +150,7 @@ class AutoSubscribeConfigStore:
         """加载并以默认结构补全运行历史。"""
         with self._lock:
             if self._history_cache is None:
-                raw = self._read_json(self._history_path, DEFAULT_HISTORY, "历史")
+                raw = read_json_object(self._history_path, "自动订阅历史", DEFAULT_HISTORY)
                 self._history_cache = deep_merge(DEFAULT_HISTORY, raw)
             return copy.deepcopy(self._history_cache)
 
@@ -162,7 +158,7 @@ class AutoSubscribeConfigStore:
         """以默认结构补全并持久化运行历史。"""
         with self._lock:
             normalized = deep_merge(DEFAULT_HISTORY, history)
-            self._write_json(self._history_path, normalized)
+            write_json_atomic(self._history_path, normalized)
             self._history_cache = normalized
             return copy.deepcopy(normalized)
 
@@ -183,28 +179,6 @@ class AutoSubscribeConfigStore:
         if not validate_cron(cron):
             raise ValueError("schedule_cron 必须是有效的五字段 cron 表达式")
         return normalized
-
-    @staticmethod
-    def _read_json(path: Path, defaults: Mapping[str, Any], label: str) -> dict[str, Any]:
-        """读取 JSON 对象；文件缺失或损坏时返回默认值。"""
-        if not path.exists():
-            return copy.deepcopy(dict(defaults))
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return data
-            logger.warning("自动订阅%s文件不是 JSON 对象: %s", label, path)
-        except (OSError, json.JSONDecodeError) as exc:
-            logger.warning("自动订阅%s加载失败: %s", label, exc)
-        return copy.deepcopy(dict(defaults))
-
-    @staticmethod
-    def _write_json(path: Path, data: Mapping[str, Any]) -> None:
-        """通过临时文件原子写入 JSON，避免中断时留下半截文件。"""
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(f"{path.suffix}.tmp")
-        temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
-        os.replace(temporary, path)
 
 
 _default_store = AutoSubscribeConfigStore()
