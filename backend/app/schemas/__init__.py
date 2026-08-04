@@ -14,8 +14,6 @@ from app.schemas.emby import (
     BlacklistActionResponse,
     BlacklistCreate,
     EmbyBlacklistEntry,
-    EmbyLibraryAnalysis,
-    EmbySeriesStatus,
 )
 from app.schemas.emby_cache import EmbyCacheResponse, EmbyMissingAnalysis, EmbySyncResult, Tmdb404Item
 from app.schemas.forward import (
@@ -53,9 +51,7 @@ __all__ = [
     "DashboardStats",
     "EmbyBlacklistEntry",
     "EmbyCacheResponse",
-    "EmbyLibraryAnalysis",
     "EmbyMissingAnalysis",
-    "EmbySeriesStatus",
     "EmbySyncResult",
     "Tmdb404Item",
     "ForwardActionResponse",

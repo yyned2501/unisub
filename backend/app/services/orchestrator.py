@@ -176,39 +176,6 @@ class OrchestratorService:
 
         return {"success": True, "message": f"已取消订阅 {sub.title}"}
 
-    async def infer_media_type(
-        self,
-        nf_sub: dict,
-        tmdb_service: TMDBService | None = None,
-    ) -> str:
-        """从 NF 订阅数据推断媒体类型，优先通过 TMDB API 确认。
-
-        Args:
-            nf_sub: NF 订阅数据字典
-            tmdb_service: TMDB 服务实例（可选），有则调 API 确认
-
-        Returns:
-            "movie" 或 "tv"
-        """
-        raw = nf_sub.get("raw_type") or nf_sub.get("media_type") or nf_sub.get("type") or ""
-        raw_lower = raw.lower()
-        if raw_lower in ("movie", "电影"):
-            return "movie"
-        if raw_lower in ("tv", "剧集", "series"):
-            return "tv"
-
-        # 有 TMDB 服务时，调 API 确认类型
-        tid = nf_sub.get("tmdb_id")
-        if tid is not None and tmdb_service and tmdb_service.api_key:
-            detail = await tmdb_service._get(f"/tv/{tid}")
-            if detail and "error" not in detail and detail.get("name"):
-                return "tv"
-            detail = await tmdb_service._get(f"/movie/{tid}")
-            if detail and "error" not in detail and detail.get("title"):
-                return "movie"
-
-        return "tv"
-
     async def sync_subscriptions(self, db: AsyncSession) -> list[SubscriptionSyncResult]:
         """同步订阅 — NF 双向同步 + MP 进度回写。
 

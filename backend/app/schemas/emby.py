@@ -2,40 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
-
-
-class EmbySeriesStatus(BaseModel):
-    """单部剧集在 Emby 中的存在状态。"""
-
-    tmdb_id: int
-    title: str | None = None
-    year: int | None = None
-    poster_url: str | None = None
-    in_emby: bool = False
-    emby_id: str | None = None
-    emby_path: str | None = None
-    present_episodes: int | None = None
-    missing_eps_count: int = 0
-    overview: str | None = None
-    tmdb_aired_eps: int | None = None
-    tmdb_total_eps: int | None = None
-    adjusted_missing: int | None = None
-    emby_image_url: str | None = None
-    is_subscribed: bool = False
-    is_blacklisted: bool = False
-    emby_name: str | None = None
-    emby_year: int | None = None
-    emby_episode_count: int | None = None
-
-
-class EmbyLibraryAnalysis(BaseModel):
-    """Emby 媒体库完整性分析结果。"""
-
-    total_series: int = 0
-    subscribed_count: int = 0
-    blacklisted_count: int = 0
-    series: list[EmbySeriesStatus] = Field(default_factory=list)
+from pydantic import BaseModel
 
 
 class EmbyBlacklistEntry(BaseModel):

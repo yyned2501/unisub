@@ -102,39 +102,6 @@ class CloudDriveClient:
                 logger.warning("CD2 列目录失败 (path=%s): %s", path, e)
         return files
 
-    async def get_download_url(self, path: str) -> str | None:
-        """获取文件的下载 URL。
-
-        Args:
-            path: 文件路径
-
-        Returns:
-            下载 URL 或 None
-        """
-        async with grpc.aio.insecure_channel(self._address) as channel:
-            stub = clouddrive_pb2_grpc.CloudDriveFileSrvStub(channel)
-            request = clouddrive_pb2.GetDownloadUrlPathRequest(
-                path=path,
-                preview=False,
-                lazy_read=False,
-                get_direct_url=True,
-            )
-            try:
-                result = await stub.GetDownloadUrlPath(request, metadata=self._metadata, timeout=15)
-                if result.downloadUrlPath:
-                    scheme = "http"
-                    host = self._address
-                    return (
-                        result.downloadUrlPath.replace("{SCHEME}", scheme)
-                        .replace("{HOST}", host)
-                        .replace("{PREVIEW}", "false")
-                    )
-                if result.directUrl:
-                    return result.directUrl
-            except Exception as e:
-                logger.warning("CD2 获取下载链接失败 (path=%s): %s", path, e)
-        return None
-
     async def rename_file(self, file_path: str, new_name: str) -> bool:
         """重命名文件或文件夹。
 
