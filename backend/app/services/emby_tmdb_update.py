@@ -111,8 +111,8 @@ async def update_tmdb_data_batch(
                 }
             if detail and "404" in detail.get("error", ""):
                 return tid, {"tmdb_404": True}
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("TMDB 详情拉取异常 (tmdb_id=%s): %s", tid, e)
         return tid, {}
 
     async def _upsert(cache: EmbyCache, data: dict) -> bool:

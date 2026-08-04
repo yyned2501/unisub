@@ -120,7 +120,11 @@ async def run(
                 logger.error(f"[自动订阅] {exc}，已中止本轮")
 
     tasks = [_process(src_name, item) for src_name, item in all_items]
-    await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    # 逐条检查 gather 结果：未被 _process 捕获的异常不能静默丢弃，逐条记日志
+    for (src_name, item), res in zip(all_items, results):
+        if isinstance(res, BaseException):
+            logger.error("[自动订阅] 处理条目异常: %s (%s): %s", item.title, src_name, res)
 
     return {
         "stats": stats,

@@ -144,7 +144,8 @@ async def _update_tmdb_cache_for_sub(scan_db, sub, tmdb_service):
         poster_path = detail.get("poster_path")
         # 连载中剧集返回已播集数；完结/无播出信息返回 None
         aired = await tmdb_service.get_aired_episode_count(sub.tmdb_id)
-    except Exception:
+    except Exception as e:
+        logger.warning("TMDB 数据拉取失败 (tmdb_id=%s): %s", sub.tmdb_id, e)
         return
 
     tc = await scan_db.get(TmdbCache, sub.tmdb_id)

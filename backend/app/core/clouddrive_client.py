@@ -7,6 +7,9 @@ import grpc
 from google.protobuf import descriptor_pb2, empty_pb2, timestamp_pb2  # noqa: F401
 
 from app.core import clouddrive_pb2, clouddrive_pb2_grpc
+from app.core.logger import init_logger
+
+logger = init_logger(__name__)
 
 
 class CloudDriveClient:
@@ -65,8 +68,8 @@ class CloudDriveClient:
                         "file_type": result.fileType,
                         "exists": True,
                     }
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("CD2 查找文件失败 (path=%s): %s", path, e)
         return None
 
     async def list_sub_files(self, path: str) -> list[dict]:
@@ -95,8 +98,8 @@ class CloudDriveClient:
                                 "is_dir": f.isDirectory,
                             }
                         )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("CD2 列目录失败 (path=%s): %s", path, e)
         return files
 
     async def get_download_url(self, path: str) -> str | None:
@@ -128,8 +131,8 @@ class CloudDriveClient:
                     )
                 if result.directUrl:
                     return result.directUrl
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("CD2 获取下载链接失败 (path=%s): %s", path, e)
         return None
 
     async def rename_file(self, file_path: str, new_name: str) -> bool:
@@ -151,7 +154,8 @@ class CloudDriveClient:
             try:
                 result = await stub.RenameFile(request, metadata=self._metadata, timeout=15)
                 return result.success
-            except Exception:
+            except Exception as e:
+                logger.warning("CD2 重命名失败 (path=%s, new=%s): %s", file_path, new_name, e)
                 return False
 
     async def ensure_directory(self, path: str) -> bool:
@@ -176,7 +180,8 @@ class CloudDriveClient:
             try:
                 result = await stub.CreateFolder(request, metadata=self._metadata, timeout=10)
                 return result.result.success
-            except Exception:
+            except Exception as e:
+                logger.warning("CD2 创建目录失败 (path=%s): %s", path, e)
                 return False
 
     async def move_file(self, source_paths: list[str], dest_path: str) -> bool:
@@ -199,7 +204,8 @@ class CloudDriveClient:
             try:
                 result = await stub.MoveFile(request, metadata=self._metadata, timeout=30)
                 return result.success
-            except Exception:
+            except Exception as e:
+                logger.warning("CD2 移动文件失败 (%s → %s): %s", source_paths, dest_path, e)
                 return False
 
     @staticmethod

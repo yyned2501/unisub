@@ -74,7 +74,8 @@ class DoubanRankProvider(RankProvider):
 
         try:
             dom = parseString(raw)
-        except Exception:
+        except Exception as e:
+            logger.warning("[豆瓣] RSS 内容解析失败: %s", e)
             return []
 
         items: list[RankMediaItem] = []
@@ -83,7 +84,8 @@ class DoubanRankProvider(RankProvider):
                 mi = self._parse_item(entry, type_hint)
                 if mi:
                     items.append(mi)
-            except Exception:
+            except Exception as e:
+                logger.debug("[豆瓣] RSS 单条目解析失败（跳过）: %s", e)
                 continue
         return items
 
