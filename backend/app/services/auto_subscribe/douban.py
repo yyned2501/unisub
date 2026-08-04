@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from xml.dom.minidom import parseString
+from xml.dom.minidom import Element, parseString
 
 from app.core.http_client import HttpRequestError, http_client
 from app.core.logger import init_logger
@@ -89,11 +89,11 @@ class DoubanRankProvider(RankProvider):
 
     def _parse_item(self, entry, source_type_hint: str | None = None) -> RankMediaItem | None:
         """从 RSS item 元素解析出 RankMediaItem。"""
-        title = self._tag_text(entry, "title") or ""
-        link = self._tag_text(entry, "link") or ""
+        title = _tag_text(entry, "title") or ""
+        link = _tag_text(entry, "link") or ""
 
         douban_id = self._parse_douban_id(link)
-        description = self._tag_text(entry, "description") or ""
+        description = _tag_text(entry, "description") or ""
 
         year = self._parse_year(description, title)
         type_hint = source_type_hint or self._parse_type(entry)
@@ -109,14 +109,6 @@ class DoubanRankProvider(RankProvider):
             source_meta={"douban_id": douban_id, "source": "douban"},
             unique_seed=seed,
         )
-
-    @staticmethod
-    def _tag_text(parent, tag: str) -> str:
-        """获取 XML 子标签的文本内容。"""
-        nodes = parent.getElementsByTagName(tag)
-        if nodes and nodes[0].firstChild:
-            return nodes[0].firstChild.nodeValue or ""
-        return ""
 
     @staticmethod
     def _parse_douban_id(link: str) -> str | None:
@@ -137,7 +129,7 @@ class DoubanRankProvider(RankProvider):
 
     @staticmethod
     def _parse_type(entry) -> str | None:
-        t = _tag_text_fallback(entry, "type")
+        t = _tag_text(entry, "type")
         if t == "movie":
             return "movie"
         if t == "tv":
@@ -158,8 +150,8 @@ class DoubanRankProvider(RankProvider):
             return None
 
 
-def _tag_text_fallback(parent, tag: str) -> str:
-    """获取 XML 子标签的文本内容（独立函数，供静态方法调用）。"""
+def _tag_text(parent: Element, tag: str) -> str:
+    """获取 XML 子标签的文本内容。"""
     nodes = parent.getElementsByTagName(tag)
     if nodes and nodes[0].firstChild:
         return nodes[0].firstChild.nodeValue or ""
