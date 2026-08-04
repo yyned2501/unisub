@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
 import { getAuthInfo, updateAuth } from '@/service/api/auth'
+import { extractError } from '@/utils/common'
 
 defineOptions({ name: 'AccountSettings' })
 
@@ -12,6 +13,7 @@ const password = ref('')
 const confirmPassword = ref('')
 const errorMsg = ref('')
 const successMsg = ref('')
+let redirectTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(async () => {
   try {
@@ -20,6 +22,10 @@ onMounted(async () => {
   } catch {
     errorMsg.value = '获取账号信息失败'
   }
+})
+
+onBeforeUnmount(() => {
+  if (redirectTimer) clearTimeout(redirectTimer)
 })
 
 async function handleSave() {
@@ -45,7 +51,7 @@ async function handleSave() {
     if (data.success) {
       successMsg.value = '账号密码已更新，请重新登录'
       // 3 秒后跳转登录页
-      setTimeout(() => {
+      redirectTimer = setTimeout(() => {
         auth.logout()
         window.location.hash = '#/login'
         window.location.reload()
@@ -54,7 +60,7 @@ async function handleSave() {
       errorMsg.value = data.message || '保存失败'
     }
   } catch (e: unknown) {
-    errorMsg.value = (e as import('axios').AxiosError<{ detail?: string }>)?.response?.data?.detail || '保存失败'
+    errorMsg.value = extractError(e, '保存失败')
   } finally {
     saving.value = false
   }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { onImgError } from '@/utils/format'
 import type { SearchResultItem } from '@/types'
 
@@ -13,18 +13,11 @@ const emit = defineEmits<{
   confirm: [media: SearchResultItem, done: (success: boolean) => void]
 }>()
 
-const show = ref(props.modelValue)
-const loading = ref(false)
-
-watch(
-  () => props.modelValue,
-  (val) => {
-    show.value = val
-  }
-)
-watch(show, (val) => {
-  emit('update:modelValue', val)
+const show = computed({
+  get: () => props.modelValue,
+  set: (val: boolean) => emit('update:modelValue', val),
 })
+const loading = ref(false)
 
 function handleConfirm() {
   if (!props.media) return

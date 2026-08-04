@@ -2,6 +2,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { getSubscriptions, deleteSubscription, syncSubscriptions, toggleBlacklist } from '@/service/api/subscriptions'
 import { usePagedList } from '@/composables/usePagedList'
 import { msg } from '@/utils/message'
+import { toArray } from '@/utils/common'
 import type { Subscription } from '@/types'
 
 /**
@@ -55,7 +56,10 @@ export function useSubscriptions() {
     loading.value = true
     try {
       const data = await getSubscriptions()
-      list.value = Array.isArray(data) ? data : []
+      list.value = toArray(data)
+    } catch {
+      // 拦截器已统一弹错误消息，首次加载失败时保留旧 list 无意义，置空
+      list.value = []
     } finally {
       loading.value = false
     }
@@ -67,6 +71,8 @@ export function useSubscriptions() {
       await syncSubscriptions()
       await loadList()
       msg.success(`同步完成，共 ${list.value.length} 条订阅`)
+    } catch {
+      // 拦截器已统一弹错误消息，失败时不再继续 loadList
     } finally {
       syncing.value = false
     }
