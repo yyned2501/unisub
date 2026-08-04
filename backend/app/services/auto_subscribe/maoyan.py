@@ -6,8 +6,7 @@ import random
 import re
 from datetime import date, timedelta
 
-import httpx
-
+from app.core.http_client import http_client
 from app.core.logger import init_logger
 from app.services.auto_subscribe.base import RankProvider, register
 from app.services.auto_subscribe.models import RankMediaItem
@@ -15,7 +14,6 @@ from app.services.auto_subscribe.models import RankMediaItem
 logger = init_logger(__name__)
 
 MAOYAN_URL = "https://piaofang.maoyan.com"
-REQUEST_TIMEOUT = 30
 
 # 网播热度媒体类型（webHeatData 的 seriesType）
 SERIES_TYPE = {"series": "4", "tv": "0", "web": "1", "variety": "2"}
@@ -175,12 +173,13 @@ class MaoyanRankProvider(RankProvider):
         headers: dict | None = None,
         params: dict | None = None,
     ) -> dict | list | None:
-        """用 httpx GET 请求 JSON 数据。"""
+        """用 http_client GET 请求 JSON 数据。"""
         try:
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-                resp = await client.get(url, headers=headers, params=params)
-                resp.raise_for_status()
-                return resp.json()
+            result = await http_client.get(url, headers=headers, params=params)
+            if "error" in result:
+                logger.debug(f"[猫眼] 请求失败 {url[:60]}: {result.get('detail')}")
+                return None
+            return result
         except Exception as e:
             logger.debug(f"[猫眼] 请求失败 {url[:60]}: {e}")
             return None

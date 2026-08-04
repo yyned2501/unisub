@@ -5,8 +5,7 @@ from __future__ import annotations
 import json
 import re
 
-import httpx
-
+from app.core.http_client import HttpRequestError, http_client
 from app.core.logger import init_logger
 from app.services.ai_config import get_ai_config_store
 from app.services.auto_subscribe.models import RankMediaItem
@@ -195,7 +194,6 @@ async def _call_llm(
     api_base: str,
     api_key: str,
     model: str,
-    timeout: int = 30,
     enable_search: bool = False,
 ) -> str | None:
     """调用 openai 兼容的 LLM API 并返回文本响应。"""
@@ -214,11 +212,10 @@ async def _call_llm(
     # Qwen 系列模型支持 enable_search 联网搜索参数
     if enable_search:
         body["enable_search"] = True
-    async with httpx.AsyncClient(timeout=httpx.Timeout(timeout), follow_redirects=True) as client:
-        response = await client.post(url, headers=headers, json=body)
-        response.raise_for_status()
-        data = response.json()
-    choices = data.get("choices")
+    result = await http_client.post(url, headers=headers, json=body)
+    if "error" in result:
+        raise HttpRequestError(result.get("detail", result["error"]))
+    choices = result.get("choices")
     if not choices:
         return None
     content = choices[0].get("message", {}).get("content", "").strip()

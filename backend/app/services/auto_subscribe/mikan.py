@@ -7,8 +7,7 @@ import html
 import re
 from datetime import date
 
-import httpx
-
+from app.core.http_client import HttpRequestError, http_client
 from app.core.logger import init_logger
 from app.services.auto_subscribe.base import RankProvider, register
 from app.services.auto_subscribe.models import RankMediaItem
@@ -16,7 +15,6 @@ from app.services.auto_subscribe.models import RankMediaItem
 logger = init_logger(__name__)
 
 MIKAN_BASE_URLS = ["https://mikanani.me", "https://mikanime.tv"]
-REQUEST_TIMEOUT = 30
 DETAIL_SLEEP = 0.6
 BGM_ID_RE = re.compile(r"bangumi\.tv/subject/(\d+)")
 YEAR_RE = re.compile(r"(19\d\d|20\d\d)")
@@ -168,12 +166,9 @@ class MikanRankProvider(RankProvider):
         return None
 
     async def _fetch_text(self, url: str, headers: dict | None = None, params: dict | None = None) -> str | None:
-        """用 httpx GET 请求文本内容。"""
+        """用 http_client GET 请求文本内容。"""
         try:
-            async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, follow_redirects=True) as client:
-                resp = await client.get(url, headers=headers, params=params)
-                resp.raise_for_status()
-                return resp.text
-        except Exception as e:
+            return await http_client.get_text(url, headers=headers, params=params)
+        except HttpRequestError as e:
             logger.debug(f"[Mikan] 请求失败 {url}: {e}")
             return None

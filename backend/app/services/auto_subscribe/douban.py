@@ -5,8 +5,7 @@ from __future__ import annotations
 import re
 from xml.dom.minidom import parseString
 
-import httpx
-
+from app.core.http_client import HttpRequestError, http_client
 from app.core.logger import init_logger
 from app.services.auto_subscribe.base import RankProvider, register
 from app.services.auto_subscribe.models import RankMediaItem
@@ -14,7 +13,6 @@ from app.services.auto_subscribe.models import RankMediaItem
 logger = init_logger(__name__)
 
 DEFAULT_RSSHUB = "https://rsshub.app"
-_REQUEST_TIMEOUT = 60
 
 _YEAR_RE = re.compile(r"(19\d\d|20\d\d)")
 _DOUBAN_ID_RE = re.compile(r"/(\d+)/?$")
@@ -152,13 +150,10 @@ class DoubanRankProvider(RankProvider):
         return m.group(1) if m else None
 
     async def _fetch_text(self, url: str) -> str | None:
-        """用 httpx GET 请求文本内容。"""
+        """用 http_client GET 请求文本内容。"""
         try:
-            async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, follow_redirects=True) as client:
-                resp = await client.get(url, headers={"accept": "application/xml"})
-                resp.raise_for_status()
-                return resp.text
-        except Exception as e:
+            return await http_client.get_text(url, headers={"accept": "application/xml"})
+        except HttpRequestError as e:
             logger.warning(f"[豆瓣] 请求失败 {url[:60]}: {e}")
             return None
 
