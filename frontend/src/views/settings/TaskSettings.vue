@@ -1,52 +1,24 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { useSettingsForm } from '@/composables/useSettingsForm'
 import { getTaskStatus, updateTaskConfig } from '@/service/api/tasks'
-import { msg } from '@/utils/message'
 
 defineOptions({ name: 'TaskSettings' })
 
-const loading = ref(false)
-const saving = ref(false)
-
-const config = reactive({
-  interval: 1800,
+const { config, loading, saving, saveConfig } = useSettingsForm({
+  defaults: {
+    interval_minutes: 60,
+    light_interval_minutes: 10,
+    sync_interval_minutes: 60,
+    tmdb_interval_minutes: 60,
+    mp_supplement_enabled: true,
+    auto_sync_enabled: true,
+  },
+  fetch: async () => (await getTaskStatus()).config,
+  persist: (c) => updateTaskConfig({ ...c }),
+  loadErrorText: '加载任务配置失败',
+  saveSuccessText: '任务配置已保存',
+  saveErrorText: '保存任务配置失败',
 })
-
-function formatInterval(seconds: number): string {
-  if (seconds < 60) return `${seconds}秒`
-  if (seconds < 3600) return `${Math.round(seconds / 60)}分钟`
-  return `${(seconds / 3600).toFixed(1)}小时`
-}
-
-async function load() {
-  loading.value = true
-  try {
-    const data = await getTaskStatus()
-    if (data) {
-      config.interval = data.config?.interval || 1800
-    }
-  } catch {
-    msg.error('加载任务配置失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-async function handleSave() {
-  saving.value = true
-  try {
-    await updateTaskConfig({
-      interval: config.interval,
-    })
-    msg.success('任务配置已保存')
-  } catch {
-    msg.error('保存任务配置失败')
-  } finally {
-    saving.value = false
-  }
-}
-
-onMounted(() => load())
 </script>
 
 <template>
@@ -56,25 +28,74 @@ onMounted(() => load())
     <n-card :bordered="true" size="small" style="max-width: 480px">
       <n-spin :show="loading">
         <div class="flex flex-col gap-5">
+          <div class="flex items-center justify-between">
+            <label class="text-xs opacity-50 font-medium">启用自动同步</label>
+            <n-switch v-model:value="config.auto_sync_enabled" />
+          </div>
+
+          <div class="flex items-center justify-between">
+            <label class="text-xs opacity-50 font-medium">MP 补充搜索</label>
+            <n-switch v-model:value="config.mp_supplement_enabled" />
+          </div>
+
           <div class="flex flex-col gap-1.5">
             <label class="text-xs opacity-50 font-medium">全量扫描间隔</label>
-            <div class="flex items-center gap-2.5">
-              <n-input-number
-                v-model:value="config.interval"
-                :min="60"
-                :max="86400"
-                :step="60"
-                size="small"
-                style="width: 140px"
-              >
-                <template #suffix><span class="text-xs opacity-40">秒</span></template>
-              </n-input-number>
-              <span class="text-xs opacity-50">{{ formatInterval(config.interval) }}</span>
-            </div>
+            <n-input-number
+              v-model:value="config.interval_minutes"
+              :min="5"
+              :max="1440"
+              :step="5"
+              size="small"
+              style="width: 140px"
+            >
+              <template #suffix><span class="text-xs opacity-40">分钟</span></template>
+            </n-input-number>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs opacity-50 font-medium">轻量刷新间隔</label>
+            <n-input-number
+              v-model:value="config.light_interval_minutes"
+              :min="1"
+              :max="120"
+              :step="1"
+              size="small"
+              style="width: 140px"
+            >
+              <template #suffix><span class="text-xs opacity-40">分钟</span></template>
+            </n-input-number>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs opacity-50 font-medium">NF 订阅同步间隔</label>
+            <n-input-number
+              v-model:value="config.sync_interval_minutes"
+              :min="5"
+              :max="1440"
+              :step="5"
+              size="small"
+              style="width: 140px"
+            >
+              <template #suffix><span class="text-xs opacity-40">分钟</span></template>
+            </n-input-number>
+          </div>
+
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs opacity-50 font-medium">TMDB 增量刷新间隔</label>
+            <n-input-number
+              v-model:value="config.tmdb_interval_minutes"
+              :min="5"
+              :max="1440"
+              :step="5"
+              size="small"
+              style="width: 140px"
+            >
+              <template #suffix><span class="text-xs opacity-40">分钟</span></template>
+            </n-input-number>
           </div>
 
           <div class="flex pt-2" style="border-top: 1px solid var(--n-border-color)">
-            <n-button size="small" type="primary" :loading="saving" @click="handleSave">
+            <n-button size="small" type="primary" :loading="saving" @click="saveConfig">
               <template #icon><i class="ri-save-line"></i></template>
               保存配置
             </n-button>
