@@ -58,7 +58,7 @@ async function handleSave(p: PlatformConfig) {
     await updatePlatform(p.id, { base_url: p.base_url, api_key: p.api_key, enabled: p.enabled })
     msg.success(`${meta(p).label} 已保存`)
   } catch {
-    msg.error(`${meta(p).label} 保存失败`)
+    // 拦截器已统一弹错误消息
   } finally {
     savingId.value = null
   }
@@ -70,7 +70,7 @@ async function handleTest(p: PlatformConfig) {
     await testPlatform(p.id)
     msg.success(`${meta(p).label} 连接成功`)
   } catch {
-    msg.error(`${meta(p).label} 连接失败`)
+    // 拦截器已统一弹错误消息
   } finally {
     testingId.value = null
   }
@@ -82,8 +82,7 @@ async function handleToggle(p: PlatformConfig, enabled: boolean) {
     await updatePlatform(p.id, { enabled })
     msg.success(`${meta(p).label} 已${enabled ? '启用' : '禁用'}`)
   } catch {
-    p.enabled = !enabled
-    msg.error(`${meta(p).label} ${enabled ? '启用' : '禁用'}失败`)
+    p.enabled = !enabled // 失败回滚开关状态；错误提示由拦截器统一弹
   }
 }
 
@@ -98,7 +97,7 @@ async function handleDelete(p: PlatformConfig) {
     msg.success(`${meta(p).label} 已删除`)
     platforms.value = platforms.value.filter((i) => i.id !== p.id)
   } catch {
-    msg.error(`${meta(p).label} 删除失败`)
+    // 拦截器已统一弹错误消息
   }
 }
 

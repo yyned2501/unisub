@@ -84,7 +84,7 @@ export function useSubscriptions() {
       msg.success(`已取消订阅「${row.title}」`)
       list.value = list.value.filter((i) => i.id !== row.id)
     } catch {
-      msg.error(`取消订阅「${row.title}」失败`)
+      // 拦截器已统一弹错误消息
     }
   }
 
@@ -96,7 +96,7 @@ export function useSubscriptions() {
       const item = list.value.find((i) => i.id === row.id)
       if (item) item.blacklisted = res.blacklisted
     } catch {
-      msg.error('操作失败')
+      // 拦截器已统一弹错误消息
     }
   }
 

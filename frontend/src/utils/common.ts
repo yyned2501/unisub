@@ -1,17 +1,6 @@
 /**
  * 跨页面共享的小工具函数。
  */
-import type { AxiosError } from 'axios'
-
-/**
- * 从未知异常中提取后端 detail 错误信息。
- * @param error - catch 捕获的异常
- * @param fallback - 无法提取时使用的兜底文案
- * @returns 错误信息字符串
- */
-export function extractError(error: unknown, fallback: string): string {
-  return (error as AxiosError<{ detail?: string }>)?.response?.data?.detail || fallback
-}
 
 /**
  * 把可能为空的值归一化为数组。

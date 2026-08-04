@@ -1,9 +1,11 @@
 /**
  * 设置页通用加载/保存状态机。
+ *
+ * HTTP 错误统一由 request.ts 响应拦截器弹 toast，本模块 catch 不再重复提示；
+ * 仅在保存成功时弹 success（业务层语义）。
  */
 import { reactive, ref, onMounted } from 'vue'
 import { msg } from '@/utils/message'
-import { extractError } from '@/utils/common'
 
 interface SettingsFormOptions<T extends object> {
   /** 表单默认值 */
@@ -12,12 +14,8 @@ interface SettingsFormOptions<T extends object> {
   fetch: () => Promise<Partial<T>>
   /** 持久化表单配置（参数是响应式表单对象，可读可写） */
   persist: (config: T) => Promise<unknown>
-  /** 加载失败提示 */
-  loadErrorText?: string
   /** 保存成功提示 */
   saveSuccessText?: string
-  /** 保存失败提示 */
-  saveErrorText?: string
 }
 
 export function useSettingsForm<T extends object>(options: SettingsFormOptions<T>) {
@@ -29,8 +27,8 @@ export function useSettingsForm<T extends object>(options: SettingsFormOptions<T
     loading.value = true
     try {
       Object.assign(config, await options.fetch())
-    } catch (e: unknown) {
-      msg.error(extractError(e, options.loadErrorText ?? '加载失败'))
+    } catch {
+      // 拦截器已统一弹错误消息
     } finally {
       loading.value = false
     }
@@ -43,8 +41,8 @@ export function useSettingsForm<T extends object>(options: SettingsFormOptions<T
       await options.persist(config)
       msg.success(options.saveSuccessText ?? '已保存')
       return true
-    } catch (e: unknown) {
-      msg.error(extractError(e, options.saveErrorText ?? '保存失败'))
+    } catch {
+      // 拦截器已统一弹错误消息；返回 false 供调用方门控后续流程
       return false
     } finally {
       saving.value = false

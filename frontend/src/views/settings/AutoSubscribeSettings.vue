@@ -14,7 +14,6 @@ import { DEFAULT_CONFIG, DEFAULT_META } from '@/components/auto-subscribe/defaul
 import SourceConfigPanel from '@/components/auto-subscribe/SourceConfigPanel.vue'
 import HistoryTable from '@/components/auto-subscribe/HistoryTable.vue'
 import { msg } from '@/utils/message'
-import { extractError } from '@/utils/common'
 import type { AutoSubConfig, AutoSubMetaResponse, AutoSubHistoryItem } from '@/types'
 
 defineOptions({ name: 'AutoSubscribeSettings' })
@@ -79,8 +78,8 @@ async function load() {
       seasons: metaPayload.seasons?.length ? metaPayload.seasons : DEFAULT_META.seasons,
     }
     history.value = hist.items || []
-  } catch (error: unknown) {
-    msg.error(extractError(error, '自动订阅配置加载失败'))
+  } catch {
+    // 拦截器已统一弹错误消息
   } finally {
     loading.value = false
   }
@@ -95,8 +94,8 @@ async function handleSave() {
       updateAiConfig({ config: { ai_assist_enabled: aiAssistEnabled.value } }),
     ])
     msg.success('配置已保存')
-  } catch (error: unknown) {
-    msg.error(extractError(error, '保存失败'))
+  } catch {
+    // 拦截器已统一弹错误消息
   } finally {
     saving.value = false
   }
@@ -108,8 +107,8 @@ async function handleRun() {
     const data = await triggerAutoSubRun()
     msg.success(data.message || '自动订阅已启动')
     await load()
-  } catch (e: unknown) {
-    msg.error(extractError(e, '启动失败'))
+  } catch {
+    // 拦截器已统一弹错误消息
   } finally {
     running.value = false
   }
@@ -121,7 +120,7 @@ async function handleClearHistory() {
     history.value = []
     msg.success('历史已清空')
   } catch {
-    msg.error('清空失败')
+    // 拦截器已统一弹错误消息
   }
 }
 

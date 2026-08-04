@@ -70,7 +70,7 @@ frontend/src/
 │   └── use*.ts            # 各页面业务逻辑
 ├── utils/
 │   ├── message.ts         # msg 快捷方法 + confirmDialog
-│   ├── common.ts          # extractError/toArray/nfQuotaEntries 等跨页工具
+│   ├── common.ts          # toArray/nfQuotaEntries 等跨页工具
 │   └── format.ts          # 格式化工具
 ├── types/                 # 领域类型（镜像后端 schemas）
 ├── components/            # 可复用组件
@@ -85,7 +85,6 @@ frontend/src/
 | `useIdSet()` | 行级 loading → `{ add, remove, has }` | `new Set([...set, id])` 展开样板 |
 | `usePagedList(source, size)` | 前端分页 → `{ page, totalPages, pagedList, setPage, reset }` | 手写 page/slice/totalPages |
 | `useSettingsForm({defaults, fetch, persist})` | 设置页加载/保存状态机 → `{ config, loading, saving, saveConfig }`，onMounted 自动拉取 | 每个设置页手写 loading/saving/load/handleSave |
-| `extractError(e, fallback)` | 从未知异常提取后端 detail 文案 | `(e as AxiosError<{detail?: string}>)?.response?.data?.detail \|\| ...` |
 | `toArray(data)` | 可空响应归一化为数组 | `Array.isArray(data) ? data : []` |
 | `nfQuotaEntries(quota)` | NextFind 有效额度列表（过滤"未开启"） | 各页面重复的 Object.values + filter |
 | `msg.success/error/warning/info` | 消息提示 | `window.$message?.xxx` |
@@ -146,7 +145,10 @@ export function updatePlatform(id: string, data: PlatformConfigUpdate) {
 - 状态走 Pinia，不在组件内直接改共享状态。
 - 暗色模式经 `themeStore` 统一管理。
 - 文件命名：Vue 组件 PascalCase（`DashboardView.vue`），TS 模块 camelCase/kebab-case（`request.ts`、`use-action.ts` 风格二选一，现状 camelCase）。
-- 错误处理：API 错误已在拦截器统一弹消息；业务层需定制提示时用 `msg`，catch 里用 `extractError(e, '兜底文案')` 取后端 detail。
+- 错误处理：**HTTP 错误由 `request.ts` 响应拦截器统一弹 toast**（401 不弹，由路由守卫跳转登录页），
+  业务层 catch **不要再弹**，留空 catch + 注释「拦截器已统一弹错误消息」即可。
+  只有三类场景业务层自己提示：① HTTP 200 但 `success: false` 的业务失败（拦截器感知不到）；
+  ② 登录页 401 内联提示（拦截器对 401 静默）；③ 非 HTTP 错误（如剪贴板复制失败）。
 
 ## 9. 验证（提交前必做）
 

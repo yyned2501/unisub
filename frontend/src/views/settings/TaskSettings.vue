@@ -15,9 +15,7 @@ const { config, loading, saving, saveConfig } = useSettingsForm({
   },
   fetch: async () => (await getTaskStatus()).config,
   persist: (c) => updateTaskConfig({ ...c }),
-  loadErrorText: '加载任务配置失败',
   saveSuccessText: '任务配置已保存',
-  saveErrorText: '保存任务配置失败',
 })
 </script>
 

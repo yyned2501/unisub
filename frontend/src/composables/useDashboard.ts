@@ -2,7 +2,6 @@ import { reactive, ref, onMounted } from 'vue'
 import { getStats, getPlatformStatus, getActivities, getNextFindQuota } from '@/service/api/dashboard'
 import { getEmbyScanStatus } from '@/service/api/emby'
 import { usePolling } from '@/composables/usePolling'
-import { msg } from '@/utils/message'
 import type { DashboardStats, PlatformStatus, ActivityLog, EmbyScanStatus } from '@/types'
 
 /**
@@ -33,7 +32,7 @@ export function useDashboard() {
       const data = await getStats()
       if (data) Object.assign(stats, data)
     } catch {
-      msg.error('加载仪表盘数据失败')
+      // 拦截器已统一弹错误消息
     }
   }
 

@@ -27,7 +27,6 @@ const { config, loading, saving, saveConfig } = useSettingsForm<AiConfig>({
     }
   },
   persist: (c) => updateAiConfig({ config: { ...c } }),
-  loadErrorText: 'AI 配置加载失败',
   saveSuccessText: 'AI 配置已保存',
 })
 

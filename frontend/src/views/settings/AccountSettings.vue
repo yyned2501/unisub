@@ -2,7 +2,6 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@/store/modules/auth'
 import { getAuthInfo, updateAuth } from '@/service/api/auth'
-import { extractError } from '@/utils/common'
 
 defineOptions({ name: 'AccountSettings' })
 
@@ -20,7 +19,7 @@ onMounted(async () => {
     const data = await getAuthInfo()
     username.value = data.username || ''
   } catch {
-    errorMsg.value = '获取账号信息失败'
+    // 拦截器已统一弹错误消息（401 由路由守卫跳转登录页）
   }
 })
 
@@ -57,10 +56,11 @@ async function handleSave() {
         window.location.reload()
       }, 3000)
     } else {
+      // HTTP 200 但业务失败（success=false），拦截器不会提示，需业务层提示
       errorMsg.value = data.message || '保存失败'
     }
-  } catch (e: unknown) {
-    errorMsg.value = extractError(e, '保存失败')
+  } catch {
+    // 拦截器已统一弹错误消息
   } finally {
     saving.value = false
   }

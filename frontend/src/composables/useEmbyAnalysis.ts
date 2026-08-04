@@ -13,7 +13,6 @@ import {
 import { useIdSet } from '@/composables/useIdSet'
 import { usePolling } from '@/composables/usePolling'
 import { msg, confirmDialog } from '@/utils/message'
-import { extractError } from '@/utils/common'
 import type { EmbyMissingAnalysis, EmbyCacheResponse } from '@/types'
 
 /**
@@ -93,7 +92,7 @@ export function useEmbyAnalysis() {
       msg.success('Emby 缓存同步完成')
       await load()
     } catch {
-      msg.error('同步失败')
+      // 拦截器已统一弹错误消息
     } finally {
       syncing.value = false
     }
@@ -106,7 +105,7 @@ export function useEmbyAnalysis() {
       msg.success(data?.message || '描述补充完成')
       await load()
     } catch {
-      msg.error('补充描述失败')
+      // 拦截器已统一弹错误消息
     } finally {
       backfilling.value = false
     }
@@ -148,8 +147,8 @@ export function useEmbyAnalysis() {
       scanStepName.value = '正在启动扫描...'
       scanPolling.resume()
       msg.success('全量扫描已启动')
-    } catch (e: unknown) {
-      msg.error(extractError(e, '启动扫描失败'))
+    } catch {
+      // 拦截器已统一弹错误消息
     }
   }
 
@@ -161,7 +160,7 @@ export function useEmbyAnalysis() {
       if (s) s.is_blacklisted = true
       msg.success('已隐藏')
     } catch {
-      msg.error('隐藏失败')
+      // 拦截器已统一弹错误消息
     } finally {
       hidingIds.remove(tmdbId)
     }
@@ -175,7 +174,7 @@ export function useEmbyAnalysis() {
       if (s) s.is_blacklisted = false
       msg.success('已取消隐藏')
     } catch {
-      msg.error('取消隐藏失败')
+      // 拦截器已统一弹错误消息
     } finally {
       hidingIds.remove(tmdbId)
     }
@@ -190,10 +189,11 @@ export function useEmbyAnalysis() {
         if (item) item.is_subscribed = true
         msg.success(data.message || '订阅成功')
       } else {
+        // HTTP 200 但业务失败（success=false），拦截器不会提示，需业务层弹
         msg.error(data?.message || '订阅失败')
       }
-    } catch (e: unknown) {
-      msg.error(extractError(e, '订阅失败'))
+    } catch {
+      // 拦截器已统一弹错误消息
     } finally {
       subscribingIds.remove(s.tmdb_id)
     }
@@ -218,10 +218,11 @@ export function useEmbyAnalysis() {
         }
         msg.success(data.message || '已从 Emby 删除')
       } else {
+        // HTTP 200 但业务失败（success=false），拦截器不会提示，需业务层弹
         msg.error(data?.message || '删除失败')
       }
-    } catch (e: unknown) {
-      msg.error(extractError(e, '删除失败'))
+    } catch {
+      // 拦截器已统一弹错误消息
     } finally {
       deletingIds.remove(s.tmdb_id)
     }

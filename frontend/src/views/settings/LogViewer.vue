@@ -31,7 +31,7 @@ async function loadFiles() {
     const data = await getLogFiles()
     files.value = data.files || []
   } catch {
-    msg.error('加载日志文件列表失败')
+    // 拦截器已统一弹错误消息
   }
 }
 
@@ -47,7 +47,7 @@ async function loadContent() {
     logLines.value = data.lines || []
     totalLines.value = data.total_lines || 0
   } catch {
-    msg.error('加载日志内容失败')
+    // 拦截器已统一弹错误消息，失败时清空展示区
     logLines.value = []
     totalLines.value = 0
   } finally {
@@ -60,7 +60,7 @@ async function loadDebug() {
     const data = await getDebugInfo()
     debugInfo.value = data
   } catch {
-    msg.error('加载 Debug 信息失败')
+    // 拦截器已统一弹错误消息
   }
 }
 

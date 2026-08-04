@@ -2,7 +2,7 @@ import { ref, onMounted } from 'vue'
 import { getTmdb404List, moveTmdb404Item, resolveTmdb404Path } from '@/service/api/emby'
 import { getCd2Config } from '@/service/api/cd2'
 import { msg, confirmDialog } from '@/utils/message'
-import { extractError, toArray } from '@/utils/common'
+import { toArray } from '@/utils/common'
 import { useIdSet } from '@/composables/useIdSet'
 import type { Tmdb404Item, Tmdb404ResolveResult } from '@/types'
 
@@ -47,8 +47,8 @@ export function useTmdb404() {
       } else {
         msg.warning(data.note || 'CD2 中未找到该路径')
       }
-    } catch (e: unknown) {
-      msg.error(extractError(e, '路径确认失败'))
+    } catch {
+      // 拦截器已统一弹错误消息
     } finally {
       resolvingIds.remove(item.tmdb_id)
     }
@@ -76,10 +76,11 @@ export function useTmdb404() {
         msg.success(data.message || '移动成功')
         items.value = items.value.filter((i) => i.tmdb_id !== item.tmdb_id)
       } else {
+        // HTTP 200 但业务失败（success=false），拦截器不会提示，需业务层弹
         msg.error(data?.message || '移动失败')
       }
-    } catch (e: unknown) {
-      msg.error(extractError(e, '移动失败'))
+    } catch {
+      // 拦截器已统一弹错误消息
     } finally {
       movingIds.remove(item.tmdb_id)
     }
