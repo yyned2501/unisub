@@ -12,6 +12,21 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    reportCompressedSize: true,
+    rollupOptions: {
+      output: {
+        // 只拆分真正稳定且体积较大的运行时库；
+        // naive-ui 已由 unplugin-vue-components 按需解析，不要强制全量打包
+        manualChunks: {
+          vue: ['vue', 'vue-router', 'pinia'],
+          http: ['axios'],
+          tools: ['@vueuse/core'],
+        },
+      },
+    },
+  },
   css: {
     preprocessorOptions: {
       scss: {
