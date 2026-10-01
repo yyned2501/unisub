@@ -102,6 +102,13 @@ class OrchestratorService:
         )
         db.add(sub)
 
+        # 显式 flush：父行必须先于 mp_subscription 子行落库。
+        # Subscription 与 MpSubscription 之间只有裸 FK 列、没有 relationship()，
+        # SQLAlchemy 的工作单元只按关系排序 INSERT、不按 FK 排序。电影分支
+        # （MpSyncEngine.subscribe → _create_mp_sub 全程无 DB 查询）没有 autoflush
+        # 的机会，commit 时子表 INSERT 会先发出 → 撞 FK 违例（2026-10-01 生产事故）。
+        await db.flush()
+
         # 通知 NextFind 添加订阅
         nf_result = await self.nf.add_subscription(tmdb_id, media_type=media_type, title=title)
         if "error" not in nf_result:
@@ -118,8 +125,21 @@ class OrchestratorService:
         await log_activity(db, "subscribe", f"订阅了 {title} ({media_type})", tmdb_id=tmdb_id)
 
         # 镜像到 MoviePilot（best-effort，失败不阻塞 NF 订阅）
+        # 用 SAVEPOINT 把镜像写入隔离：镜像自己失败时只回滚镜像这一段，
+        # 不得把上面的本地订阅/活动日志一起回滚（MpSyncEngine 的契约就是这么写的：
+        # "失败仅记日志，不回滚 NF 订阅"）。
         if self._mp_sync:
-            await self._mp_sync.subscribe(db, sub)
+            try:
+                async with db.begin_nested():
+                    await self._mp_sync.subscribe(db, sub)
+            except Exception as e:  # 镜像失败不得影响用户订阅
+                logger.error(
+                    "MP 镜像失败（订阅已保留）: %s (tmdb_id=%d), %s: %s",
+                    title,
+                    tmdb_id,
+                    type(e).__name__,
+                    e,
+                )
 
         await db.commit()
         await db.refresh(sub)
