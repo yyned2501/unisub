@@ -81,6 +81,7 @@ async def test_movie_subscribe_writes_mirror_row(db_session):
         media_type="movie",
         year=2026,
         source="forward",
+        defer_upstream=False,
     )
 
     sub = (await db_session.execute(select(Subscription).where(Subscription.tmdb_id == TMDB_MOVIE))).scalar_one()
@@ -113,6 +114,7 @@ async def test_mirror_failure_does_not_lose_subscription(db_session):
         media_type="movie",
         year=2026,
         source="forward",
+        defer_upstream=False,
     )
 
     sub = (await db_session.execute(select(Subscription).where(Subscription.tmdb_id == TMDB_MOVIE))).scalar_one_or_none()
@@ -138,6 +140,7 @@ async def test_subscription_survives_when_mirror_disabled(db_session, media_type
         title="无 MP 配置的订阅",
         media_type=media_type,
         source="forward",
+        defer_upstream=False,
     )
 
     sub = (

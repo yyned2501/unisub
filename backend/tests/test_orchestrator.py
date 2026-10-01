@@ -1,8 +1,10 @@
 """编排服务测试 — 业务异常层次与订阅失败行为。"""
 
-import pytest
+from sqlalchemy import select
 
 from app.core.errors import AppError, UpstreamError
+from app.models.activity_log import ActivityLog
+from app.models.subscription import Subscription
 from app.services.orchestrator import OrchestratorService
 
 
@@ -25,11 +27,19 @@ def test_upstream_error_is_app_error() -> None:
     assert str(err) == "NF 订阅失败"
 
 
-async def test_subscribe_nf_failure_raises_upstream_error(db_session) -> None:
-    """NF 订阅失败时应抛业务异常 UpstreamError，而非 HTTPException。
+async def test_subscribe_nf_failure_keeps_local_record(db_session) -> None:
+    """NF 订阅失败不再抛异常：本地订阅保留，仅记活动日志待同步引擎重试。
 
-    forward 等非 web 调用方不应收到 HTTP 语义异常。
+    契约（2026-10-01）：本地记录是权威事实，NF/MP 是最终一致的上游镜像；
+    上游失败不得让用户请求失败，也不得回滚本地订阅。
     """
     orch = OrchestratorService(FakeNf({"error": "HTTP 500", "detail": "boom"}))
-    with pytest.raises(UpstreamError):
-        await orch.subscribe(db_session, tmdb_id=1, title="测试剧", media_type="tv")
+    resp = await orch.subscribe(db_session, tmdb_id=1, title="测试剧", media_type="tv", defer_upstream=False)
+
+    assert resp.nf_subscribed is False
+    sub = await db_session.get(Subscription, resp.id)
+    assert sub is not None
+    assert sub.nf_subscribed is False
+
+    logs = (await db_session.execute(select(ActivityLog).where(ActivityLog.action == "subscribe"))).scalars().all()
+    assert any("待重试" in log.message for log in logs)

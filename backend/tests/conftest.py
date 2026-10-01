@@ -66,6 +66,12 @@ async def client(db_session: AsyncSession):
 
 
 @pytest.fixture
+def session_factory():
+    """与 db_session 同一内存库的会话工厂 — 供后台任务注入使用。"""
+    return _test_session_factory
+
+
+@pytest.fixture
 def auth_headers() -> dict[str, str]:
     """生成有效的 JWT 认证头。"""
     from app.core.auth import create_access_token
