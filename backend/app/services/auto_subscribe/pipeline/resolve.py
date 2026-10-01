@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 from app.services.auto_subscribe.models import RankMediaItem
-from app.services.auto_subscribe.pipeline.matching import pick_best, title_similar_enough
+from app.services.auto_subscribe.pipeline.matching import pick_best_gated, title_similar_enough
 from app.services.auto_subscribe.pipeline.search import run_fallback_chain, search_tmdb_or_nf
 from app.services.bangumi import BangumiService
 from app.services.nextfind import NextFindService
@@ -119,11 +119,11 @@ async def resolve_best_match(
     if not results:
         return None
 
-    best = pick_best(results, title, type_hint, item.year)
+    best = await pick_best_gated(results, title, type_hint, item.year)
     if not best:
         fallback = await get_fallback()
         if fallback:
-            best = pick_best(fallback, title, type_hint, item.year)
+            best = await pick_best_gated(fallback, title, type_hint, item.year)
     if not best:
         return None
 
@@ -132,7 +132,7 @@ async def resolve_best_match(
     if best_title and not title_similar_enough(title, best_title):
         fallback = await get_fallback()
         if fallback:
-            best = pick_best(fallback, title, type_hint, item.year)
+            best = await pick_best_gated(fallback, title, type_hint, item.year)
             best_title = (best.get("title") or best.get("name") or "").strip() if best else ""
         if not best or not best_title or not title_similar_enough(title, best_title):
             return None

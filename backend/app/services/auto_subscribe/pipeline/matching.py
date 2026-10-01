@@ -5,9 +5,11 @@ from __future__ import annotations
 import re
 from collections import Counter
 
+from app.services.decision import GateVerdict, evaluate_candidate
+
 
 def pick_best(results: list[dict], title: str, type_hint: str, item_year: str | None = None) -> dict | None:
-    """从搜索结果中选择最佳匹配。
+    """从搜索结果中选择最佳匹配（阶段 1~5，**不过 JEV 闸门**）。
 
     匹配策略（参考 AWBotNest）:
         1. 类型过滤：type_hint 明确时优先同类型候选
@@ -15,22 +17,20 @@ def pick_best(results: list[dict], title: str, type_hint: str, item_year: str | 
         3. 基础标题匹配：剥离季节、数字尾缀后再精确匹配
         4. 年份精确/±1 年就近匹配
         5. 子串匹配（查询词长度 >= 3 时启用）
-        6. 取评分最高的
+        6. 取评分最高的（兜底，可能有误配）
+
+    需要闸门复核的调用方请用 :func:`pick_best_gated`。
     """
-    if not results:
+    exact = pick_best_exact(results, title, type_hint, item_year)
+    return exact if exact is not None else pick_best_fallback(results, title, type_hint, item_year)
+
+
+def pick_best_exact(results: list[dict], title: str, type_hint: str, item_year: str | None = None) -> dict | None:
+    """阶段 1~3：类型过滤 + 精确标题（含剥后缀）/ 年份就近。**零成本、不调外部服务**。"""
+    prepared = _prepare(results, title, type_hint)
+    if prepared is None:
         return None
-
-    title_lower = title.strip().lower()
-
-    # 按类型过滤候选
-    candidates = results
-    if type_hint in ("movie", "tv"):
-        typed = [r for r in results if _r_type(r) == type_hint]
-        candidates = typed or results
-
-    # 归一化的查询标题
-    norm_title = _normalize(title_lower)
-    stripped_base = _strip_season(norm_title)
+    candidates, _title_lower, norm_title, stripped_base = prepared
 
     # 阶段 1: 同类型 + 归一化精确匹配（同名候选优先按年份消歧）
     exact = [r for r in candidates if _normalize(_r_title(r)) == norm_title]
@@ -54,6 +54,16 @@ def pick_best(results: list[dict], title: str, type_hint: str, item_year: str | 
             if year_near:
                 return _best_by_vote(year_near)
 
+    return None
+
+
+def pick_best_fallback(results: list[dict], title: str, type_hint: str, item_year: str | None = None) -> dict | None:
+    """阶段 4~5：子串匹配 / 评分兜底。**这两档会误配，须过 JEV 采纳闸门**。"""
+    prepared = _prepare(results, title, type_hint)
+    if prepared is None:
+        return None
+    candidates, title_lower, _norm_title, _stripped_base = prepared
+
     # 阶段 4: 子串匹配（仅当查询词长度 >= 3）
     if len(title_lower) >= 3:
         substr = [r for r in candidates if title_lower in _r_title(r) or _r_title(r) in title_lower]
@@ -62,6 +72,46 @@ def pick_best(results: list[dict], title: str, type_hint: str, item_year: str | 
 
     # 阶段 5: 无匹配，取评分最高的
     return _best_by_vote(candidates)
+
+
+async def pick_best_gated(results: list[dict], title: str, type_hint: str, item_year: str | None = None) -> dict | None:
+    """选最佳匹配，并只用 JEV 复核阶段 4/5 的兜底候选。
+
+    精确匹配（阶段 1~3）是对的、免费的、零延迟的，直接返回不花 JEV 的钱；
+    落到阶段 4/5 时把 A 侧选中的**那一个**候选交给
+    :func:`app.services.decision.evaluate_candidate` 判「是否同一部作品」，
+    判定 `REJECT` 才返回 `None`（上层走「未识别」，不订阅）。
+    降级/JEV 不可用一律保留启发式结果，绝不在这里擅自改变下单行为。
+    """
+    exact = pick_best_exact(results, title, type_hint, item_year)
+    if exact is not None:
+        return exact
+
+    picked = pick_best_fallback(results, title, type_hint, item_year)
+    if picked is None:
+        return None
+
+    result = await evaluate_candidate(title, item_year, type_hint, picked)
+    if result.verdict is GateVerdict.REJECT:
+        return None
+    return picked
+
+
+def _prepare(results: list[dict], title: str, type_hint: str) -> tuple[list[dict], str, str, str] | None:
+    """类型过滤 + 标题归一化，返回 (候选, 小写标题, 归一化标题, 剥后缀标题)；无结果时 None。"""
+    if not results:
+        return None
+
+    title_lower = title.strip().lower()
+
+    # 按类型过滤候选
+    candidates = results
+    if type_hint in ("movie", "tv"):
+        typed = [r for r in results if _r_type(r) == type_hint]
+        candidates = typed or results
+
+    norm_title = _normalize(title_lower)
+    return candidates, title_lower, norm_title, _strip_season(norm_title)
 
 
 def title_similar_enough(source_title: str, matched_title: str) -> bool:

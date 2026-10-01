@@ -20,6 +20,14 @@ DEFAULT_AI_CONFIG: dict[str, Any] = {
     "ai_api_base": "",
     "ai_model": "gpt-4o-mini",
     "ai_enable_search": False,
+    # JEV 采纳闸门（自动订阅兜底判定）— 详见 docs/SPEC-JEV-DECISION.md
+    # 默认关；开启后建议先保持 shadow=true 记录差异，核对无异常再切生效
+    "jev_decision_enabled": False,
+    "jev_decision_shadow": True,
+    "jev_api_base": "https://api.typesafe.ai",
+    "jev_api_key": "",
+    "jev_model": "jev-1.13.0",
+    "jev_same_work_threshold": 0.5,
 }
 _AI_KEYS = frozenset(DEFAULT_AI_CONFIG)
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
