@@ -10,6 +10,10 @@
 （schedule_upstream）。上游失败不回滚本地订阅；NfSyncEngine Phase 2 与
 MpSyncEngine.sync 每轮同步都会补上缺失的上游订阅，最终一致。
 
+契约（2026-10-02 补，S-B5 / docs/SPEC-CANCEL-RACE.md）：
+后台任务在每个上游调用（NF 建订阅 / MP 镜像）前重查本地行 —— 取消 = 本地行没了。
+行不存在 → 放弃后续上游动作并落 action="system" 可见日志，判定只读库。
+
 本模块是薄编排层：NF 同步委托 NfSyncEngine，MP 订阅委托 MpSyncEngine，
 自身只保留订阅 CRUD、上游推送编排与 TMDB/MP 补充逻辑。
 """
@@ -117,15 +121,33 @@ class OrchestratorService:
             return await self._sync_upstream_inner(own, sub_id)
 
     async def _sync_upstream_inner(self, db: AsyncSession, sub_id: str) -> dict[str, bool]:
-        """上游推送实现 — NF 添加 + MP 镜像，各自失败互不牵连。"""
+        """上游推送实现 — NF 添加 + MP 镜像，各自失败互不牵连。
+
+        每个上游调用前重查本地行（只读库）：行不存在 = 用户已取消 → 放弃后续
+        上游动作 + 落可见日志。判定不得用内存标记（重启即丢、多 worker 不共享）。
+        """
         result = {"nf": False, "mp": False}
         sub = await db.get(Subscription, sub_id)
         if sub is None:
-            logger.warning("上游订阅同步 — 本地记录已不存在，跳过: %s", sub_id)
+            await self._skip_cancelled_upstream(db, sub_id)
+            return result
+
+        # NF 建订阅前重查本地行
+        if not await self._local_subscription_exists(db, sub_id):
+            await self._skip_cancelled_upstream(db, sub_id, title=sub.title, tmdb_id=sub.tmdb_id)
             return result
 
         # 通知 NextFind 添加订阅（失败不回滚本地记录）
         nf_result = await self.nf.add_subscription(sub.tmdb_id, media_type=sub.media_type, title=sub.title)
+
+        # MP 镜像前重查本地行：NF 调用是出网请求（实测 ~1s），用户取消常常正好落在
+        # 这段窗口里（生产僵尸订阅 mp_sub_id=2263：取消 +107ms，MP 建订阅取消后 +15s）。
+        # 位置放在写回 nf_subscribed 之前 —— 此刻会话干净、重查不触发 flush；若先写回
+        # 再重查，行已被删时 flush 会撞 StaleDataError（实测，UPDATE 0 行）。
+        if not await self._local_subscription_exists(db, sub_id):
+            await self._skip_cancelled_upstream(db, sub_id, title=sub.title, tmdb_id=sub.tmdb_id)
+            return result
+
         if "error" not in nf_result:
             sub.nf_subscribed = True
             nf_id = nf_result.get("id") or nf_result.get("sub_id") or ""
@@ -168,6 +190,40 @@ class OrchestratorService:
 
         await db.commit()
         return result
+
+    async def _local_subscription_exists(self, db: AsyncSession, sub_id: str) -> bool:
+        """重查本地订阅行是否仍存在 — 「取消」的唯一权威信号就是库里这行没了。
+
+        用 ``no_autoflush``：本方法只问库、不触发未提交写回的 flush
+        （行已被并发删除时 flush 会撞 StaleDataError，实测 UPDATE 0 行），
+        也不让 identity map 缓存掩盖「行已删」的事实。
+
+        Args:
+            db: 数据库会话
+            sub_id: 本地订阅 UUID
+
+        Returns:
+            True 表示行仍在（可继续上游动作），False 表示已被取消/删除
+        """
+        stmt = select(Subscription).where(Subscription.id == sub_id)
+        with db.no_autoflush:
+            return (await db.execute(stmt)).scalar_one_or_none() is not None
+
+    async def _skip_cancelled_upstream(
+        self, db: AsyncSession, sub_id: str, title: str | None = None, tmdb_id: int | None = None
+    ) -> None:
+        """本地订阅已被取消 — 放弃后续上游动作，并落一条可见记录（不静默跳过）。
+
+        Args:
+            db: 数据库会话
+            sub_id: 本地订阅 UUID（行已删时只能用它标识）
+            title: 订阅标题（行还在时已知；行已删时为 None）
+            tmdb_id: TMDB ID（同上）
+        """
+        label = f": {title}" if title else f" (id={sub_id})"
+        logger.warning("上游订阅同步 — 订阅已取消，跳过上游推送%s", label)
+        await log_activity(db, "system", f"订阅已取消，跳过上游推送{label}", tmdb_id=tmdb_id)
+        await db.commit()
 
     async def subscribe(
         self,
