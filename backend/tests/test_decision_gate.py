@@ -100,10 +100,11 @@ async def test_disabled_skips_jev_entirely(monkeypatch: pytest.MonkeyPatch, tmp_
 
 
 async def test_default_config_has_gate_off_and_shadow_on() -> None:
-    """出厂默认：闸门关、影子开、模型 pin 到具体版本。"""
+    """出厂默认：闸门关、影子开、模型 pin 到具体版本、阈值取 §9 标定值。"""
     assert DEFAULT_AI_CONFIG["jev_decision_enabled"] is False
     assert DEFAULT_AI_CONFIG["jev_decision_shadow"] is True
     assert DEFAULT_AI_CONFIG["jev_model"] == "jev-1.13.0"
+    assert DEFAULT_AI_CONFIG["jev_same_work_threshold"] == 0.75
 
 
 async def test_shadow_records_but_keeps_heuristic_result(
@@ -142,7 +143,12 @@ async def test_pass_above_threshold_and_request_shape(monkeypatch: pytest.Monkey
     assert len(body["state"]["搜索结果"]) == 1
     assert body["state"]["待订阅"]["类型"] == "movie"
     assert list(body["questions"]) == ["same_work__0"]
-    assert "上映年/首映年的口径差异不算不同作品" in body["questions"]["same_work__0"]["instructions"]
+    assert "上传年/上映年口径差异也不算不同作品" in body["questions"]["same_work__0"]["instructions"]
+    # v3 两条语义（spec §9）：① 纯书写形式差异 → 同作品；② 副标题/版本/季数/类型差异 → 不同作品
+    instruction = body["questions"]["same_work__0"]["instructions"]
+    assert "纯书写形式的差异，不影响判定" in instruction
+    assert "副标题不同" in instruction and "版本不同" in instruction
+    assert "季数不同" in instruction and "类型不同" in instruction
 
 
 async def test_reject_below_threshold(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
@@ -162,6 +168,15 @@ async def test_threshold_comes_from_config(monkeypatch: pytest.MonkeyPatch, tmp_
     _use_http(monkeypatch, _FakeHttp(_noul(0.8)))
 
     assert (await evaluate_candidate(SOURCE_TITLE, 2025, "movie", CANDIDATE)).verdict is GateVerdict.REJECT
+
+
+def test_gate_threshold_is_read_from_config_file(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
+    """阈值来自配置文件而非代码常量：改配置即生效（§9 标定可无发版回退/上调）。"""
+    store = _use_config(monkeypatch, tmp_path, jev_same_work_threshold=0.62)
+    assert decision_client.load_gate_config().threshold == 0.62
+
+    store.save_config({"jev_same_work_threshold": 0.88})
+    assert decision_client.load_gate_config().threshold == 0.88
 
 
 # ── 降级：JEV 不可用一律回退旧启发式 ─────────────────────────

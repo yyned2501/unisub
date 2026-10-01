@@ -2,7 +2,7 @@
 
 请求策略沿用共享脚本 `~/.hermes/scripts/jev.py`：整体重试 3 次、退避 1s/2s、
 单次超时 8s、总预算 10s。共享脚本的「IPv4 优先」由 httpx/OS 解析承担
-（HTTP 必须走 `core/http_client.py`，不把裸 urllib 的 socket 逻辑搬进来）。
+（HTTP 必须走 `core/http_client.py`，不把共享脚本的裸 socket 逻辑搬进来）。
 """
 
 from __future__ import annotations
@@ -22,9 +22,9 @@ logger = init_logger()
 # 密钥来源：ai_config.jev_api_key > 环境变量（backend/.env，gitignore）
 _ENV_API_KEY = "UNISUB_JEV_API_KEY"
 
-# 版本 pin：别名（jev-latest）会漂移，阈值标定随之失效（红线）
+# 版本 pin：带 latest 的别名会漂移，阈值标定随之失效（红线）
 PINNED_MODEL = "jev-1.13.0"
-_ALIAS_MODELS = frozenset({"jev-latest", "latest"})
+_ALIAS_SUFFIXES = ("latest",)
 
 _DEFAULT_API_BASE = "https://api.typesafe.ai"
 _ATTEMPT_TIMEOUT_S = 8.0
@@ -50,8 +50,8 @@ def load_gate_config() -> GateConfig:
     raw = get_ai_config_store().load_config()
     api_key = str(raw.get("jev_api_key") or "").strip() or os.getenv(_ENV_API_KEY, "").strip()
     model = str(raw.get("jev_model") or "").strip() or PINNED_MODEL
-    if model in _ALIAS_MODELS:
-        logger.error("JEV 模型被配置为别名 %s，已回退到 pin 版本 %s（别名漂移会使阈值失效）", model, PINNED_MODEL)
+    if model.endswith(_ALIAS_SUFFIXES):
+        logger.error("JEV 模型 %s 是 latest 别名，已回退到 pin 版本 %s（别名漂移会使阈值失效）", model, PINNED_MODEL)
         model = PINNED_MODEL
     return GateConfig(
         enabled=bool(raw.get("jev_decision_enabled")),
@@ -125,9 +125,9 @@ def extract_same_work(response: dict) -> float | None:
 
 
 def _threshold(raw: Any) -> float:
-    """解析阈值（非法值回落 0.5 —— Phase 4A 推荐值，[0.5, 0.9] 区间结果恒定）。"""
+    """解析阈值（非法值回落 0.75 —— `docs/SPEC-JEV-DECISION.md` §9 标定值）。"""
     try:
         value = float(raw)
     except (TypeError, ValueError):
-        return 0.5
-    return value if 0.0 < value <= 1.0 else 0.5
+        return 0.75
+    return value if 0.0 < value <= 1.0 else 0.75

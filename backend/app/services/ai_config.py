@@ -27,7 +27,7 @@ DEFAULT_AI_CONFIG: dict[str, Any] = {
     "jev_api_base": "https://api.typesafe.ai",
     "jev_api_key": "",
     "jev_model": "jev-1.13.0",
-    "jev_same_work_threshold": 0.5,
+    "jev_same_work_threshold": 0.75,
 }
 _AI_KEYS = frozenset(DEFAULT_AI_CONFIG)
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
