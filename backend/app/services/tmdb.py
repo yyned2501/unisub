@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.http_client import http_client
 from app.core.logger import init_logger
+from app.services.poster import build_tmdb_poster_url
 from app.services.tmdb_cache import get_season_completion, get_seasons_map, update_cache_for_tv
 from app.services.tmdb_detail import aired_from_detail, next_air_date_from_detail
 
@@ -167,9 +168,7 @@ class TMDBService:
                         "raw_type": rtype,
                         "vote_average": r.get("vote_average", 0),
                         "year": (r.get("release_date") or r.get("first_air_date") or "")[:4],
-                        "poster": (
-                            f"https://image.tmdb.org/t/p/w500{r['poster_path']}" if r.get("poster_path") else None
-                        ),
+                        "poster": build_tmdb_poster_url(r.get("poster_path")),
                         "poster_path": r.get("poster_path") or "",
                         "overview": r.get("overview", ""),
                         "original_language": r.get("original_language", ""),

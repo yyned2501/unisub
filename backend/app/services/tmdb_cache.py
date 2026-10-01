@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logger import init_logger
 from app.models.tmdb_cache import TmdbCache
 from app.models.tmdb_season import TmdbSeason
+from app.services.poster import build_tmdb_poster_url
 from app.services.tmdb_detail import aired_count_by_season, aired_from_detail, next_air_date_from_detail
 
 if TYPE_CHECKING:
@@ -50,7 +51,7 @@ async def update_cache_for_tv(service: TMDBService, db: AsyncSession, tmdb_id: i
     aired = aired_from_detail(detail)
     next_date = next_air_date_from_detail(detail)
     poster_path = detail.get("poster_path")
-    poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None
+    poster_url = build_tmdb_poster_url(poster_path)
 
     data = {
         "tmdb_total_eps": detail.get("number_of_episodes"),
