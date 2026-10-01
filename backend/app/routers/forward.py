@@ -4,9 +4,10 @@
 登录端点返回 JWT token，其余端点通过 Bearer 鉴权保护。
 """
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import login_guard
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.core.logger import init_logger
@@ -45,8 +46,27 @@ async def _get_forward_service(db: AsyncSession) -> ForwardService:
     return ForwardService(nf, orchestrator)
 
 
+def _login_lock_key(request: Request, username: str) -> str:
+    """构造登录限流键 —— 来源 IP + 用户名。
+
+    按组合计数：本系统只有一个有效账号，组合键足以卡死针对该账号的爆破，
+    同时避免共享出口 IP 的攻击者把其他来源的用户一起锁死。
+
+    Args:
+        request: 当前请求（取 client host）
+        username: 表单里的用户名
+
+    Returns:
+        限流键字符串
+    """
+    client = request.client
+    ip = client.host if client else "unknown"
+    return f"{ip}|{username.strip().lower()}"
+
+
 @router.post("/api/v1/login/access-token", response_model=dict)
 async def forward_login(
+    request: Request,
     username: str = Form(...),
     password: str = Form(...),
     db: AsyncSession = Depends(get_db),
@@ -54,7 +74,19 @@ async def forward_login(
     """登录 — 验证凭据，返回 JWT token。
 
     使用 Form 参数接收用户名密码，与 MoviePilot 风格兼容。
+    失败计数达上限后按指数退避锁定该来源（5 次失败锁 5 分钟，逐级翻倍），
+    锁定期间返回 429 且不校验凭据。
     """
+    lock_key = _login_lock_key(request, username)
+    locked, remaining = login_guard.is_locked(lock_key)
+    if locked:
+        logger.warning(f"Forward 登录被锁定拒绝: key={lock_key!r}, 剩余 {remaining}s")
+        raise HTTPException(
+            status_code=429,
+            detail=f"登录失败次数过多，请 {remaining} 秒后重试",
+            headers={"Retry-After": str(remaining)},
+        )
+
     svc = await _get_forward_service(db)
     auth = load_auth_config()
     result = await svc.login(
@@ -65,8 +97,10 @@ async def forward_login(
     )
 
     if "success" in result and not result["success"]:
+        login_guard.record_failure(lock_key)
         raise HTTPException(status_code=401, detail=result.get("message", "登录失败"))
 
+    login_guard.reset(lock_key)
     logger.info(f"Forward 登录成功: {username}")
     return result
 

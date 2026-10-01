@@ -1,17 +1,8 @@
-"""基础 API 测试 — 健康检查与根路径。"""
+"""基础 API 测试 — 健康检查与根路径。
 
-import pytest
-from httpx import ASGITransport, AsyncClient
-
-from app.main import app
-
-
-@pytest.fixture
-async def client():
-    """异步测试客户端。"""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
-        yield c
+注意：client 夹具统一由 conftest 提供（已覆盖 get_db），本文件不再自带夹具。
+自带版本会绕过依赖覆盖，使 /health 直接使用 app.core.database 的真实引擎。
+"""
 
 
 async def test_root(client):
@@ -24,7 +15,7 @@ async def test_root(client):
 
 
 async def test_health(client):
-    """健康检查端点可达。"""
+    """健康检查端点可达（DB 探测走被覆盖的测试会话，不触生产库）。"""
     resp = await client.get("/health")
     assert resp.status_code == 200
     data = resp.json()

@@ -50,7 +50,9 @@ class TMDBService:
             query_params.update(params)
         result = await http_client.get(url, params=query_params)
         if "error" in result:
-            logger.error("TMDB 请求失败 [%s]: %s", path, result)
+            # 只记 path 与错误码：result 里的 detail 含完整 URL + api_key，
+            # 一旦落盘等于把 TMDB 密钥写到日志里（历史事故，勿回退）。
+            logger.error("TMDB 请求失败 [%s]: %s", path, result.get("error"))
         return result
 
     async def get_aired_episode_count(self, tmdb_id: int) -> int | None:

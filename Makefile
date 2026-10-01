@@ -2,7 +2,7 @@
 # 用法: make <target>
 # 生产架构: systemd → supervisord → unisub:backend(uvicorn:8002) + unisub:frontend(nginx:8082)
 
-.PHONY: help setup dev-backend dev-frontend lint lint-backend lint-frontend \
+.PHONY: help setup setup-hooks dev-backend dev-frontend lint lint-backend lint-frontend lint-secret \
 	test test-backend test-frontend build clean \
 	status restart restart-backend restart-frontend logs
 
@@ -12,6 +12,11 @@ help: ## 显示所有可用命令
 setup: ## 一键初始化（安装前后端依赖）
 	cd backend && uv sync --group dev
 	cd frontend && npm ci
+	git config core.hooksPath backend/.githooks
+
+setup-hooks: ## 启用仓库 git hooks（pre-commit 凭据门禁）
+	git config core.hooksPath backend/.githooks
+	@echo "已启用 core.hooksPath=backend/.githooks"
 
 dev-backend: ## 启动后端开发服务器（自动加载 backend/.env，端口 8002）
 	cd backend && if [ -f .env ]; then set -a && . ./.env && set +a; fi && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8002
@@ -19,12 +24,15 @@ dev-backend: ## 启动后端开发服务器（自动加载 backend/.env，端口
 dev-frontend: ## 启动前端开发服务器
 	cd frontend && npm run dev
 
-lint: lint-backend lint-frontend ## 运行全部 lint 检查
+lint: lint-backend lint-frontend lint-secret ## 运行全部 lint 检查
 
 lint-backend: ## 后端 lint（ruff + 架构分层）
 	cd backend && uv run ruff check .
 	cd backend && uv run ruff format --check .
 	cd backend && uv run lint-imports
+
+lint-secret: ## 凭据门禁（扫描已跟踪文件中的明文密钥）
+	bash backend/.githooks/pre-commit --all
 
 lint-frontend: ## 前端 lint（eslint + type-check）
 	cd frontend && npm run type-check

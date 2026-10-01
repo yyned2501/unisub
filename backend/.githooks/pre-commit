@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# 凭据门禁 — 阻止明文密钥进入仓库
+#
+# 用法:
+#   .githooks/pre-commit            只检查本次提交涉及的文件（git hook 模式）
+#   .githooks/pre-commit --all      检查全部已跟踪文件（make lint-secret）
+#
+# 为什么 hook 模式只扫本次提交涉及的文件：
+#   仓库历史遗留的明文凭据不该卡死此后所有提交；门禁的职责是「别再新增」，
+#   历史清零由 --all 模式 + 人工处理负责。
+#
+# 规则（值需形如 [A-Za-z0-9_@+-]，占位符 / 变量引用自动放行）:
+#   1. 密码键         = 后跟 6+ 字符
+#   2. api_key 键     = 后跟 12+ 字符
+#   3. X-API-Key 头   : 后跟 12+ 字符
+#
+# 设计取舍:
+#   - 只认「键=值 / 头: 值」内联形式；$ENV、{占位符}、'引号包裹' 一律不匹配（自然放行）
+#   - 规则字面量会自命中，故跳过 .githooks/ 目录
+#   - 阈值按长度取，短口令（<6）拦不住 —— 门禁是防呆，不是密钥扫描器
+set -uo pipefail
+
+cd "$(git rev-parse --show-toplevel)" || exit 2
+
+MODE_ALL=0
+LABEL="本次提交"
+CHANGED=()
+
+if [ "${1:-}" = "--all" ]; then
+  MODE_ALL=1
+  LABEL="全部已跟踪文件"
+else
+  while IFS= read -r f; do
+    [ -n "$f" ] && CHANGED+=("$f")
+  done < <(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)
+  if [ "${#CHANGED[@]}" -eq 0 ]; then
+    printf '[凭据门禁] 通过：本次提交无文件变更\n'
+    exit 0
+  fi
+fi
+
+PATTERNS=(
+  "[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]=[A-Za-z0-9_@+-]{6,}"
+  "api_key=[A-Za-z0-9_@+-]{12,}"
+  "X-API-Key:[[:space:]]*[A-Za-z0-9_@+-]{12,}"
+)
+RULE_NAMES=("密码键=值" "api_key=值" "X-API-Key 头")
+
+is_allowed() {
+  local v="${1,,}"
+  case "$v" in
+    password | passwd | secret | changeme | placeholder | redacted | dummy | example | sample | none | null | admin | test | testing | test123 | fake)
+      return 0
+      ;;
+    *your* | *placeholder* | *redacted* | *example* | *changeme* | *dummy* | *fake* | *sample*)
+      return 0
+      ;;
+  esac
+  # 纯占位字符：xxxx / **** / ....
+  [[ "$v" =~ ^[x*._-]+$ ]] && return 0
+  return 1
+}
+
+violations=0
+for i in "${!PATTERNS[@]}"; do
+  pattern="${PATTERNS[$i]}"
+  # 注意：git grep 的选项必须排在 pattern 之前，否则会被当成 revision 解析
+  if [ "$MODE_ALL" -eq 1 ]; then
+    hits=$(git grep -nE "$pattern" -- . 2>/dev/null)
+  else
+    hits=$(git grep --cached -nE "$pattern" -- "${CHANGED[@]}" 2>/dev/null)
+  fi
+  while IFS= read -r hit; do
+    [ -z "$hit" ] && continue
+    case "$hit" in
+      backend/.githooks/* | .githooks/*) continue ;;
+    esac
+    content="${hit#*:*:}"
+    while IFS= read -r match; do
+      [ -z "$match" ] && continue
+      value=$(sed -E 's/^[^=:]*[=:][[:space:]]*//' <<<"$match")
+      if [ -n "$value" ] && ! is_allowed "$value"; then
+        printf '\n[凭据门禁] %s 命中规则「%s」\n  %s\n' "$LABEL" "${RULE_NAMES[$i]}" "$hit"
+        violations=$((violations + 1))
+        break
+      fi
+    done < <(grep -oE "$pattern" <<<"$content" 2>/dev/null)
+  done <<<"$hits"
+done
+
+if [ "$violations" -gt 0 ]; then
+  printf '\n[凭据门禁] 未通过：%s 共命中 %d 处明文凭据\n' "$LABEL" "$violations"
+  printf '  改为占位符（{api_key} / $NF_PASSWORD / xxxx****xxxx）或运行时从 pass 注入，不要写字面值。\n'
+  exit 1
+fi
+
+printf '[凭据门禁] 通过：%s 未发现明文凭据\n' "$LABEL"
+exit 0

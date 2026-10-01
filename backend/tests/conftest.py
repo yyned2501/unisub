@@ -5,10 +5,13 @@
 
 import os
 
-# 在导入 app 之前设置测试环境变量，避免连接真实数据库
-os.environ.setdefault("UNISUB_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-os.environ.setdefault("UNISUB_JWT_SECRET", "test-secret-key-that-is-long-enough-32b")
-os.environ.setdefault("UNISUB_DEBUG", "false")
+# 在导入 app 之前设置测试环境变量，避免连接真实数据库。
+# ⚠️ 必须硬赋值，不能用 setdefault：验收命令会先 `source backend/.env` 再跑 pytest，
+# 此时 setdefault 会让真实 UNISUB_DATABASE_URL 穿透进来，app.core.database 在导入期
+# 就绑定生产 PostgreSQL（/health 等直接用 async_session 的路径会真的打到生产库）。
+os.environ["UNISUB_DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["UNISUB_JWT_SECRET"] = "test-secret-key-that-is-long-enough-32b"
+os.environ["UNISUB_DEBUG"] = "false"
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -46,7 +49,11 @@ async def db_session() -> AsyncSession:
 
 @pytest.fixture
 async def client(db_session: AsyncSession):
-    """提供 FastAPI 测试客户端，覆盖数据库依赖。"""
+    """提供 FastAPI 测试客户端，覆盖数据库依赖。
+
+    覆盖 get_db 后，所有走 Depends(get_db) 的端点都落到内存测试库，
+    不再触碰生产 PostgreSQL。
+    """
 
     async def _override_get_db():
         yield db_session

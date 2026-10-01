@@ -11,8 +11,14 @@
 
     未来若引入 pytest 测试覆盖，可考虑将 get/post/... 迁移为抛异常契约，
     使错误无法被静默忽略；当前无测试，维持 error-dict 约定以保证稳定。
+
+脱敏约定:
+    请求 URL 与其 query string 可能携带密钥（如 TMDB 的 ``?api_key=xxx``），
+    任何写入日志、塞进错误 ``detail`` 或异常消息的文本**必须**先过
+    :func:`strip_query`，只保留 scheme/host/path。
 """
 
+import re
 from typing import Any
 
 import httpx
@@ -20,6 +26,24 @@ import httpx
 from app.core.logger import init_logger
 
 logger = init_logger()
+
+# 匹配 URL query string：'?' 起，直到空白/引号/括号/逗号等边界字符
+_QUERY_STRING_RE = re.compile(r"\?[^\s'\"<>()\[\],]*")
+
+
+def strip_query(text: str) -> str:
+    """剥离文本中的 URL query string，只保留 scheme/host/path。
+
+    脱敏入口：``http://host/3/tv/1?api_key=secret`` → ``http://host/3/tv/1``。
+    日志与错误详情中的任何 URL 都必须先过这里，否则密钥会随日志落盘。
+
+    Args:
+        text: 原始文本（URL，或含 URL 的异常消息）
+
+    Returns:
+        移除 query string 后的文本
+    """
+    return _QUERY_STRING_RE.sub("", text)
 
 
 class HttpRequestError(RuntimeError):
@@ -67,16 +91,18 @@ class AsyncHttpClient:
             （不抛异常，调用方须检查 ``"error" in result``）
         """
         client = await self._ensure_client()
+        safe_url = strip_query(url)
         try:
             response = await client.get(url, headers=headers, params=params)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP GET {url} 失败: {e.response.status_code}")
-            return {"error": f"HTTP {e.response.status_code}", "detail": str(e)}
+            logger.error(f"HTTP GET {safe_url} 失败: {e.response.status_code}")
+            return {"error": f"HTTP {e.response.status_code}", "detail": strip_query(str(e))}
         except Exception as e:
-            logger.error(f"GET {url} 请求异常: {e}")
-            return {"error": "request_failed", "detail": str(e)}
+            detail = strip_query(str(e))
+            logger.error(f"GET {safe_url} 请求异常: {detail}")
+            return {"error": "request_failed", "detail": detail}
 
     async def get_text(
         self,
@@ -107,17 +133,18 @@ class AsyncHttpClient:
             )
         else:
             client = await self._ensure_client()
+        safe_url = strip_query(url)
         try:
             response = await client.get(url, headers=headers, params=params)
             response.raise_for_status()
             return response.text
         except httpx.HTTPStatusError as e:
             status_code = e.response.status_code
-            logger.error(f"HTTP GET {url} 失败: {status_code}")
-            raise HttpRequestError(f"GET 请求返回 HTTP {status_code}: {url}") from e
+            logger.error(f"HTTP GET {safe_url} 失败: {status_code}")
+            raise HttpRequestError(f"GET 请求返回 HTTP {status_code}: {safe_url}") from e
         except httpx.RequestError as e:
-            logger.error(f"GET {url} 网络请求异常: {e}")
-            raise HttpRequestError(f"GET 网络请求失败: {url}") from e
+            logger.error(f"GET {safe_url} 网络请求异常: {strip_query(str(e))}")
+            raise HttpRequestError(f"GET 网络请求失败: {safe_url}") from e
         finally:
             if proxy_url:
                 await client.aclose()
@@ -138,17 +165,18 @@ class AsyncHttpClient:
             HttpRequestError: 网络请求失败或服务端返回非成功状态码
         """
         client = await self._ensure_client()
+        safe_url = strip_query(url)
         try:
             response = await client.get(url, headers=headers)
             response.raise_for_status()
             return response.content, response.headers.get("Content-Type", "application/octet-stream")
         except httpx.HTTPStatusError as e:
             status_code = e.response.status_code
-            logger.error(f"HTTP GET {url} 失败: {status_code}")
-            raise HttpRequestError(f"GET 请求返回 HTTP {status_code}: {url}") from e
+            logger.error(f"HTTP GET {safe_url} 失败: {status_code}")
+            raise HttpRequestError(f"GET 请求返回 HTTP {status_code}: {safe_url}") from e
         except httpx.RequestError as e:
-            logger.error(f"GET {url} 网络请求异常: {e}")
-            raise HttpRequestError(f"GET 网络请求失败: {url}") from e
+            logger.error(f"GET {safe_url} 网络请求异常: {strip_query(str(e))}")
+            raise HttpRequestError(f"GET 网络请求失败: {safe_url}") from e
 
     async def post(
         self,
@@ -170,6 +198,7 @@ class AsyncHttpClient:
             （不抛异常，调用方须检查 ``"error" in result``）
         """
         client = await self._ensure_client()
+        safe_url = strip_query(url)
         try:
             response = await client.post(url, headers=headers, json=json, data=data)
             response.raise_for_status()
@@ -178,11 +207,12 @@ class AsyncHttpClient:
                 return {}
             return response.json()
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP POST {url} 失败: {e.response.status_code}")
-            return {"error": f"HTTP {e.response.status_code}", "detail": str(e)}
+            logger.error(f"HTTP POST {safe_url} 失败: {e.response.status_code}")
+            return {"error": f"HTTP {e.response.status_code}", "detail": strip_query(str(e))}
         except Exception as e:
-            logger.error(f"POST {url} 请求异常: {e}")
-            return {"error": "request_failed", "detail": str(e)}
+            detail = strip_query(str(e))
+            logger.error(f"POST {safe_url} 请求异常: {detail}")
+            return {"error": "request_failed", "detail": detail}
 
     async def put(self, url: str, headers: dict | None = None, json: dict | None = None) -> dict:
         """发送 PUT 请求，返回解析后的 JSON 字典。
@@ -197,16 +227,18 @@ class AsyncHttpClient:
             （不抛异常，调用方须检查 ``"error" in result``）
         """
         client = await self._ensure_client()
+        safe_url = strip_query(url)
         try:
             response = await client.put(url, headers=headers, json=json)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP PUT {url} 失败: {e.response.status_code}")
-            return {"error": f"HTTP {e.response.status_code}", "detail": str(e)}
+            logger.error(f"HTTP PUT {safe_url} 失败: {e.response.status_code}")
+            return {"error": f"HTTP {e.response.status_code}", "detail": strip_query(str(e))}
         except Exception as e:
-            logger.error(f"PUT {url} 请求异常: {e}")
-            return {"error": "request_failed", "detail": str(e)}
+            detail = strip_query(str(e))
+            logger.error(f"PUT {safe_url} 请求异常: {detail}")
+            return {"error": "request_failed", "detail": detail}
 
     async def delete(self, url: str, headers: dict | None = None) -> dict:
         """发送 DELETE 请求，返回解析后的 JSON 字典。
@@ -220,6 +252,7 @@ class AsyncHttpClient:
             （不抛异常，调用方须检查 ``"error" in result``）
         """
         client = await self._ensure_client()
+        safe_url = strip_query(url)
         try:
             response = await client.delete(url, headers=headers)
             response.raise_for_status()
@@ -228,11 +261,12 @@ class AsyncHttpClient:
                 return {}
             return response.json()
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP DELETE {url} 失败: {e.response.status_code}")
-            return {"error": f"HTTP {e.response.status_code}", "detail": str(e)}
+            logger.error(f"HTTP DELETE {safe_url} 失败: {e.response.status_code}")
+            return {"error": f"HTTP {e.response.status_code}", "detail": strip_query(str(e))}
         except Exception as e:
-            logger.error(f"DELETE {url} 请求异常: {e}")
-            return {"error": "request_failed", "detail": str(e)}
+            detail = strip_query(str(e))
+            logger.error(f"DELETE {safe_url} 请求异常: {detail}")
+            return {"error": "request_failed", "detail": detail}
 
     async def close(self) -> None:
         """关闭 HTTP 客户端连接，释放资源。"""

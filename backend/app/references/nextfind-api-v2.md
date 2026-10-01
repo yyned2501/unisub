@@ -22,8 +22,8 @@ NextFind 暴露两套 API：
 | 维度 | OpenAPI | Web API |
 |:---|:---|:---|
 | 地址 | `http://192.168.31.10:8092/api/openapi` | `https://nf.js.248226785.xyz:8443/api` |
-| 鉴权 | Header `X-API-Key: ***REMOVED***` | Cookie `nextmedia_session` |
-| 登录方式 | 无需登录 | `POST /login` with `username=yangyang&password=***REMOVED***` |
+| 鉴权 | Header `X-API-Key: {api_key}` | Cookie `nextmedia_session` |
+| 登录方式 | 无需登录 | `POST /login` with `username=$NF_USER&password=$NF_PASSWORD` |
 | 适用场景 | 简单操作（搜索/订阅/转存） | 复杂查询（本地库逐集详情） |
 
 ---
@@ -34,9 +34,12 @@ NextFind 暴露两套 API：
 
 ```
 Base:    http://192.168.31.10:8092/api/openapi
-Header:  X-API-Key: ***REMOVED***
+Header:  X-API-Key: {api_key}
 Content: application/json (for POST)
 ```
+
+> 凭据取值（禁入库）：OpenAPI Key → `pass show api/nextfind-key`；
+> Web 登录 → `pass show backend/nextfind`（第 1 行密码、第 2 行用户名）
 
 ### 2.2 全部端点实测结果
 
@@ -160,7 +163,7 @@ HTTP 200。任务提交后 NextFind 调度器会在下一轮循环中搜索并�
 
 ```bash
 # Step 1: 登录获取 cookie
-curl -X POST -d "username=yangyang&password=***REMOVED***" \
+curl -X POST -d "username=$NF_USER&password=$NF_PASSWORD" \
   "https://nf.js.248226785.xyz:8443/login" \
   -c /tmp/nf_cookies.txt
 
@@ -169,7 +172,7 @@ curl -b /tmp/nf_cookies.txt \
   "https://nf.js.248226785.xyz:8443/api/local_library?type=tv&tmdb_id=219934"
 ```
 
-Cookie: `nextmedia_session=ImFkbWluIg.aljaRg.fnAS9wpiBbXjrZYXXbxjOfEoIFQ`（30天有效期）
+Cookie: `nextmedia_session=<登录响应 Set-Cookie 下发的会话值>`（30天有效期）
 
 ### 3.2 实测可用端点
 

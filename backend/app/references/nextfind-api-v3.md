@@ -25,9 +25,12 @@
 
 ```
 Base:    http://192.168.31.10:8092/api/openapi
-Header:  X-API-Key: ***REMOVED***
+Header:  X-API-Key: {api_key}
 Content: application/json (for POST/PUT/DELETE，必须带 Content-Type: application/json)
 ```
+
+> 凭据取值（禁入库）：OpenAPI Key → `pass show api/nextfind-key`；
+> Web 登录 → `pass show backend/nextfind`（第 1 行密码、第 2 行用户名）
 
 **⚠️ 关键约定：Body 中 `tmdb_id` 必须是字符串 `"1396"`，不是整数 `1396`。**
 部分端点（如 `transfer`）传 int 也能工作，但统一用 `str(tmdb_id)` 最安全。
@@ -366,7 +369,7 @@ HTTP 200。任务异步执行，不阻塞。
       "season": null,
       "episode": null,
       "transferred_resolution": "39210100738.0",
-      "slug": "https://115.com/s/swsos0x3wye?password=32ff",
+      "slug": "https://115.com/s/<分享码>?password=<接收码>",
       "transfer_time": "2026-07-22 14:26:27",
       "is_slug_transferred": 1,
       "remark": "[剧集] 依然的喜事 (2026) | S01E01-E08 ...",
@@ -731,7 +734,7 @@ HTTP 200。任务推入高优队列，NextFind 调度器在下一轮循环中搜
 ### 11.1 登录
 
 ```bash
-curl -X POST -d "username=yangyang&password=***REMOVED***" \
+curl -X POST -d "username=$NF_USER&password=$NF_PASSWORD" \
   "https://nf.js.248226785.xyz:8443/login" \
   -c /tmp/nf_cookies.txt
 ```
