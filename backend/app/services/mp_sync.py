@@ -41,8 +41,8 @@ class MpSyncEngine:
         self.mp = mp_service
         self.tmdb = tmdb_service
 
-    async def subscribe(self, db: AsyncSession, sub: Subscription) -> None:
-        """为订阅创建 MP 镜像。
+    async def subscribe(self, db: AsyncSession, sub: Subscription) -> list[int]:
+        """为订阅创建 MP 镜像，并返回本次**新建**的 MP 订阅 id。
 
         电影：直接建一条无季订阅。电视剧：先查缺集季，逐季建订阅；
         查不到缺集信息（如 MP 未配媒体服务器）时跳过，不阻塞。
@@ -50,24 +50,33 @@ class MpSyncEngine:
         Args:
             db: 数据库会话（调用方负责 commit）
             sub: 本地订阅记录
+
+        Returns:
+            本次调用在 MP **新建**的订阅 id 列表（命中 MP 已存在订阅而直接关联的、
+            以及失败的都不计入）。调用方据此在「本地订阅已被取消」时精确撤销
+            刚建的那一条（docs/SPEC-CANCEL-RACE.md §8.3-B），不做全量上游对账。
         """
         if sub.media_type == "movie":
-            await self._create_mp_sub(db, sub, season=None)
-            return
+            mp_sub_id = await self._create_mp_sub(db, sub, season=None)
+            return [mp_sub_id] if mp_sub_id is not None else []
 
+        created: list[int] = []
         seasons = await query_missing_seasons(self, db, sub)
         if seasons is None:
             # 查询失败，跳过镜像（不阻塞）
-            return
+            return created
         if not seasons:
             logger.info("MP 镜像 — 剧集无缺集季，跳过: %s (tmdb_id=%d)", sub.title, sub.tmdb_id)
-            return
+            return created
         for item in seasons:
             season = item.get("season")
             # 跳过特典季（season=0）与缺季号的条目
             if season is None or int(season) == 0:
                 continue
-            await self._create_mp_sub(db, sub, season=int(season), missing_info=item)
+            mp_sub_id = await self._create_mp_sub(db, sub, season=int(season), missing_info=item)
+            if mp_sub_id is not None:
+                created.append(mp_sub_id)
+        return created
 
     async def unsubscribe(self, db: AsyncSession, sub: Subscription) -> None:
         """删除订阅在 MP 的所有镜像条目。
@@ -201,23 +210,48 @@ class MpSyncEngine:
         sub: Subscription,
         season: int | None,
         missing_info: dict | None = None,
-    ) -> None:
-        """在 MP 创建一条订阅并写入子表。失败仅记日志。"""
+    ) -> int | None:
+        """在 MP 创建一条订阅并写入子表。失败仅记日志。
+
+        Returns:
+            本次**新建**的 MP 订阅 id；命中 MP 已存在订阅（只关联、不新建）
+            或创建失败时返回 None（调用方据此决定取消时撤哪一条）。
+        """
         # 防重：MP 端已存在则直接关联
         existing = await self.mp.find_subscription(sub.tmdb_id, season=season)
         mp_sub_id = _extract_sub_id(existing)
+        created_now = False
 
         if mp_sub_id is None:
             result = await self.mp.create_subscription(
                 sub.tmdb_id, sub.media_type, sub.title, year=sub.year, season=season
             )
-            if "error" in result:
-                logger.warning("MP 创建订阅失败: %s 第%s季, %s", sub.title, season, result)
-                return
-            if result.get("success") is False:
-                logger.warning("MP 创建订阅未成功: %s 第%s季, %s", sub.title, season, result)
-                return
-            mp_sub_id = _extract_sub_id(result)
+            if "error" in result or result.get("success") is False:
+                if "error" in result:
+                    logger.warning("MP 创建订阅失败: %s 第%s季, %s", sub.title, season, result)
+                else:
+                    logger.warning("MP 创建订阅未成功: %s 第%s季, %s", sub.title, season, result)
+                # 「报告失败」不等于上游没建出来：MP 建订阅实测会超过客户端超时
+                # （2026-10-02 真机：30s 超时返回 request_failed，MP 其实已建 → 留下
+                # unisub 无记录的僵尸订阅 mp_sub_id=2268）。复扫一次，扫到就按「本次新建」
+                # 处理：写子表被本地记录，取消补偿时也撤得掉。
+                try:
+                    existing = await self.mp.find_subscription(sub.tmdb_id, season=season)
+                except Exception as exc:  # 复扫失败按「没建出来」处理，保持 best-effort
+                    logger.debug("MP 创建报错后复扫失败: %s 第%s季, %s", sub.title, season, exc)
+                    return None
+                mp_sub_id = _extract_sub_id(existing)
+                if mp_sub_id is None:
+                    return None
+                logger.warning(
+                    "MP 创建订阅报错但上游已建（按本次新建处理）: %s 第%s季, mp_sub_id=%s",
+                    sub.title,
+                    season,
+                    mp_sub_id,
+                )
+            else:
+                mp_sub_id = _extract_sub_id(result)
+            created_now = True
 
         row = MpSubscription(
             id=str(uuid.uuid4()),
@@ -237,6 +271,8 @@ class MpSyncEngine:
         logger.info("MP 镜像 — 创建订阅: %s %s (mp_sub_id=%s)", sub.title, label, mp_sub_id)
 
         await log_activity(db, "subscribe", f"MP 镜像订阅: {sub.title} {label}", tmdb_id=sub.tmdb_id)
+
+        return mp_sub_id if created_now else None
 
     async def _refresh_row(self, sub: Subscription, row: MpSubscription) -> None:
         """拉取 MP 订阅详情回写进度到子表行。"""
