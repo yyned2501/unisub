@@ -151,8 +151,9 @@ async def resolve_best_match(
         1. Bangumi 年份补充（动画条目 item.year 为空时）
         2. 构建搜索词变体 → 候选池（多轮搜索的并集，不再「第一个非空即返回」）
         3. 候选池：精确优先 → 相似度进池门槛 → 阶段 4/5 + JEV 闸门
-        4. 主池不中 → fallback 链（Bangumi 原名/别名 → AI 兜底），结果同样走第 3 步
-        5. 仍不中 → 返回归因（无候选 / 相似度不足 / 闸门判非同一作品 / AI 兜底无结果）
+        4. 主池不中 → fallback 链（Bangumi 原名/别名 → AI 兜底），结果同样走第 3 步；
+           AI 结果与原标题字面不重叠时视为「疑换作品」，只有 JEV 判同一部作品才采纳
+        5. 仍不中 → 返回归因（无候选 / 相似度不足 / 闸门判非同一作品 / AI 侧故障）
     """
     title = item.title
     bgm_subject = await _enrich_year_from_bangumi(item)
@@ -164,7 +165,17 @@ async def resolve_best_match(
         return ResolveOutcome(best=best, variant=variant)
 
     fallback = await run_fallback_chain(title, item, bgm_subject, type_hint, nf_service, tmdb_service)
-    if fallback.results:
+    if fallback.results and fallback.ai_low_overlap:
+        # AI 识别结果与原标题字面不重叠 = 疑「换了作品」：字面相似度无权放行，
+        # 只有 JEV 明确判「同一部作品」才采纳；JEV 不可用（降级/影子）时整池丢弃
+        # —— 宁可不订阅，也不误订（实测 `巴黎绽放的星辰` → `艾米丽在巴黎`）。
+        best, variant = await _match_unverified_pool(
+            fallback.results, title, type_hint, item.year, fallback.variant_map
+        )
+        if best is not None:
+            return ResolveOutcome(best=best, variant=variant)
+        top_pool = pool
+    elif fallback.results:
         best, reason, variant = await _match_from_pool(
             fallback.results, title, type_hint, item.year, fallback.variant_map
         )
@@ -174,11 +185,33 @@ async def resolve_best_match(
     else:
         top_pool = pool
         # 归因优先反映「候选被否」这一主因：只有主池本来就空（真·无候选）时，
-        # AI 兜底失败才算根因，否则会把「有候选但全被否」误报成「AI 无结果」。
+        # AI 侧故障才算根因，否则会把「有候选但全被否」误报成「AI 无结果」。
         if not pool and fallback.ai_failed:
             reason = REASON_AI_EMPTY
 
     return ResolveOutcome(reason=reason, variant=variant, top_candidates=_top_titles(top_pool))
+
+
+async def _match_unverified_pool(
+    pool: list[dict],
+    title: str,
+    type_hint: str,
+    item_year: str | None,
+    variant_map: dict[str, str],
+) -> tuple[dict | None, str]:
+    """AI 兜底产出、且与原标题字面不重叠的候选：只有 JEV 明确判同一部作品才采纳。
+
+    这类候选「字面不像」有两种可能：译名/写法差异（该救回）或 AI 认错了作品（该丢弃），
+    字面相似度无权裁决 —— 交给 JEV。JEV 不可用（降级/影子）时按「无法确认」处理，
+    返回 None（上层归因给 ``no_candidates``）。
+    """
+    picked = pick_best_exact(pool, title, type_hint, item_year) or pick_best_fallback(pool, title, type_hint, item_year)
+    if picked is None:
+        return None, ""
+    verdict = await judge_candidate(title, type_hint, item_year, picked)
+    if verdict.verdict is GateVerdict.PASS and not verdict.shadow:
+        return picked, _variant_of(picked, variant_map)
+    return None, ""
 
 
 async def _match_from_pool(

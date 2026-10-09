@@ -339,7 +339,11 @@ async def test_ai_reasoning_content_fallback_extracts_json(monkeypatch: pytest.M
 
 
 async def test_ai_search_failure_logs_and_does_not_fabricate(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
-    """AI 识别成功但回搜无结果 → 不伪造命中，落 WARN + ai_failed。"""
+    """AI 识别成功但回搜无结果 → 不伪造命中，落 WARN，归因给 no_candidates（不是 AI 故障）。
+
+    线上实测：`神秘面包小子` 的 AI 识别结果就是它自己，TMDB 确实没有这个条目 ——
+    这是「TMDB 无此条目」，不是「AI 坏了」，所以 ``ai_failed`` 保持 False。
+    """
     _use_ai_config(monkeypatch, tmp_path)
     monkeypatch.setattr(search, "http_client", _FakeHttp({"content": '{"title": "不存在的片", "media_type": "tv"}'}))
 
@@ -353,4 +357,84 @@ async def test_ai_search_failure_logs_and_does_not_fabricate(monkeypatch: pytest
     )
 
     assert pool == []
-    assert ai_failed is True
+    assert ai_failed is False
+
+
+async def test_ai_search_no_result_maps_to_no_candidates(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
+    """AI 回搜无候选 → 归因 no_candidates（TMDB 无此条目），且不静默丢。"""
+    _use_ai_config(monkeypatch, tmp_path)
+    monkeypatch.setattr(search, "http_client", _FakeHttp({"content": '{"title": "神秘面包小子", "media_type": "tv"}'}))
+
+    async def fake_search(query: str, search_type: str, nf: Any, tmdb: Any) -> list[dict]:
+        return []
+
+    monkeypatch.setattr(search, "search_tmdb_or_nf", fake_search)
+    calls = _patch_gate(monkeypatch, GateVerdict.DISABLED)
+    _patch_search(monkeypatch, {})
+
+    outcome = await resolve.resolve_best_match(_item("神秘面包小子"), "tv", NF, None)
+
+    assert outcome.best is None
+    assert outcome.reason == REASON_NO_CANDIDATES
+    assert calls == []
+
+
+# ── ⑤ AI 结果与原标题字面不重叠（疑换作品）→ 必须 JEV 背书 ─────
+
+
+def test_ai_pool_low_overlap_detection() -> None:
+    """重叠不足 0.5 的 AI 候选池被标记（实测 巴黎绽放的星辰 ↔ 艾米丽在巴黎 只共享「巴黎」）。"""
+    assert search._is_low_overlap_pool("巴黎绽放的星辰", [_cand("艾米丽在巴黎", year=2020)]) is True
+    assert search._is_low_overlap_pool("杀手旅店 第二季", [_cand("异人旅馆", year=2025)]) is True
+    assert search._is_low_overlap_pool("怪兽8号 鸣海的平日", [_cand("怪兽8号", year=2024)]) is False
+
+
+async def test_ai_low_overlap_pool_dropped_when_gate_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AI 认错作品（巴黎绽放的星辰 → 艾米丽在巴黎）+ JEV 降级 → 不采纳，归因 no_candidates。
+
+    两者只共享「巴黎」两字（重叠 0.33），30% 的字面门槛拦不住 —— 这正是线上会误订的路径。
+    JEV 不可用时无法确认是否同一部作品 → 整池丢弃，不许伪造命中。
+    """
+    title = "巴黎绽放的星辰"
+    _patch_search(monkeypatch, {})
+    _patch_fallback(
+        monkeypatch,
+        FallbackOutcome(
+            results=[_cand("艾米丽在巴黎", year=2020)], variant_map={"1": "Emily in Paris"}, ai_low_overlap=True
+        ),
+    )
+    _patch_gate(monkeypatch, GateVerdict.FALLBACK)
+
+    outcome = await resolve.resolve_best_match(_item(title, "all"), "all", NF, None)
+
+    assert outcome.best is None
+    assert outcome.reason == REASON_NO_CANDIDATES
+    assert outcome.top_candidates == []
+
+
+async def test_ai_low_overlap_pool_accepted_when_gate_confirms(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AI 给出译名（字面不像）但 JEV 明确判同一部作品 → 采纳（译名差异类召回）。"""
+    title = "杀手旅店 第二季"
+    hit = _cand("异人旅馆", year=2025)
+    _patch_search(monkeypatch, {})
+    _patch_fallback(monkeypatch, FallbackOutcome(results=[hit], variant_map={"1": "异人旅馆"}, ai_low_overlap=True))
+    calls = _patch_gate(monkeypatch, GateVerdict.PASS)
+
+    outcome = await resolve.resolve_best_match(_item(title), "tv", NF, None)
+
+    assert outcome.best is hit
+    assert outcome.variant == "异人旅馆"
+    assert calls and calls[0]["candidate"] == "异人旅馆"
+
+
+async def test_ai_low_overlap_pool_rejected_by_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """JEV 判「不是同一部作品」→ 不采纳，归因 no_candidates。"""
+    title = "巴黎绽放的星辰"
+    _patch_search(monkeypatch, {})
+    _patch_fallback(monkeypatch, FallbackOutcome(results=[_cand("艾米丽在巴黎", year=2020)], ai_low_overlap=True))
+    _patch_gate(monkeypatch, GateVerdict.REJECT)
+
+    outcome = await resolve.resolve_best_match(_item(title, "all"), "all", NF, None)
+
+    assert outcome.best is None
+    assert outcome.reason == REASON_NO_CANDIDATES

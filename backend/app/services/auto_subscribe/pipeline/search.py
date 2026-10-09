@@ -11,24 +11,37 @@ from app.core.http_client import HttpRequestError, http_client
 from app.core.logger import init_logger
 from app.services.ai_config import get_ai_config_store
 from app.services.auto_subscribe.models import RankMediaItem
+from app.services.auto_subscribe.pipeline.matching import title_overlap_ratio
 from app.services.bangumi import BangumiService
+from app.services.decision_payload import candidate_title
 from app.services.nextfind import NextFindAuthError, NextFindService
 from app.services.tmdb import TMDBService
 
 logger = init_logger(__name__)
 
+# AI 兜底产出的候选与原标题的字面重叠下限：低于它视为「AI 换了作品」。
+# 实测：`巴黎绽放的星辰` 不在 TMDB，AI 认成 `Emily in Paris`，回搜得 `艾米丽在巴黎`
+# —— 两者只共享「巴黎」两字，却过了 30% 的相似度门槛，直接订下去就是误订。
+# 这类候选不靠字面放行，只有 JEV 明确判「同一部作品」才允许采纳。
+_AI_CANDIDATE_MIN_OVERLAP = 0.5
+
 
 @dataclass
 class FallbackOutcome:
-    """fallback 链的结论：候选池 + 命中来源 + AI 是否失败。
+    """fallback 链的结论：候选池 + 命中来源 + AI 兜底的状态。
 
-    ``ai_failed`` 只表示「AI 兜底被调用且没产出可用结果」，用于把未识别
-    归因到 ``ai_empty``（区分「压根没候选」与「AI 挂了」）。
+    ``ai_failed`` 只表示「AI 侧故障、没产出可用结果」（空 content / 解析失败 /
+    缺配置），用于把未识别归因到 ``ai_empty``；回搜无结果不算 AI 故障（那是
+    TMDB 没有这个条目 → 归因 ``no_candidates``）。
+
+    ``ai_low_overlap`` 表示 AI 给出的候选与原标题字面几乎不重叠（疑「换了作品」）：
+    这类候选必须由 JEV 明确判「同一部作品」才能采纳（见 ``resolve._match_unverified_pool``）。
     """
 
     results: list[dict] = field(default_factory=list)
     variant_map: dict[str, str] = field(default_factory=dict)
     ai_failed: bool = False
+    ai_low_overlap: bool = False
 
 
 def collect_candidates(
@@ -92,7 +105,8 @@ async def run_fallback_chain(
 
     Returns:
         :class:`FallbackOutcome`：候选池为空表示链上没有可用结果；
-        ``ai_failed`` 为真表示 AI 兜底被调用过但没产出结果。
+        ``ai_failed`` 为真表示 AI 侧故障（空 content / 解析失败 / 缺配置），
+        ``ai_low_overlap`` 为真表示 AI 结果与原标题无字面重叠（疑换作品，需 JEV 背书）。
     """
     # 1. Bangumi 候选标题辅助搜索
     pool, variant_map = await _bangumi_assisted_search(title, bgm_subject, type_hint, nf_service, tmdb_service)
@@ -104,9 +118,18 @@ async def run_fallback_chain(
     pool, variant_map, ai_failed = await _ai_assisted_search(title, item, type_hint, nf_service, tmdb_service)
     if pool:
         logger.info(f"[自动订阅] AI 辅助识别成功: {title}")
-        return FallbackOutcome(results=pool, variant_map=variant_map)
+        return FallbackOutcome(results=pool, variant_map=variant_map, ai_low_overlap=_is_low_overlap_pool(title, pool))
 
     return FallbackOutcome(ai_failed=ai_failed)
+
+
+def _is_low_overlap_pool(title: str, pool: list[dict]) -> bool:
+    """AI 兜底产出的候选是否全都与原标题字面重叠不足（疑「换了作品」）。
+
+    这类池子不能靠字面相似度放行：AI 认错作品时（`巴黎绽放的星辰` → `Emily in Paris`
+    → 回搜 `艾米丽在巴黎`）候选与标题只共享个别汉字，30% 的相似度门槛拦不住。
+    """
+    return all(title_overlap_ratio(title, candidate_title(r)) < _AI_CANDIDATE_MIN_OVERLAP for r in pool)
 
 
 # ── 内部实现 ──────────────────────────────────────────────
@@ -157,9 +180,10 @@ async def _ai_assisted_search(
     """AI 辅助识别：调用 LLM 解析媒体标题，再用 TMDB 回搜。
 
     Returns:
-        (候选池, 变体映射, AI 是否失败)。三种失败（空 content / 解析失败 /
-        回搜无结果）都落 WARN 日志并置 ``ai_failed=True``——静默失败是上一轮
-        8 条未识别里 2 条查不出原因的直接原因。
+        (候选池, 变体映射, AI 是否故障)。三种失败（空 content / 解析失败 / 缺配置）
+        都落 WARN 日志并置 ``ai_failed=True``——静默失败是上一轮 8 条未识别里 2 条
+        查不出原因的直接原因。「AI 认出来了但 TMDB 回搜无结果」不算故障：那是
+        TMDB 没有这个条目，同样落 WARN，但归因给 ``no_candidates``。
     """
     ai_config = get_ai_config_store().load_config()
     ai_enabled = ai_config["ai_assist_enabled"]
@@ -256,8 +280,10 @@ async def _ai_assisted_search(
         )
 
     if not pool:
-        logger.warning("[自动订阅] AI 兜底失败（回搜无结果）: %s → %s model=%s", title, ai_title, model)
-        return [], {}, True
+        logger.warning(
+            "[自动订阅] AI 兜底无结果（回搜无候选，TMDB 无此条目）: %s → %s model=%s", title, ai_title, model
+        )
+        return [], {}, False
 
     return pool, variant_map, False
 
