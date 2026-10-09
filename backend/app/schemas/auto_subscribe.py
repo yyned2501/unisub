@@ -11,6 +11,7 @@ class AutoSubConfigResponse(BaseModel):
     last_stats: dict | None = None
     enabled_sources: list[str] = Field(default_factory=list)
     status_labels: dict = Field(default_factory=dict)
+    reason_labels: dict = Field(default_factory=dict)
     source_names: dict = Field(default_factory=dict)
     running: bool = False
     last_error: str | None = None
@@ -37,6 +38,8 @@ class AutoSubHistoryItem(BaseModel):
     status: str
     title: str = ""
     reason: str = ""
+    variant: str = ""
+    top_candidates: list[str] = Field(default_factory=list)
     source: str = ""
     time: str | None = None
     tmdb_id: int | None = None

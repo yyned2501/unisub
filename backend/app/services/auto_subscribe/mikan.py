@@ -16,7 +16,10 @@ logger = init_logger(__name__)
 
 MIKAN_BASE_URLS = ["https://mikanani.me", "https://mikanime.tv"]
 DETAIL_SLEEP = 0.6
-BGM_ID_RE = re.compile(r"bangumi\.tv/subject/(\d+)")
+# 源侧详情页给的是 https://bgm.tv/subject/NNNN（旧写法 bangumi.tv 已不再出现，两者都收）
+BGM_ID_RE = re.compile(r"(?:bangumi|bgm)\.tv/subject/(\d+)")
+# bangumi-info 是信息块的 class（可能是 <p>，也可能换标签），按块取文本再找年份
+BANGUMI_INFO_RE = re.compile(r'class="bangumi-info"[^>]*>(.*?)</p>', re.DOTALL)
 YEAR_RE = re.compile(r"(19\d\d|20\d\d)")
 SEASON_MAP = {"春": 1, "夏": 2, "秋": 3, "冬": 4}
 SEASON_NAMES = ["春", "夏", "秋", "冬"]
@@ -136,14 +139,9 @@ class MikanRankProvider(RankProvider):
         if bgm_m:
             item.source_meta["bangumi_id"] = int(bgm_m.group(1))
 
-        info_m = re.search(r'<p[^>]*class="bangumi-info"[^>]*>(.*?)</p>', result, re.DOTALL)
-        if info_m:
-            info_text = re.sub(r"<[^>]+>", "", info_m.group(1))
-            for ym in YEAR_RE.finditer(info_text):
-                y = int(ym.group(1))
-                if 1900 <= y <= 2100:
-                    item.year = str(y)
-                    break
+        year = _extract_broadcast_year(result)
+        if year:
+            item.year = year
 
         await asyncio.sleep(DETAIL_SLEEP)
 
@@ -172,3 +170,22 @@ class MikanRankProvider(RankProvider):
         except HttpRequestError as e:
             logger.debug(f"[Mikan] 请求失败 {url}: {e}")
             return None
+
+
+def _extract_broadcast_year(page: str) -> str | None:
+    """从详情页的 bangumi-info 信息块里提取放送年份。
+
+    信息块有多个（放送日期/总集数/放送开始/官方网站…），**首个块里没有年份**，
+    只取第一个块会让 year 永远为空。优先「放送开始」块，其余块兜底。
+    """
+    blocks = [re.sub(r"<[^>]+>", "", m.group(1)) for m in BANGUMI_INFO_RE.finditer(page)]
+    for info_text in blocks:
+        if "放送开始" in info_text:
+            year_m = YEAR_RE.search(info_text)
+            if year_m:
+                return year_m.group(1)
+    for info_text in blocks:
+        year_m = YEAR_RE.search(info_text)
+        if year_m:
+            return year_m.group(1)
+    return None

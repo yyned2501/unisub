@@ -140,3 +140,30 @@ def test_plain_title_no_variants() -> None:
     """不含任何特殊模式的标题只返回自身。"""
     queries = build_search_queries("千与千寻")
     assert queries == ["千与千寻"]
+
+
+# ── S2 新增变体规则（SPEC-MATCHING-RECALL §2） ────────────────
+
+
+def test_space_subtitle_appends_head() -> None:
+    """空格分隔的副标题应追加首段（怪兽8号 鸣海的平日 → 怪兽8号）。"""
+    assert "怪兽8号" in build_search_queries("怪兽8号 鸣海的平日")
+    assert "东京复仇者" in build_search_queries("东京复仇者 三天战争篇")
+
+
+def test_tilde_wrapped_segment_stripped() -> None:
+    """「～…～」包裹段应剥离（桃源暗鬼 ～日光・华严之泷篇～ → 桃源暗鬼）。"""
+    queries = build_search_queries("桃源暗鬼 ～日光・华严之泷篇～")
+    assert "桃源暗鬼" in queries
+    assert queries[0] == "桃源暗鬼 ～日光・华严之泷篇～"
+
+
+def test_quoted_segment_stripped() -> None:
+    """「「…」」包裹段应剥离。"""
+    assert "怪兽8号" in build_search_queries("怪兽8号 「鸣海的平日」")
+
+
+def test_movie_prefix_head_not_added() -> None:
+    """「剧场版 xxx」已由前缀规则处理，不得再产生「剧场版」这种垃圾搜索词。"""
+    assert "剧场版" not in build_search_queries("剧场版 鬼灭之刃 无限城篇 第一章 猗窝座再袭")
+    assert "劇場版" not in build_search_queries("劇場版 呪術廻戦 0")

@@ -28,6 +28,7 @@ const history = ref<AutoSubHistoryItem[]>([])
 const lastRun = ref('')
 const lastStats = ref<Record<string, unknown> | null>(null)
 const statusLabels = ref<Record<string, string>>({})
+const reasonLabels = ref<Record<string, string>>({})
 const sourceNames = ref<Record<string, string>>({})
 const scheduleRunning = ref(false)
 const scheduleError = ref('')
@@ -58,6 +59,7 @@ async function load() {
       if (!Array.isArray(config[key])) config[key] = [...DEFAULT_CONFIG[key]]
     }
     statusLabels.value = cfg.status_labels || {}
+    reasonLabels.value = cfg.reason_labels || {}
     sourceNames.value = cfg.source_names || {}
     lastRun.value = cfg.last_run ?? ''
     lastStats.value = cfg.last_stats
@@ -247,6 +249,7 @@ onMounted(() => load())
           :loading="loading"
           :last-run="lastRun"
           :status-labels="statusLabels"
+          :reason-labels="reasonLabels"
           :source-names="sourceNames"
           @clear-history="handleClearHistory"
         />

@@ -216,11 +216,30 @@ async def _search_and_subscribe(
         }
         return
 
-    # 搜索 + 匹配解析（搜索词变体 → 多轮搜索 → fallback 链 → 最佳匹配 → 相似度校验）
-    best = await resolve_best_match(item, type_hint, nf_service, tmdb_service)
+    # 搜索 + 匹配解析（搜索词变体 → 候选池 → 精确优先 → 相似度门槛 → fallback 链）
+    outcome = await resolve_best_match(item, type_hint, nf_service, tmdb_service)
+    best = outcome.best
     if not best:
         _inc_stat(stats, src_name, STATUS_UNRECOGNIZED)
-        new_handled[seed] = {"status": STATUS_UNRECOGNIZED, "title": title, "source": src_name, "time": _now_str()}
+        entry: dict = {
+            "status": STATUS_UNRECOGNIZED,
+            "title": title,
+            "source": src_name,
+            "time": _now_str(),
+            "reason": outcome.reason,
+        }
+        if outcome.variant:
+            entry["variant"] = outcome.variant
+        if outcome.top_candidates:
+            entry["top_candidates"] = outcome.top_candidates
+        new_handled[seed] = entry
+        logger.info(
+            "[自动订阅] 未识别（%s）: %s 搜索词=%s 候选=%s",
+            outcome.reason,
+            title,
+            outcome.variant or "-",
+            outcome.top_candidates or "-",
+        )
         return
 
     tmdb_id = int(best["id"])

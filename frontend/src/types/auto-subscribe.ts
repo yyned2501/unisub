@@ -33,6 +33,7 @@ export interface AutoSubConfigResponse {
   last_stats: Record<string, unknown> | null
   enabled_sources: string[]
   status_labels: Record<string, string>
+  reason_labels: Record<string, string>
   source_names: Record<string, string>
   running: boolean
   last_error: string | null
@@ -56,6 +57,10 @@ export interface AutoSubHistoryItem {
   status: string
   title: string
   reason: string
+  /** 未识别归因对应的搜索词（命中的变体） */
+  variant: string
+  /** 未识别时 TMDB/NF 当时返回的前几个候选标题 */
+  top_candidates: string[]
   source: string
   time: string | null
   tmdb_id: number | null

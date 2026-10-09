@@ -12,7 +12,7 @@ from app.schemas.auto_subscribe import (
     AutoSubMetaResponse,
     AutoSubRunResponse,
 )
-from app.services.auto_subscribe.models import SOURCE_NAMES, STATUS_LABELS
+from app.services.auto_subscribe.models import REASON_LABELS, SOURCE_NAMES, STATUS_LABELS
 from app.services.auto_subscribe.service import get_auto_subscribe_service
 
 router = APIRouter(prefix="/api/auto-subscribe", tags=["自动订阅"], dependencies=[Depends(get_current_user)])
@@ -25,6 +25,7 @@ async def get_config() -> AutoSubConfigResponse:
     return AutoSubConfigResponse(
         **response,
         status_labels=STATUS_LABELS,
+        reason_labels=REASON_LABELS,
         source_names=SOURCE_NAMES,
     )
 
@@ -82,6 +83,8 @@ async def get_history() -> AutoSubHistoryResponse:
                 "status": value.get("status", ""),
                 "title": value.get("title", ""),
                 "reason": value.get("reason", ""),
+                "variant": value.get("variant", ""),
+                "top_candidates": value.get("top_candidates") or [],
                 "source": value.get("source", ""),
                 "time": value.get("time"),
                 "tmdb_id": value.get("tmdb_id"),

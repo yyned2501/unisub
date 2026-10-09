@@ -74,6 +74,19 @@ STATUS_LABELS = {
 # 视为「正向终态」——记入历史、后续跑不再重复处理。
 TERMINAL_STATUSES = (STATUS_SUBSCRIBED, STATUS_SUBSCRIBED_EXISTS, STATUS_IN_LIBRARY)
 
+# 「未识别」归因（reason）——决定一个条目为什么没被匹配上，供历史界面展示与排障。
+REASON_NO_CANDIDATES = "no_candidates"  # 搜索（含 fallback 链）一个候选都没有
+REASON_SIMILARITY_REJECT = "similarity_reject"  # 有候选但字面相似度不过，且 JEV 未判同作品
+REASON_GATE_REJECT = "gate_reject"  # 候选进了池，但 JEV 采纳闸门判「不是同一部作品」
+REASON_AI_EMPTY = "ai_empty"  # AI 兜底被调用但未产出可用结果（空 content / 解析失败 / 回搜无结果）
+
+REASON_LABELS = {
+    REASON_NO_CANDIDATES: "无候选",
+    REASON_SIMILARITY_REJECT: "相似度不足",
+    REASON_GATE_REJECT: "闸门判非同一作品",
+    REASON_AI_EMPTY: "AI 兜底无结果",
+}
+
 
 def make_history_key(tmdb_id: int, media_type: str, season: int | None = None) -> str:
     """生成跨轮去重的历史键：电影按 tmdb，剧集按 tmdb+季。"""

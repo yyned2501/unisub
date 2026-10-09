@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-from app.services.decision import GateVerdict, evaluate_candidate
+from app.services.decision import GateResult, GateVerdict, evaluate_candidate
 
 
 def pick_best(results: list[dict], title: str, type_hint: str, item_year: str | None = None) -> dict | None:
@@ -83,18 +83,42 @@ async def pick_best_gated(results: list[dict], title: str, type_hint: str, item_
     判定 `REJECT` 才返回 `None`（上层走「未识别」，不订阅）。
     降级/JEV 不可用一律保留启发式结果，绝不在这里擅自改变下单行为。
     """
+    picked, result = await pick_best_with_verdict(results, title, type_hint, item_year)
+    if result is not None and result.verdict is GateVerdict.REJECT:
+        return None
+    return picked
+
+
+async def pick_best_with_verdict(
+    results: list[dict], title: str, type_hint: str, item_year: str | None = None
+) -> tuple[dict | None, GateResult | None]:
+    """选最佳匹配并附带 JEV 判定结果，供上层区分「没得选」与「闸门拦下」。
+
+    阶段 1~3 命中时不调 JEV（返回 ``None`` 作为判定结果）；只有阶段 4/5 的
+    兜底候选才会请求闸门。调用方需要原始判定（例如未识别归因）时用本函数，
+    只关心「能不能采纳」的调用方用 :func:`pick_best_gated`。
+    """
     exact = pick_best_exact(results, title, type_hint, item_year)
     if exact is not None:
-        return exact
+        return exact, None
 
     picked = pick_best_fallback(results, title, type_hint, item_year)
     if picked is None:
-        return None
+        return None, None
 
     result = await evaluate_candidate(title, item_year, type_hint, picked)
-    if result.verdict is GateVerdict.REJECT:
-        return None
-    return picked
+    return picked, result
+
+
+async def judge_candidate(title: str, type_hint: str, item_year: str | None, candidate: dict) -> GateResult:
+    """对**已选定的单个候选**单独跑 JEV 闸门，返回原始判定。
+
+    供 `resolve` 在「阶段 1~3 选中但字面相似度不过」时复核：这类候选
+    `pick_best_with_verdict` 会短路（阶段 1~3 命中不调 JEV），而译名/写法差异
+    恰恰只能靠 JEV 救回来。判定入口仍唯一 —— 这里只转发给
+    :func:`app.services.decision.evaluate_candidate`。
+    """
+    return await evaluate_candidate(title, item_year, type_hint, candidate)
 
 
 def _prepare(results: list[dict], title: str, type_hint: str) -> tuple[list[dict], str, str, str] | None:
@@ -152,6 +176,32 @@ def title_similar_enough(source_title: str, matched_title: str) -> bool:
             return True
         common = src_words & mtd_words
         return len(common) / min(len(src_words), len(mtd_words)) >= 0.5
+
+
+def title_overlap_ratio(source_title: str, matched_title: str) -> float:
+    """标题字面重叠比例（中文按共同汉字占较短方，英文按单词重叠度）。
+
+    仅用于**候选排序 / 归因展示**，不作门槛 —— 是否采纳仍由
+    :func:`title_similar_enough` 与 JEV 闸门决定。存在的理由：阶段 1~3 的
+    「年份就近」在 `item.year` 为空时会退化成「出现最多的年份」，池里混着
+    垃圾候选时会把不相关的片子顶上来（线上实测：`魔法姐妹露露特莉莉 第2部分`
+    → `破产姐妹`，两者只有「姐妹」两字相同，却因先入池而被选中）。
+    """
+    src = source_title.strip().lower()
+    mtd = matched_title.strip().lower()
+    if not src or not mtd:
+        return 0.0
+    if sum(1 for c in src if "一" <= c <= "鿿") >= 2 or sum(1 for c in mtd if "一" <= c <= "鿿") >= 2:
+        src_set = {c for c in src if "一" <= c <= "鿿"}
+        mtd_set = {c for c in mtd if "一" <= c <= "鿿"}
+        if not src_set or not mtd_set:
+            return 0.0
+        return len(src_set & mtd_set) / min(len(src_set), len(mtd_set))
+    src_words = set(src.replace("-", " ").replace(":", " ").split())
+    mtd_words = set(mtd.replace("-", " ").replace(":", " ").split())
+    if not src_words or not mtd_words:
+        return 0.0
+    return len(src_words & mtd_words) / min(len(src_words), len(mtd_words))
 
 
 # ── 内部辅助函数 ──────────────────────────────────────────────

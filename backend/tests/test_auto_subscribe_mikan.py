@@ -4,7 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from app.services.auto_subscribe.mikan import MOVIE_KEYWORDS_RE
+from app.services.auto_subscribe.mikan import BGM_ID_RE, MOVIE_KEYWORDS_RE, _extract_broadcast_year
+from app.services.auto_subscribe.models import RankMediaItem
+
+# 实测页面结构：首个 bangumi-info 块是「放送日期」，没有年份；链接为 bgm.tv
+DETAIL_PAGE = """<html><body>
+    <p class="bangumi-info">放送日期：星期五</p>
+    <p class="bangumi-info">总集数：放送中</p>
+    <p class="bangumi-info">放送开始：10/2/2026</p>
+    <p class="bangumi-info">官方网站：<a href="https://example.com">官网</a></p>
+    <a href="https://bgm.tv/subject/499474">Bangumi</a>
+</body></html>"""
 
 
 class TestMovieKeywords:
@@ -146,3 +156,59 @@ class TestFetchAnimeListTypeHint:
         assert items[1].type_hint == "tv"
         assert items[2].type_hint == "tv"
         assert items[3].type_hint == "movie"
+
+
+class TestDetailParsing:
+    """详情页解析测试 — bgm.tv 链接兼容与「放送开始」年份提取（R4）。"""
+
+    def test_bgm_id_regex_matches_bgm_tv_link(self) -> None:
+        """源侧已改用 bgm.tv 链接，正则必须兼容（旧写法让 73 部新番 bgm_id 全空）。"""
+        match = BGM_ID_RE.search(DETAIL_PAGE)
+        assert match is not None
+        assert match.group(1) == "499474"
+
+    def test_bgm_id_regex_keeps_legacy_bangumi_tv(self) -> None:
+        """旧的 bangumi.tv 写法仍要能解析。"""
+        match = BGM_ID_RE.search('<a href="https://bangumi.tv/subject/1234">x</a>')
+        assert match is not None
+        assert match.group(1) == "1234"
+
+    def test_extract_year_prefers_broadcast_start_block(self) -> None:
+        """首个 bangumi-info 块里没有年份，必须取「放送开始」块。"""
+        assert _extract_broadcast_year(DETAIL_PAGE) == "2026"
+
+    def test_extract_year_without_broadcast_start(self) -> None:
+        """没有「放送开始」块时退回任意含年份的块；完全没有年份返回 None。"""
+        assert _extract_broadcast_year('<p class="bangumi-info">官方网站：2026 年</p>') == "2026"
+        assert _extract_broadcast_year('<p class="bangumi-info">放送日期：星期五</p>') is None
+
+    @pytest.mark.asyncio
+    async def test_resolve_detail_fills_bangumi_id_and_year(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_resolve_detail 应把 bgm id 与放送年份写进条目。"""
+        from app.services.auto_subscribe import mikan as mikan_mod
+
+        provider = mikan_mod.MikanRankProvider()
+        item = RankMediaItem(
+            title="我家的弟弟们真是让您费心了",
+            type_hint="tv",
+            source_meta={"mikan_id": "4095", "source": "mikan"},
+            unique_seed="mikan:4095",
+        )
+
+        async def fake_base() -> str | None:
+            return "https://mikanani.me"
+
+        async def fake_fetch(url: str, headers: dict | None = None, params: dict | None = None) -> str | None:
+            return DETAIL_PAGE
+
+        async def no_sleep(_seconds: float) -> None:
+            return None
+
+        provider._find_available_base = fake_base  # type: ignore[method-assign]
+        provider._fetch_text = fake_fetch  # type: ignore[method-assign]
+        monkeypatch.setattr(mikan_mod.asyncio, "sleep", no_sleep)
+
+        await provider._resolve_detail(item)  # type: ignore[attr-defined]
+
+        assert item.source_meta["bangumi_id"] == 499474
+        assert item.year == "2026"

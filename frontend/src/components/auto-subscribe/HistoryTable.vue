@@ -11,6 +11,7 @@ const props = defineProps<{
   loading: boolean
   lastRun: string
   statusLabels: Record<string, string>
+  reasonLabels: Record<string, string>
   sourceNames: Record<string, string>
 }>()
 
@@ -62,7 +63,19 @@ const columns = [
   {
     title: '过滤原因',
     key: 'reason',
-    render: (row: AutoSubHistoryItem) => h('span', { style: 'word-break: break-all; white-space: normal;' }, row.reason || '-'),
+    render: (row: AutoSubHistoryItem) => {
+      const label = props.reasonLabels[row.reason] || row.reason || '-'
+      const detail = [
+        row.variant ? `搜索词: ${row.variant}` : '',
+        row.top_candidates?.length ? `候选: ${row.top_candidates.join(' / ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('；')
+      return h('div', { style: 'word-break: break-all; white-space: normal;' }, [
+        h('span', null, label),
+        detail ? h('div', { style: 'font-size: 11px; opacity: 0.55; margin-top: 2px;' }, detail) : null,
+      ])
+    },
   },
   {
     title: '类别',
