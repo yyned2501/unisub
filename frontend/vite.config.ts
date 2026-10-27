@@ -1,10 +1,28 @@
 import { defineConfig } from 'vite'
+import type { Plugin } from 'vite'
 import { URL, fileURLToPath } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import unoCss from 'unocss/vite'
 import autoImport from 'unplugin-auto-import/vite'
 import components from 'unplugin-vue-components/vite'
 import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
+
+/**
+ * remixicon 的 @font-face 同时声明 eot/woff2/woff/ttf/svg，Vite 会把五种格式
+ * 全部拷进产物（约 4.3MB）。现代浏览器只命中列表首位的 woff2，其余四种是
+ * IE9/iOS4 时代的死重，直接从 bundle 里剔除。
+ */
+const woff2OnlyFonts: Plugin = {
+  name: 'unisub-woff2-only-fonts',
+  apply: 'build',
+  generateBundle(_options, bundle) {
+    for (const fileName of Object.keys(bundle)) {
+      if (/remixicon[^/]*\.(eot|ttf|woff|svg)$/i.test(fileName)) {
+        delete bundle[fileName]
+      }
+    }
+  },
+}
 
 export default defineConfig({
   resolve: {
@@ -27,16 +45,10 @@ export default defineConfig({
       },
     },
   },
-  css: {
-    preprocessorOptions: {
-      scss: {
-        api: 'modern-compiler',
-      },
-    },
-  },
   plugins: [
     vue(),
     unoCss(),
+    woff2OnlyFonts,
     autoImport({
       imports: [
         'vue',
