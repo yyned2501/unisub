@@ -1,0 +1,438 @@
+# Rex 本地化文案成对表（moviepilot|self-hosted|server|subscription|sign.in）
+# 命中 key 数：en=87 zh-Hans=87 zh-Hant=87 并集=87
+# 来源：Payload/Rex.app/{en,zh-Hans,zh-Hant}.lproj/*.strings（binary plist，plistlib 读取）
+
+KEY appHome.copy.media.server
+   en      [en.lproj/AppHome.strings] Media Server
+   zh-Hans [zh-Hans.lproj/AppHome.strings] 媒体服务器
+   zh-Hant [zh-Hant.lproj/AppHome.strings] 媒體伺服器
+
+KEY appHome.copy.sync.server.categories
+   en      [en.lproj/AppHome.strings] Sync Server Categories
+   zh-Hans [zh-Hans.lproj/AppHome.strings] 同步服务器分类
+   zh-Hant [zh-Hant.lproj/AppHome.strings] 同步伺服器分類
+
+KEY appPlayback.copy.the.media.server.resource.has.no.verifiable.item.identity
+   en      [en.lproj/AppPlayback.strings] The media server resource has no verifiable item identity.
+   zh-Hans [zh-Hans.lproj/AppPlayback.strings] 媒体服务器资源缺少可验证的条目身份。
+   zh-Hant [zh-Hant.lproj/AppPlayback.strings] 媒體伺服器資源缺少可驗證的項目身分。
+
+KEY appPlayback.copy.the.selected.media.server.library.is.unavailable
+   en      [en.lproj/AppPlayback.strings] The selected media server library is unavailable.
+   zh-Hans [zh-Hans.lproj/AppPlayback.strings] 所选媒体服务器资源库已不可用。
+   zh-Hant [zh-Hant.lproj/AppPlayback.strings] 所選媒體伺服器資源庫已無法使用。
+
+KEY appSettings.copy.debug.check.subscription
+   en      [en.lproj/AppSettings.strings] Check subscription
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 检查订阅
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 檢查訂閱
+
+KEY appSettings.copy.debug.toggle.subscription
+   en      [en.lproj/AppSettings.strings] Toggle subscription
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 切换订阅
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 切換訂閱
+
+KEY appSettings.copy.enable.server.subscriptions
+   en      [en.lproj/AppSettings.strings] Enable Self-hosted Service Subscriptions
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 启用自建服务订阅
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 啟用自建服務訂閱
+
+KEY appSettings.copy.invalid.server.address.enter.a.complete.http.or.https.url
+   en      [en.lproj/AppSettings.strings] Invalid server address. Enter a complete HTTP or HTTPS URL.
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 服务器地址无效，请填写完整的 HTTP 或 HTTPS 地址。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 伺服器位址無效，請填寫完整的 HTTP 或 HTTPS 位址。
+
+KEY appSettings.copy.moviepilot.settings.were.saved.subscription.syncing.has.started
+   en      [en.lproj/AppSettings.strings] Self-hosted service settings were saved. Subscription syncing has started.
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 自建服务配置已保存并开始同步订阅。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 自建服務設定已儲存並開始同步訂閱。
+
+KEY appSettings.copy.moviepilot.sign.in.failed.no.access.token.was.returned
+   en      [en.lproj/AppSettings.strings] Self-hosted service sign-in failed: no access token was returned.
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 自建服务登录失败，未返回访问令牌。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 自建服務登入失敗，未傳回存取權杖。
+
+KEY appSettings.copy.moviepilot.subscription.list.unavailable
+   en      [en.lproj/AppSettings.strings] Self-hosted service settings were saved. This address does not provide a subscription list for aggregation, but you can still add or cancel individual subscriptions.
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 自建服务配置已保存。此地址不提供订阅列表聚合，仍可添加或取消单条订阅。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 自建服務設定已儲存。此地址不提供訂閱列表聚合，仍可新增或取消單項訂閱。
+
+KEY appSettings.copy.rex.uses.the.moviepilot.rest.api.to.aggregate.add.and
+   en      [en.lproj/AppSettings.strings] Connect to your self-hosted resource management service to add, sync and remove movie and TV subscriptions. Accounts, passwords and tokens are not stored in library data.
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 连接你的自建资源管理服务，添加、同步和移除影视订阅；账号、密码和令牌不会写进资源库数据。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 連接你的自建資源管理服務，新增、同步和移除影視訂閱；帳號、密碼和權杖不會寫入資源庫資料。
+
+KEY appSettings.copy.server.address
+   en      [en.lproj/AppSettings.strings] Server Address
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 服务器地址
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 伺服器位址
+
+KEY appSettings.copy.server.subscriptions
+   en      [en.lproj/AppSettings.strings] Self-hosted Service Subscriptions
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 自建服务订阅
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 自建服務訂閱
+
+KEY appSettings.copy.server.subscriptions.are.disabled
+   en      [en.lproj/AppSettings.strings] Self-hosted service subscriptions are disabled.
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 自建服务订阅已停用。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 自建服務訂閱已停用。
+
+KEY appSettings.copy.server.subscriptions.are.not.enabled
+   en      [en.lproj/AppSettings.strings] Self-hosted service subscriptions are not enabled.
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 自建服务订阅尚未启用。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 自建服務訂閱尚未啟用。
+
+KEY appSettings.copy.sign.in.did.not.complete.try.again
+   en      [en.lproj/AppSettings.strings] Sign-in did not complete. Try again.
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 登录未完成，请重试。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 登入未完成，請重試。
+
+KEY appSettings.copy.sign.in.incomplete
+   en      [en.lproj/AppSettings.strings] Sign-In Incomplete
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 登录未完成
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 登入未完成
+
+KEY appSettings.copy.sign.in.required
+   en      [en.lproj/AppSettings.strings] Sign-In Required
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 需要登录
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 需要登入
+
+KEY appSettings.copy.sync.subscription.removal
+   en      [en.lproj/AppSettings.strings] Sync Subscription Removal
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 同步移除订阅
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 同步移除訂閱
+
+KEY appSettings.copy.synchronized.subscription.removal.is.off.enable.it.in.server.subscription
+   en      [en.lproj/AppSettings.strings] Synchronized subscription removal is off. Enable it in self-hosted service subscription settings first.
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 当前已关闭“同步移除订阅”，请先在自建服务订阅设置中开启。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 目前已關閉「同步移除訂閱」，請先在自建服務訂閱設定中開啟。
+
+KEY appSettings.copy.the.server.returned.unrecognized.data
+   en      [en.lproj/AppSettings.strings] The server returned unrecognized data.
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 服务器返回了无法识别的数据。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 伺服器傳回了無法辨識的資料。
+
+KEY appSettings.format.moviepilot.request.failed.http
+   en      [en.lproj/AppSettings.strings] Self-hosted service request failed (HTTP %lld).
+   zh-Hans [zh-Hans.lproj/AppSettings.strings] 自建服务请求失败（HTTP %lld）。
+   zh-Hant [zh-Hant.lproj/AppSettings.strings] 自建服務請求失敗（HTTP %lld）。
+
+KEY appWatching.copy.media.server.not.found.check.your.libraries.and.try.again
+   en      [en.lproj/AppWatching.strings] Media server not found. Check your libraries and try again.
+   zh-Hans [zh-Hans.lproj/AppWatching.strings] 找不到对应的媒体服务器，请检查资源库后重试
+   zh-Hant [zh-Hant.lproj/AppWatching.strings] 找不到對應的媒體伺服器，請檢查資源庫後重試
+
+KEY appWatching.copy.no.subscriptions.yet
+   en      [en.lproj/AppWatching.strings] No Subscriptions Yet
+   zh-Hans [zh-Hans.lproj/AppWatching.strings] 暂无订阅内容
+   zh-Hant [zh-Hant.lproj/AppWatching.strings] 暫無訂閱內容
+
+KEY appWatching.copy.subscription
+   en      [en.lproj/AppWatching.strings] Subscription
+   zh-Hans [zh-Hans.lproj/AppWatching.strings] 订阅
+   zh-Hant [zh-Hant.lproj/AppWatching.strings] 訂閱
+
+KEY appWatching.copy.watch.progress.invalid.server.url
+   en      [en.lproj/AppWatching.strings] The media server address is invalid. Check the server address in library settings or switch routes, then try again.
+   zh-Hans [zh-Hans.lproj/AppWatching.strings] 媒体服务器地址无效，请在资源库设置中检查服务器地址或切换线路后重试。
+   zh-Hant [zh-Hant.lproj/AppWatching.strings] 媒體伺服器地址無效，請在資源庫設定中檢查伺服器地址或切換線路後重試。
+
+KEY appWatching.copy.watch.progress.server.unavailable
+   en      [en.lproj/AppWatching.strings] The media server is temporarily unavailable, so your watch progress has not fully synced. Check your network or server route and try again.
+   zh-Hans [zh-Hans.lproj/AppWatching.strings] 暂时无法连接媒体服务器，追剧进度尚未全部同步。请检查网络或服务器线路后重试。
+   zh-Hant [zh-Hant.lproj/AppWatching.strings] 暫時無法連接媒體伺服器，追劇進度尚未全部同步。請檢查網路或伺服器線路後重試。
+
+KEY appWatching.copy.watch.saved.server.sync.failed
+   en      [en.lproj/AppWatching.strings] Watch progress was saved on this device, but %d episodes could not be synced to the media server. Try again later.
+   zh-Hans [zh-Hans.lproj/AppWatching.strings] 观看进度已保存在本机，但有 %d 集未能同步到媒体服务器，可稍后重试。
+   zh-Hant [zh-Hant.lproj/AppWatching.strings] 觀看進度已儲存在本機，但有 %d 集未能同步到媒體伺服器，可稍後重試。
+
+KEY catalog.copy.115.authorization.is.unavailable.sign.in.to.the.library.again
+   en      [en.lproj/Catalog.strings] 115 authorization is unavailable. Sign in to the library again.
+   zh-Hans [zh-Hans.lproj/Catalog.strings] 115 授权不可用，请重新登录资源库。
+   zh-Hant [zh-Hant.lproj/Catalog.strings] 115 授權無法使用，請重新登入資源庫。
+
+KEY catalog.copy.backup.servers
+   en      [en.lproj/Catalog.strings] Backup Servers
+   zh-Hans [zh-Hans.lproj/Catalog.strings] 备用服务器
+   zh-Hant [zh-Hant.lproj/Catalog.strings] 備用伺服器
+
+KEY catalog.copy.primary.server
+   en      [en.lproj/Catalog.strings] Primary Server
+   zh-Hans [zh-Hans.lproj/Catalog.strings] 主服务器
+   zh-Hant [zh-Hant.lproj/Catalog.strings] 主伺服器
+
+KEY catalog.copy.the.server.denied.access.to.this.webdav.directory
+   en      [en.lproj/Catalog.strings] The server denied access to this WebDAV directory.
+   zh-Hans [zh-Hans.lproj/Catalog.strings] 服务器拒绝访问该 WebDAV 目录。
+   zh-Hant [zh-Hant.lproj/Catalog.strings] 伺服器拒絕存取此 WebDAV 目錄。
+
+KEY catalog.copy.unable.to.connect.to.the.smb.server
+   en      [en.lproj/Catalog.strings] Unable to connect to the SMB server.
+   zh-Hans [zh-Hans.lproj/Catalog.strings] 无法连接 SMB 服务器。
+   zh-Hant [zh-Hant.lproj/Catalog.strings] 無法連線至 SMB 伺服器。
+
+KEY catalog.format.backup.server
+   en      [en.lproj/Catalog.strings] Backup Server %lld
+   zh-Hans [zh-Hans.lproj/Catalog.strings] 备用服务器%lld
+   zh-Hant [zh-Hant.lproj/Catalog.strings] 備用伺服器 %lld
+
+KEY homeEditor.copy.sign.in.required.again.showing.public.lists.only
+   en      [en.lproj/HomeEditor.strings] Sign-in Required Again. Showing Public Lists Only.
+   zh-Hans [zh-Hans.lproj/HomeEditor.strings] 需要重新登录，仅显示公开列表
+   zh-Hant [zh-Hant.lproj/HomeEditor.strings] 需要重新登入，僅顯示公開清單
+
+KEY homeEditor.copy.subscription
+   en      [en.lproj/HomeEditor.strings] Subscription
+   zh-Hans [zh-Hans.lproj/HomeEditor.strings] 订阅
+   zh-Hant [zh-Hant.lproj/HomeEditor.strings] 訂閱
+
+KEY homeEditor.copy.subscription.mode
+   en      [en.lproj/HomeEditor.strings] Subscription mode: %@
+   zh-Hans [zh-Hans.lproj/HomeEditor.strings] 订阅模式: %@
+   zh-Hant [zh-Hant.lproj/HomeEditor.strings] 訂閱模式: %@
+
+KEY library.copy.complete.sign.in.in.plex
+   en      [en.lproj/Library.strings] Complete Sign-In in Plex
+   zh-Hans [zh-Hans.lproj/Library.strings] 请在 Plex 完成登录
+   zh-Hant [zh-Hant.lproj/Library.strings] 請在 Plex 完成登入
+
+KEY library.copy.plex.sign.in.failed
+   en      [en.lproj/Library.strings] Plex Sign-In Failed
+   zh-Hans [zh-Hans.lproj/Library.strings] Plex 登录失败
+   zh-Hant [zh-Hant.lproj/Library.strings] Plex 登入失敗
+
+KEY library.copy.plex.sign.in.timed.out.try.again
+   en      [en.lproj/Library.strings] Plex sign-in timed out. Try again.
+   zh-Hans [zh-Hans.lproj/Library.strings] Plex 登录已超时，请重试。
+   zh-Hant [zh-Hant.lproj/Library.strings] Plex 登入已逾時，請重試。
+
+KEY library.copy.plex.sign.in.was.canceled
+   en      [en.lproj/Library.strings] Plex sign-in was canceled.
+   zh-Hans [zh-Hans.lproj/Library.strings] Plex 登录已取消。
+   zh-Hant [zh-Hant.lproj/Library.strings] Plex 登入已取消。
+
+KEY library.copy.preparing.plex.sign.in
+   en      [en.lproj/Library.strings] Preparing Plex Sign-In
+   zh-Hans [zh-Hans.lproj/Library.strings] 正在准备 Plex 登录
+   zh-Hant [zh-Hant.lproj/Library.strings] 正在準備 Plex 登入
+
+KEY library.copy.rex.needs.its.own.115.open.client.id.and.server
+   en      [en.lproj/Library.strings] Rex needs its own 115 Open client_id and server endpoints for token storage and refresh.
+   zh-Hans [zh-Hans.lproj/Library.strings] 需要配置 Rex 自己的 115 Open client_id，以及服务端 token 保存与刷新接口。
+   zh-Hant [zh-Hant.lproj/Library.strings] 需要設定 Rex 自己的 115 Open client_id，以及伺服器端權杖儲存與更新介面。
+
+KEY library.copy.rex.needs.its.own.baidu.drive.api.key.the.server
+   en      [en.lproj/Library.strings] Rex needs its own Baidu Drive API Key. The server must securely store the Secret Key and handle token exchange and refresh.
+   zh-Hans [zh-Hans.lproj/Library.strings] 需要配置 Rex 自己的百度网盘 API Key，并由服务端安全持有 Secret Key、完成换 token 与刷新。
+   zh-Hant [zh-Hant.lproj/Library.strings] 需要設定 Rex 自己的百度網路硬碟 API Key，並由伺服器端安全保管 Secret Key、完成權杖交換與更新。
+
+KEY library.copy.rex.needs.its.own.guangya.client.id.a.server.signing
+   en      [en.lproj/Library.strings] Rex needs its own Guangya client_id, a server signing key and a registered callback URL.
+   zh-Hans [zh-Hans.lproj/Library.strings] 需要配置 Rex 自己的光鸭 client_id、服务端签名密钥和已登记的回调地址。
+   zh-Hant [zh-Hant.lproj/Library.strings] 需要設定 Rex 自己的光鴨 client_id、伺服器端簽章金鑰和已登記的回呼位址。
+
+KEY library.copy.sign.in.to.115.drive
+   en      [en.lproj/Library.strings] Sign In to 115 Drive
+   zh-Hans [zh-Hans.lproj/Library.strings] 登录 115云盘
+   zh-Hant [zh-Hant.lproj/Library.strings] 登入 115雲端硬碟
+
+KEY library.copy.sign.in.to.115.drive.again
+   en      [en.lproj/Library.strings] Sign In to 115 Drive Again
+   zh-Hans [zh-Hans.lproj/Library.strings] 重新登录 115云盘
+   zh-Hant [zh-Hant.lproj/Library.strings] 重新登入 115雲端硬碟
+
+KEY library.copy.sign.in.to.plex
+   en      [en.lproj/Library.strings] Sign In to Plex
+   zh-Hans [zh-Hans.lproj/Library.strings] 登录 Plex
+   zh-Hant [zh-Hant.lproj/Library.strings] 登入 Plex
+
+KEY library.copy.sign.in.to.plex.again
+   en      [en.lproj/Library.strings] Sign In to Plex Again
+   zh-Hans [zh-Hans.lproj/Library.strings] 重新登录 Plex
+   zh-Hant [zh-Hant.lproj/Library.strings] 重新登入 Plex
+
+KEY library.copy.the.official.plex.sign.in.page.will.open.shortly
+   en      [en.lproj/Library.strings] The official Plex sign-in page will open shortly.
+   zh-Hans [zh-Hans.lproj/Library.strings] 稍后会打开 Plex 官方登录页。
+   zh-Hant [zh-Hant.lproj/Library.strings] 稍後會開啟 Plex 官方登入頁。
+
+KEY library.copy.unable.to.open.the.plex.sign.in.page
+   en      [en.lproj/Library.strings] Unable to open the Plex sign-in page.
+   zh-Hans [zh-Hans.lproj/Library.strings] 无法打开 Plex 登录页。
+   zh-Hant [zh-Hant.lproj/Library.strings] 無法開啟 Plex 登入頁。
+
+KEY library.copy.unable.to.save.this.plex.server.try.again
+   en      [en.lproj/Library.strings] Unable to save this Plex server. Try again.
+   zh-Hans [zh-Hans.lproj/Library.strings] 无法保存这个 Plex 服务器，请重试。
+   zh-Hant [zh-Hant.lproj/Library.strings] 無法儲存此 Plex 伺服器，請重試。
+
+KEY library.copy.unable.to.sign.in.to.plex.check.your.connection.and
+   en      [en.lproj/Library.strings] Unable to sign in to Plex. Check your connection and try again.
+   zh-Hans [zh-Hans.lproj/Library.strings] 无法完成 Plex 登录，请检查网络后重试。
+   zh-Hant [zh-Hant.lproj/Library.strings] 無法完成 Plex 登入，請檢查網路後重試。
+
+KEY library.form.addBackupServer
+   en      [en.lproj/Library.strings] Add Backup Route
+   zh-Hans [zh-Hans.lproj/Library.strings] 添加备用线路
+   zh-Hant [zh-Hant.lproj/Library.strings] 加入備用線路
+
+KEY library.form.backupServers
+   en      [en.lproj/Library.strings] Backup Servers
+   zh-Hans [zh-Hans.lproj/Library.strings] 备用服务器
+   zh-Hant [zh-Hant.lproj/Library.strings] 備用伺服器
+
+KEY library.form.removeBackupServer
+   en      [en.lproj/Library.strings] Remove Backup Route
+   zh-Hans [zh-Hans.lproj/Library.strings] 移除备用线路
+   zh-Hant [zh-Hant.lproj/Library.strings] 移除備用線路
+
+KEY library.form.server
+   en      [en.lproj/Library.strings] Server
+   zh-Hans [zh-Hans.lproj/Library.strings] 服务器
+   zh-Hant [zh-Hant.lproj/Library.strings] 伺服器
+
+KEY library.form.serverURL
+   en      [en.lproj/Library.strings] Connection Address
+   zh-Hans [zh-Hans.lproj/Library.strings] 连接地址
+   zh-Hant [zh-Hant.lproj/Library.strings] 連接地址
+
+KEY library.group.mediaServer
+   en      [en.lproj/Library.strings] Media Servers
+   zh-Hans [zh-Hans.lproj/Library.strings] 媒体服务器
+   zh-Hant [zh-Hant.lproj/Library.strings] 媒體伺服器
+
+KEY library.menu.optionalServers
+   en      [en.lproj/Library.strings] Available Servers
+   zh-Hans [zh-Hans.lproj/Library.strings] 可选服务器
+   zh-Hant [zh-Hant.lproj/Library.strings] 可選伺服器
+
+KEY library.source.mediaServer
+   en      [en.lproj/Library.strings] Media Server
+   zh-Hans [zh-Hans.lproj/Library.strings] 媒体服务器
+   zh-Hant [zh-Hant.lproj/Library.strings] 媒體伺服器
+
+KEY library.validation.invalidSMBServer
+   en      [en.lproj/Library.strings] Enter a valid SMB server address. The port is optional.
+   zh-Hans [zh-Hans.lproj/Library.strings] 请输入有效的 SMB 服务器地址，端口可选。
+   zh-Hant [zh-Hant.lproj/Library.strings] 請輸入有效的 SMB 伺服器位址，連接埠可選。
+
+KEY resource.category.currentServer
+   en      [en.lproj/Catalog.strings] Current Server
+   zh-Hans [zh-Hans.lproj/Catalog.strings] 当前服
+   zh-Hant [zh-Hant.lproj/Catalog.strings] 當前服
+
+KEY services.copy.this.feedback.has.no.accessible.data.attachment.the.server.may
+   en      [en.lproj/Services.strings] This feedback has no accessible data attachment. The server may restrict recovery permission for it.
+   zh-Hans [zh-Hans.lproj/Services.strings] 该反馈没有可访问的数据附件。服务端可能限制了此反馈的恢复权限。
+   zh-Hant [zh-Hant.lproj/Services.strings] 此回饋沒有可存取的資料附件。伺服器端可能限制了此回饋的還原權限。
+
+KEY services.copy.unexpected.server.response.try.again.later
+   en      [en.lproj/Services.strings] Unexpected server response. Try again later.
+   zh-Hans [zh-Hans.lproj/Services.strings] 服务器响应异常，请稍后重试
+   zh-Hant [zh-Hant.lproj/Services.strings] 伺服器回應異常，請稍後重試
+
+KEY services.copy.your.session.expired.or.access.was.denied.sign.in.again
+   en      [en.lproj/Services.strings] Your session expired or access was denied. Sign in again and retry.
+   zh-Hans [zh-Hans.lproj/Services.strings] 登录状态已失效或无访问权限，请重新登录后重试
+   zh-Hant [zh-Hant.lproj/Services.strings] 登入狀態已失效或無存取權限，請重新登入後重試
+
+KEY services.format.the.server.returned.an.error.try.again.later
+   en      [en.lproj/Services.strings] The server returned an error (%lld). Try again later.
+   zh-Hans [zh-Hans.lproj/Services.strings] 服务器返回了错误（%lld），请稍后重试
+   zh-Hant [zh-Hant.lproj/Services.strings] 伺服器傳回錯誤（%lld），請稍後重試
+
+KEY settings.aggregated.preference.currentServerFirst
+   en      [en.lproj/Settings.strings] Prefer the Current Library When Browsing Libraries
+   zh-Hans [zh-Hans.lproj/Settings.strings] 浏览资源库时优先当前库
+   zh-Hant [zh-Hant.lproj/Settings.strings] 瀏覽資源庫時優先目前資源庫
+
+KEY settings.aggregated.preference.disableInServer
+   en      [en.lproj/Settings.strings] Use Only the Current Library When Browsing Libraries
+   zh-Hans [zh-Hans.lproj/Settings.strings] 浏览资源库时仅使用当前库
+   zh-Hant [zh-Hant.lproj/Settings.strings] 瀏覽資源庫時僅使用目前資源庫
+
+KEY settings.library.mediaServer
+   en      [en.lproj/Settings.strings] Media Server
+   zh-Hans [zh-Hans.lproj/Settings.strings] 媒体服务器
+   zh-Hant [zh-Hant.lproj/Settings.strings] 媒體伺服器
+
+KEY settings.license.order.subscription
+   en      [en.lproj/Settings.strings] Subscription
+   zh-Hans [zh-Hans.lproj/Settings.strings] 订阅
+   zh-Hant [zh-Hant.lproj/Settings.strings] 訂閱
+
+KEY settings.license.passkey.signIn
+   en      [en.lproj/Settings.strings] Sign In with Passkey
+   zh-Hans [zh-Hans.lproj/Settings.strings] 用通行密钥登录
+   zh-Hant [zh-Hant.lproj/Settings.strings] 用通行密鑰登入
+
+KEY settings.license.passkey.signIn.subtitle
+   en      [en.lproj/Settings.strings] Use Face ID or Touch ID if you added one
+   zh-Hans [zh-Hans.lproj/Settings.strings] 已添加通行密钥时，一键登录
+   zh-Hant [zh-Hant.lproj/Settings.strings] 已新增通行密鑰時，一鍵登入
+
+KEY settings.license.signIn.email
+   en      [en.lproj/Settings.strings] Sign In with Email
+   zh-Hans [zh-Hans.lproj/Settings.strings] 使用邮箱登录
+   zh-Hant [zh-Hant.lproj/Settings.strings] 使用電子郵件登入
+
+KEY settings.license.signIn.email.subtitle
+   en      [en.lproj/Settings.strings] A Rex Account is created the first time
+   zh-Hans [zh-Hans.lproj/Settings.strings] 首次使用会自动创建 Rex 账号
+   zh-Hant [zh-Hant.lproj/Settings.strings] 首次使用會自動建立 Rex 帳號
+
+KEY settings.license.signIn.heading
+   en      [en.lproj/Settings.strings] Sign In to Rex
+   zh-Hans [zh-Hans.lproj/Settings.strings] 登录 Rex 账号
+   zh-Hant [zh-Hant.lproj/Settings.strings] 登入 Rex 帳號
+
+KEY settings.license.signIn.message
+   en      [en.lproj/Settings.strings] Enter your email and we’ll send a 6-digit code. A Rex Account is created the first time.
+   zh-Hans [zh-Hans.lproj/Settings.strings] 输入邮箱，我们会发送 6 位验证码。首次使用会自动创建账号。
+   zh-Hant [zh-Hant.lproj/Settings.strings] 輸入電子郵件，我們會傳送 6 位驗證碼。首次使用會自動建立帳號。
+
+KEY settings.license.signIn.title
+   en      [en.lproj/Settings.strings] Sign In
+   zh-Hans [zh-Hans.lproj/Settings.strings] 登录
+   zh-Hant [zh-Hant.lproj/Settings.strings] 登入
+
+KEY settings.route.serverSubscription
+   en      [en.lproj/Settings.strings] Self-hosted Service Subscriptions
+   zh-Hans [zh-Hans.lproj/Settings.strings] 自建服务订阅
+   zh-Hant [zh-Hant.lproj/Settings.strings] 自建服務訂閱
+
+KEY shell.copy.items.here.do.not.appear.in.the.tab.bar.subscription
+   en      [en.lproj/Shell.strings] Items here do not appear in the tab bar. Subscription items are hidden from the list until a subscription service is configured.
+   zh-Hans [zh-Hans.lproj/Shell.strings] 这里的项目不会出现在 TabBar；订阅服务未配置时，订阅项不会出现在列表中。
+   zh-Hant [zh-Hant.lproj/Shell.strings] 此處的項目不會出現在 TabBar；訂閱服務未設定時，訂閱項目不會出現在清單中。
+
+KEY shell.copy.server.subscription.failed
+   en      [en.lproj/Shell.strings] Self-hosted Service Subscription Failed
+   zh-Hans [zh-Hans.lproj/Shell.strings] 自建服务订阅失败
+   zh-Hant [zh-Hant.lproj/Shell.strings] 自建服務訂閱失敗
+
+KEY shell.copy.sign.in.to.icloud.first
+   en      [en.lproj/Shell.strings] Sign in to iCloud first.
+   zh-Hans [zh-Hans.lproj/Shell.strings] 请先登录 iCloud。
+   zh-Hant [zh-Hant.lproj/Shell.strings] 請先登入 iCloud。
+
+KEY shell.copy.subscription
+   en      [en.lproj/Shell.strings] Subscription
+   zh-Hans [zh-Hans.lproj/Shell.strings] 订阅
+   zh-Hant [zh-Hant.lproj/Shell.strings] 訂閱
+
+KEY watching.copy.no.subscriptions.yet
+   en      [en.lproj/Watching.strings] No Subscriptions Yet
+   zh-Hans [zh-Hans.lproj/Watching.strings] 还没有订阅
+   zh-Hant [zh-Hant.lproj/Watching.strings] 還沒有訂閱
+
+KEY watching.copy.server.history.unavailable
+   en      [en.lproj/Watching.strings] Media server watch history failed to load. That source is not included yet.
+   zh-Hans [zh-Hans.lproj/Watching.strings] 媒体服务器观看记录加载失败，当前未计入该来源
+   zh-Hant [zh-Hant.lproj/Watching.strings] 媒體伺服器觀看記錄載入失敗，目前未計入該來源
+
+KEY watching.copy.subscription
+   en      [en.lproj/Watching.strings] Subscription
+   zh-Hans [zh-Hans.lproj/Watching.strings] 订阅
+   zh-Hant [zh-Hant.lproj/Watching.strings] 訂閱
