@@ -4,6 +4,8 @@
 所有订阅操作委托给 OrchestratorService（本地记录 + NextFind 推送）。
 """
 
+import hmac
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +21,19 @@ from app.services.nextfind import NextFindService
 from app.services.orchestrator import OrchestratorService
 
 logger = init_logger()
+
+
+def _credentials_match(submitted: str, expected: str) -> bool:
+    """常量时间比较凭据，避免按字符逐位比较泄露前缀长度。
+
+    Args:
+        submitted: 请求提交的值
+        expected: 配置中的期望值
+
+    Returns:
+        两者完全一致时为 True
+    """
+    return hmac.compare_digest(submitted.encode("utf-8"), expected.encode("utf-8"))
 
 
 def _to_internal_type(raw: str | None) -> str:
@@ -78,7 +93,10 @@ class ForwardService:
     async def login(self, username: str, password: str, config_username: str, config_password: str) -> dict:
         """本地登录验证，返回 JWT token。
 
-        从 auth_config.json 文件读取账号密码验证。
+        从环境变量 / 兼容 JSON 文件读取账号密码验证。
+
+        fail-closed：未配置任一凭据时一律拒绝登录。否则空账号配置配空表单提交
+        会命中「空 == 空」比较而签发 token（越权）。
 
         Args:
             username: 用户名
@@ -90,7 +108,19 @@ class ForwardService:
             MP 风格登录响应字典
         """
         auth = load_auth_config()
-        if username != auth.get("username") or password != auth.get("password"):
+        expected_username = auth.get("username") or ""
+        expected_password = auth.get("password") or ""
+
+        if not expected_username or not expected_password:
+            logger.error("Forward 登录被拒绝: 服务端未配置账号凭据（检查环境变量或 auth_config）")
+            return {"success": False, "message": "用户名或密码错误", "data": None}
+
+        if (
+            not username
+            or not password
+            or not _credentials_match(username, expected_username)
+            or not _credentials_match(password, expected_password)
+        ):
             logger.warning(f"Forward 登录失败: 用户名或密码错误 (username={username!r})")
             return {"success": False, "message": "用户名或密码错误", "data": None}
 
