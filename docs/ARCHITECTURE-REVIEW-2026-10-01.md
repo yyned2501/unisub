@@ -340,7 +340,7 @@ NextFind OpenAPI(192.168.31.10:8092) + NextFind Web + MoviePilot(192.168.31.10:3
 ### 7.2 主人本人待办（Architect 不代持凭据）
 
 1. NextFind Web 密码改密 → 重新登录取新 cookie；NextFind OpenAPI Key 重新签发
-2. 作废涉事 115 分享链接（`password=32ff`）
+2. 作废涉事 115 分享链接（`password=<已脱敏>`）
 3. 删库重建推送（重建后先确认仓库 private 与 `.gitignore` 生效）
 
 ### 7.3 迁移现状核实 SQL（本次实测证据，2026-10-01）
