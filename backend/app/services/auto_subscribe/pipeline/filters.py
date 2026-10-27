@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.core.logger import init_logger
 from app.services.auto_subscribe.models import SOURCE_NAMES, RankMediaItem
-from app.services.tmdb import TMDBService
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger(__name__)
 

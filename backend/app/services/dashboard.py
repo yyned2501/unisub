@@ -104,7 +104,7 @@ async def get_platform_statuses(db: AsyncSession) -> list[PlatformStatus]:
                 connected = "error" not in quota
                 message = "连接正常" if connected else f"连接失败: {quota.get('detail', '')}"
             elif config.name == "moviepilot":
-                from app.services.moviepilot import MoviePilotService
+                from app.services.moviepilot.service import MoviePilotService
 
                 mp = MoviePilotService(config.base_url, config.api_key)
                 sites = await mp.get_site_statistic()
@@ -113,14 +113,14 @@ async def get_platform_statuses(db: AsyncSession) -> list[PlatformStatus]:
                     f"连接正常 ({len(sites) if isinstance(sites, list) else 0} 个站点)" if connected else "连接失败"
                 )
             elif config.name == "emby":
-                from app.services.emby import EmbyService
+                from app.services.emby.service import EmbyService
 
                 emby = EmbyService(config.base_url, config.api_key)
                 info = await emby.test_connection()
                 connected = "error" not in info and "ServerName" in info
                 message = f"Emby 连接正常: {info.get('ServerName')}" if connected else "连接失败"
             elif config.name == "tmdb":
-                from app.services.tmdb import TMDBService
+                from app.services.tmdb.service import TMDBService
 
                 tmdb = TMDBService(config.api_key, config.base_url)
                 conf = await tmdb._get("/configuration")

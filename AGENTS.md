@@ -111,25 +111,26 @@ Note: MoviePilot returns 307 redirects on API calls — always follow with -L or
 │   │   │   └── emby_cache.py
 │   │   ├── services/
 │   │   │   ├── __init__.py
+│   │   │   ├── orchestrator/        # 订阅生命周期 / 上游推送 / 取消补偿 / 维护
+│   │   │   ├── nf_sync/             # NF 双向同步（engine + phases/）
+│   │   │   ├── moviepilot/          # MP 客户端 / 订阅镜像 / 缺集计算
+│   │   │   ├── tmdb/                # TMDB 客户端 / 缓存 / 详情 / 迁移
+│   │   │   ├── emby/                # Emby 客户端 / 缓存 / 分析 / 扫描
+│   │   │   ├── decision/            # JEV 判定引擎 / 客户端 / 载荷
+│   │   │   ├── scheduler/           # 调度循环 + runners
+│   │   │   ├── auto_subscribe/      # 自动订阅流水线
 │   │   │   ├── nextfind.py
-│   │   │   ├── nextfind_admin.py
-│   │   │   ├── moviepilot.py
-│   │   │   ├── orchestrator.py
-│   │   │   ├── tmdb.py
-│   │   │   ├── emby.py
-│   │   │   ├── emby_scan.py
-│   │   │   ├── emby_db.py
+│   │   │   ├── forward.py
 │   │   │   ├── subscription.py
 │   │   │   ├── dashboard.py
-│   │   │   ├── platform.py
-│   │   │   └── scheduler.py
+│   │   │   └── platform.py
 │   │   ├── routers/
 │   │   │   ├── __init__.py
+│   │   │   ├── emby/                # 库查询 / 图片代理 / TMDB-404
 │   │   │   ├── platforms.py
 │   │   │   ├── search.py
 │   │   │   ├── subscriptions.py
 │   │   │   ├── dashboard.py
-│   │   │   ├── emby.py
 │   │   │   └── tasks.py
 │   │   └── references/
 │   │       └── nextfind-api-v2.md

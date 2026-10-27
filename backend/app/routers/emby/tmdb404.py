@@ -15,7 +15,7 @@ from app.schemas.emby_cache import Tmdb404Item
 from app.services import log_activity
 from app.services.cd2_config import get_cd2_config
 from app.services.clouddrive2 import CloudDrive2Service
-from app.services.emby_db import list_tmdb_404_items
+from app.services.emby.db import list_tmdb_404_items
 
 router = APIRouter(prefix="/api/emby", tags=["Emby 媒体库"], dependencies=[Depends(get_current_user)])
 logger = init_logger()

@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.logger import init_logger
 from app.schemas.task import TaskConfigUpdate, TaskStatusResponse, TaskTriggerResponse
 from app.services import get_mp_service, get_nf_service, get_tmdb_service, log_activity, scheduler
-from app.services.orchestrator import OrchestratorService
+from app.services.orchestrator.service import OrchestratorService
 
 router = APIRouter(prefix="/api/tasks", tags=["定时任务"], dependencies=[Depends(get_current_user)])
 logger = init_logger()

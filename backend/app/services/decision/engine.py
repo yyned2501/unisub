@@ -1,8 +1,8 @@
 """JEV（TypeSafe System One）采纳闸门 — 自动订阅兜底判定的唯一入口。
 
 边界（`docs/SPEC-JEV-DECISION.md` §1）:
-    - 本模块是判定规则的唯一入口；HTTP/配置在 :mod:`app.services.decision_client`，
-      state 构造在 :mod:`app.services.decision_payload`；
+    - 本模块是判定规则的唯一入口；HTTP/配置在 :mod:`app.services.decision.client`，
+      state 构造在 :mod:`app.services.decision.payload`；
     - `pipeline/matching.py` 只调用 :func:`evaluate_candidate`，不承担 HTTP、不读配置细节；
     - 无状态：不落库、不建表、不持有会话（除进程内降级计数）。
 
@@ -25,8 +25,8 @@ from enum import StrEnum
 from typing import Any
 
 from app.core.logger import init_logger
-from app.services.decision_client import call_jev, extract_same_work, load_gate_config
-from app.services.decision_payload import build_questions, build_state, candidate_title
+from app.services.decision.client import call_jev, extract_same_work, load_gate_config
+from app.services.decision.payload import build_questions, build_state, candidate_title
 
 logger = init_logger()
 

@@ -18,7 +18,7 @@ from app.models.emby_season_cache import EmbySeasonCache
 from app.models.subscription import Subscription
 
 if TYPE_CHECKING:
-    from app.services.mp_sync import MpSyncEngine
+    from app.services.moviepilot.sync import MpSyncEngine
 
 logger = init_logger()
 

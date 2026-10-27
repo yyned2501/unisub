@@ -13,8 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.http_client import http_client
 from app.core.logger import init_logger
-from app.services.emby_cache_sync import backfill_overview, sync_emby_cache
-from app.services.tmdb import TMDBService
+from app.services.emby.cache_sync import backfill_overview, sync_emby_cache
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger()
 
@@ -253,7 +253,7 @@ class EmbyService:
 
     async def update_tmdb_data(self, db: AsyncSession, tmdb_service: TMDBService) -> dict:
         """补充 emby_cache 表的 TMDB 数据 — 只更新已订阅的连载剧集。"""
-        from app.services.emby_tmdb_update import update_tmdb_data_batch
+        from app.services.emby.tmdb_update import update_tmdb_data_batch
 
         return await update_tmdb_data_batch(db, tmdb_service, mode="subscribed")
 
@@ -264,7 +264,7 @@ class EmbyService:
         progress_callback=None,
     ) -> dict:
         """补充 TMDB 数据到 tmdb_cache（不限已订阅，慢速批量）。"""
-        from app.services.emby_tmdb_update import update_tmdb_data_batch
+        from app.services.emby.tmdb_update import update_tmdb_data_batch
 
         return await update_tmdb_data_batch(db, tmdb_service, mode="all", progress_callback=progress_callback)
 
@@ -274,6 +274,6 @@ class EmbyService:
         tmdb_service: TMDBService,
     ) -> dict:
         """补充 tmdb_cache 缺失 TMDB 数据的记录 — 轻量增量。"""
-        from app.services.emby_tmdb_update import update_tmdb_data_batch
+        from app.services.emby.tmdb_update import update_tmdb_data_batch
 
         return await update_tmdb_data_batch(db, tmdb_service, mode="missing")

@@ -12,9 +12,9 @@ from app.core.logger import init_logger
 from app.models.subscription import Subscription
 from app.models.tmdb_cache import TmdbCache
 from app.services.activity import log_activity
-from app.services.moviepilot import MoviePilotService
+from app.services.moviepilot.service import MoviePilotService
 from app.services.nextfind import NextFindService
-from app.services.tmdb import TMDBService
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger()
 

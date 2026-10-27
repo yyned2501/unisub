@@ -3,8 +3,8 @@
 用 monkeypatch 替换 http_client 的方法，不发起真实网络请求。
 """
 
-import app.services.moviepilot as mp_module
-from app.services.moviepilot import MoviePilotService
+import app.services.moviepilot.service as mp_module
+from app.services.moviepilot.service import MoviePilotService
 
 
 def _make_service() -> MoviePilotService:

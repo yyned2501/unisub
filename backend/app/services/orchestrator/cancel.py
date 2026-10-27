@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logger import init_logger
 from app.models.subscription import Subscription
 from app.services.activity import log_activity
-from app.services.moviepilot import MoviePilotService
+from app.services.moviepilot.service import MoviePilotService
 from app.services.nextfind import NextFindService
 
 logger = init_logger()

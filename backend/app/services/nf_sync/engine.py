@@ -1,7 +1,7 @@
 """NextFind 双向同步引擎。
 
 从 orchestrator 拆出的 NF ↔ 本地数据库双向同步入口。以本地数据库为准，
-确保 NextFind 与本地订阅状态一致。各阶段的具体实现见 nf_sync_phases.py。
+确保 NextFind 与本地订阅状态一致。各阶段的具体实现见 ``phases/``。
 
 阶段职责一览（详见各阶段函数）：
     Phase 0   清理 NF 中元数据异常的活跃订阅
@@ -22,7 +22,7 @@ from app.models.subscription import Subscription
 from app.schemas.subscription import SubscriptionSyncResult
 from app.services.activity import log_activity
 from app.services.nextfind import NextFindService
-from app.services.nf_sync_phases import (
+from app.services.nf_sync.phases import (
     phase0_clean_abnormal,
     phase1_5_blacklist,
     phase1_nf_to_local,

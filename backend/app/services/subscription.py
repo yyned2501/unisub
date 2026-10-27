@@ -17,7 +17,7 @@ from app.models.subscription import Subscription
 from app.models.tmdb_cache import TmdbCache
 from app.schemas.subscription import MpSubscriptionResponse, SubscriptionResponse
 from app.services.poster import build_tmdb_poster_url
-from app.services.tmdb import TMDBService
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger()
 

@@ -14,7 +14,7 @@ from app.models.activity_log import ActivityLog
 from app.models.platform_config import PlatformConfig
 from app.models.subscription import Subscription
 from app.services import require_nf_service
-from app.services.orchestrator import OrchestratorService
+from app.services.orchestrator.service import OrchestratorService
 
 
 class FakeNfFull:

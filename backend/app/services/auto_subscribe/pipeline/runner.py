@@ -35,7 +35,7 @@ from app.services.auto_subscribe.pipeline.filters import (
 from app.services.auto_subscribe.pipeline.resolve import resolve_best_match
 from app.services.auto_subscribe.pipeline.subscription import finalize_subscription
 from app.services.nextfind import NextFindAuthError, NextFindService
-from app.services.tmdb import TMDBService
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger(__name__)
 

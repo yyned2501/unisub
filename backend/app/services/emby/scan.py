@@ -11,9 +11,9 @@
 from datetime import UTC, datetime
 
 from app.core.logger import init_logger
-from app.services.emby import EmbyService
-from app.services.orchestrator import OrchestratorService
-from app.services.tmdb import TMDBService
+from app.services.emby.service import EmbyService
+from app.services.orchestrator.service import OrchestratorService
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger()
 

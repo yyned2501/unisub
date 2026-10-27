@@ -5,9 +5,9 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 
 from app.models.tmdb_season import TmdbSeason
-from app.services.tmdb import TMDBService
-from app.services.tmdb_cache import save_seasons
-from app.services.tmdb_detail import aired_count_by_season
+from app.services.tmdb.cache import save_seasons
+from app.services.tmdb.detail import aired_count_by_season
+from app.services.tmdb.service import TMDBService
 
 
 def _make_service() -> TMDBService:

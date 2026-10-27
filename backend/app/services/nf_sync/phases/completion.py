@@ -15,7 +15,7 @@ from app.core.logger import init_logger
 from app.models.emby_cache import EmbyCache
 from app.models.subscription import Subscription
 from app.models.tmdb_cache import TmdbCache
-from app.services.nf_sync_phases.common import _is_cancelled_status, _nf_status
+from app.services.nf_sync.phases.common import _is_cancelled_status, _nf_status
 
 logger = init_logger()
 

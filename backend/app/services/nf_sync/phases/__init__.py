@@ -11,13 +11,13 @@
 
 from __future__ import annotations
 
-from app.services.nf_sync_phases.completion import (
+from app.services.nf_sync.phases.completion import (
     phase3_movie_completed,
     phase4_tv_completed,
     phase5_log_cancelled,
 )
-from app.services.nf_sync_phases.local_to_nf import phase2_local_to_nf
-from app.services.nf_sync_phases.nf_to_local import (
+from app.services.nf_sync.phases.local_to_nf import phase2_local_to_nf
+from app.services.nf_sync.phases.nf_to_local import (
     phase0_clean_abnormal,
     phase1_5_blacklist,
     phase1_nf_to_local,

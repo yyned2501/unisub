@@ -13,10 +13,11 @@ from typing import Any
 
 import pytest
 
-from app.services import decision, decision_client
 from app.services.ai_config import DEFAULT_AI_CONFIG, AiConfigStore
 from app.services.auto_subscribe.pipeline import matching
-from app.services.decision import GateVerdict, evaluate_candidate, get_gate_metrics, reset_gate_state
+from app.services.decision import client as decision_client
+from app.services.decision import engine as decision
+from app.services.decision.engine import GateVerdict, evaluate_candidate, get_gate_metrics, reset_gate_state
 
 SOURCE_TITLE = "深海幽灵"
 CANDIDATE: dict[str, Any] = {"title": "海上钢琴师", "year": 1998, "raw_type": "movie", "vote_average": 9.3}
@@ -307,7 +308,7 @@ def test_decision_module_has_no_bare_http_libs() -> None:
         imported = _imported_modules(module)
         assert not {name for name in imported if name.split(".")[0] in banned}, module.__name__
     assert "app.core.http_client" in _imported_modules(decision_client)
-    assert "app.services.decision_client" in _imported_modules(decision)
+    assert "app.services.decision.client" in _imported_modules(decision)
 
 
 def _imported_modules(module: Any) -> set[str]:

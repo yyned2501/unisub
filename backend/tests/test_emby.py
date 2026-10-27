@@ -1,6 +1,6 @@
 """Emby 服务测试 — 按季集数聚合逻辑（sync_cache 的核心统计）。"""
 
-from app.services.emby_cache_sync import aggregate_episodes
+from app.services.emby.cache_sync import aggregate_episodes
 
 
 def test_aggregate_episodes_counts_per_series_and_season():

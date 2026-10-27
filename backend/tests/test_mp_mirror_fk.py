@@ -20,7 +20,7 @@ from sqlalchemy import event, select
 
 from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
-from app.services.orchestrator import OrchestratorService
+from app.services.orchestrator.service import OrchestratorService
 from tests.conftest import _test_engine
 
 

@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from app.core.image_sign import sign_emby_image_path, verify_emby_image_sig
 from app.main import app
 from app.services import require_emby_service
-from app.services.emby import EmbyService
+from app.services.emby.service import EmbyService
 
 
 def _parse(path: str) -> tuple[str, int, str]:
@@ -51,7 +51,7 @@ async def test_proxy_endpoint_rejects_bad_sig(client: AsyncClient):
 
 async def test_proxy_endpoint_streams_image(client: AsyncClient, monkeypatch):
     """有效签名 → 用 X-Emby-Token 头取图并原样返回字节与 Content-Type。"""
-    import app.services.emby as emby_module
+    import app.services.emby.service as emby_module
 
     async def fake_get_bytes(url, headers=None):
         assert url == "http://emby.test/Items/abc123/Images/Primary"

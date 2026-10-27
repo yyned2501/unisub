@@ -26,10 +26,10 @@ from app.services.auto_subscribe.pipeline.search import (
     search_tmdb_or_nf,
 )
 from app.services.bangumi import BangumiService
-from app.services.decision import GateVerdict
-from app.services.decision_payload import candidate_title
+from app.services.decision.engine import GateVerdict
+from app.services.decision.payload import candidate_title
 from app.services.nextfind import NextFindService
-from app.services.tmdb import TMDBService
+from app.services.tmdb.service import TMDBService
 
 # 未识别时回填给历史的候选标题数（「当时 TMDB 返回了什么」）
 _TOP_CANDIDATE_LIMIT = 3

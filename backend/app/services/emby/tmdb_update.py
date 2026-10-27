@@ -17,8 +17,8 @@ from app.core.logger import init_logger
 from app.models.emby_cache import EmbyCache
 from app.models.tmdb_cache import TmdbCache
 from app.services.poster import build_tmdb_poster_url
-from app.services.tmdb import TMDBService
-from app.services.tmdb_detail import aired_from_detail, next_air_date_from_detail
+from app.services.tmdb.detail import aired_from_detail, next_air_date_from_detail
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger(__name__)
 

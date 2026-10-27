@@ -22,7 +22,7 @@ from app.services.auto_subscribe.models import (
 )
 from app.services.auto_subscribe.pipeline import matching, resolve, search
 from app.services.auto_subscribe.pipeline.search import FallbackOutcome
-from app.services.decision import GateResult, GateVerdict
+from app.services.decision.engine import GateResult, GateVerdict
 
 # 搜索/闸门/fallback 全部被替身接管，这里不需要真实服务
 NF: Any = None

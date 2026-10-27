@@ -19,7 +19,7 @@ from app.services.auto_subscribe.models import (
     STATUS_SUBSCRIBED,
 )
 from app.services.nextfind import NextFindAuthError, NextFindService
-from app.services.tmdb import TMDBService
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger(__name__)
 

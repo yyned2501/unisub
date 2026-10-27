@@ -13,7 +13,7 @@ from app.core.http_client import HttpRequestError
 from app.core.image_sign import verify_emby_image_sig
 from app.core.logger import init_logger
 from app.services import require_emby_service
-from app.services.emby import EmbyService
+from app.services.emby.service import EmbyService
 
 router = APIRouter(prefix="/api/emby", tags=["Emby 媒体库"])
 logger = init_logger()

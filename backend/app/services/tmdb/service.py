@@ -13,8 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.http_client import http_client
 from app.core.logger import init_logger
 from app.services.poster import build_tmdb_poster_url
-from app.services.tmdb_cache import get_season_completion, get_seasons_map, update_cache_for_tv
-from app.services.tmdb_detail import aired_from_detail, next_air_date_from_detail
+from app.services.tmdb.cache import get_season_completion, get_seasons_map, update_cache_for_tv
+from app.services.tmdb.detail import aired_from_detail, next_air_date_from_detail
 
 logger = init_logger()
 

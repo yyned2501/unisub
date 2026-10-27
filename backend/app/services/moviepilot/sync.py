@@ -20,9 +20,9 @@ from app.core.logger import init_logger
 from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
 from app.services.activity import log_activity
-from app.services.moviepilot import MoviePilotService
-from app.services.mp_missing import query_missing_seasons, show_in_emby
-from app.services.tmdb import TMDBService
+from app.services.moviepilot.missing import query_missing_seasons, show_in_emby
+from app.services.moviepilot.service import MoviePilotService
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger()
 

@@ -18,7 +18,7 @@ from app.schemas.subscription import (
 )
 from app.services import get_mp_service, get_tmdb_service, require_nf_service
 from app.services.nextfind import NextFindService
-from app.services.orchestrator import OrchestratorService
+from app.services.orchestrator.service import OrchestratorService
 from app.services.subscription import (
     background_update_tmdb_cache,
     list_subscriptions_with_cache,

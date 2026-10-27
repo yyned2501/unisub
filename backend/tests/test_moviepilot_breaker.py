@@ -1,7 +1,7 @@
 """MoviePilot 连接失败熔断测试 — 连续连接失败后暂停调用，成功即复位。"""
 
-import app.services.moviepilot as mp_module
-from app.services.moviepilot import MoviePilotService
+import app.services.moviepilot.service as mp_module
+from app.services.moviepilot.service import MoviePilotService
 
 _CONN_FAIL = {"error": "request_failed", "detail": "All connection attempts failed"}
 

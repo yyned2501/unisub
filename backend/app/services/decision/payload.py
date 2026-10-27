@@ -2,8 +2,8 @@
 
 分工（`docs/SPEC-JEV-DECISION.md`）：
     - 本模块：把 A 侧（启发式）选中的**那一个**候选翻译成 JEV 能读的 state；
-    - :mod:`app.services.decision_client`：配置读取 + HTTP 调用；
-    - :mod:`app.services.decision`：判定规则、降级、熔断、影子。
+    - :mod:`app.services.decision.client`：配置读取 + HTTP 调用；
+    - :mod:`app.services.decision.engine`：判定规则、降级、熔断、影子。
 """
 
 from __future__ import annotations

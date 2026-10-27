@@ -22,8 +22,8 @@ from sqlalchemy.orm.exc import StaleDataError
 from app.core.logger import init_logger
 from app.models.subscription import Subscription
 from app.services.activity import log_activity
-from app.services.moviepilot import MoviePilotService
-from app.services.mp_sync import MpSyncEngine
+from app.services.moviepilot.service import MoviePilotService
+from app.services.moviepilot.sync import MpSyncEngine
 from app.services.nextfind import NextFindService
 
 logger = init_logger()

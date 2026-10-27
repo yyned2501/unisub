@@ -18,7 +18,7 @@ from app.schemas.forward import (
 )
 from app.services.auth_config import load_auth_config, save_auth_config
 from app.services.nextfind import NextFindService
-from app.services.orchestrator import OrchestratorService
+from app.services.orchestrator.service import OrchestratorService
 
 logger = init_logger()
 

@@ -103,15 +103,16 @@ unisub/
 │   │   ├── core/                    # 第三方库隔离层（database / http_client / logger / auth）
 │   │   ├── models/                  # SQLAlchemy 模型
 │   │   ├── schemas/                 # Pydantic 模型
-│   │   ├── services/                # 业务层
-│   │   │   ├── nextfind.py / moviepilot.py / tmdb.py   # 外部 API 封装
-│   │   │   ├── orchestrator.py                  # 订阅 CRUD 与同步入口
-│   │   │   ├── orchestrator_upstream.py         # 后台推送（NF 建订阅 + MP 镜像）
-│   │   │   ├── orchestrator_cancel.py           # 取消竞态判定与上游补偿
-│   │   │   ├── orchestrator_maintenance.py      # 缺集补充 / TMDB 增量刷新
-│   │   │   ├── nf_sync.py / mp_sync.py          # 双向同步引擎
-│   │   │   ├── auto_subscribe/                  # 自动订阅流水线
-│   │   │   └── scheduler.py / emby*.py / forward.py
+│   │   ├── services/                # 业务层（同前缀模块收拢为包）
+│   │   │   ├── orchestrator/        # 订阅生命周期 / 上游推送 / 取消补偿 / 维护任务
+│   │   │   ├── nf_sync/             # NF 双向同步引擎 + phases/
+│   │   │   ├── moviepilot/          # MP 客户端 / 订阅镜像 / 缺集计算
+│   │   │   ├── tmdb/                # TMDB 客户端 / 缓存 / 详情 / 迁移
+│   │   │   ├── emby/                # Emby 客户端 / 缓存同步 / 库分析 / 扫描
+│   │   │   ├── decision/            # JEV 判定引擎 / 客户端 / 载荷
+│   │   │   ├── scheduler/           # 调度循环 + runners
+│   │   │   ├── auto_subscribe/      # 自动订阅流水线
+│   │   │   └── nextfind.py / forward.py / dashboard.py / ...
 │   │   ├── routers/                 # FastAPI 路由（含 forward API）
 │   │   └── references/              # 外部 API 实测文档
 │   ├── tests/                       # pytest（sqlite 内存库）

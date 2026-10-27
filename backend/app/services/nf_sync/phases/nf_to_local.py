@@ -13,7 +13,7 @@ from app.core.logger import init_logger
 from app.models.subscription import Subscription
 from app.schemas.subscription import SubscriptionSyncResult
 from app.services.nextfind import NextFindService
-from app.services.nf_sync_phases.common import (
+from app.services.nf_sync.phases.common import (
     _NF_CONCURRENCY,
     _is_active_status,
     _is_cancelled_status,

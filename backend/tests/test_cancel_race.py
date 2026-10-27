@@ -23,7 +23,7 @@ from sqlalchemy import select
 from app.models.activity_log import ActivityLog
 from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
-from app.services.orchestrator import OrchestratorService
+from app.services.orchestrator.service import OrchestratorService
 
 TITLE = "盗梦空间"
 TMDB_MOVIE = 27205

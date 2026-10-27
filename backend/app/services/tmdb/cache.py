@@ -17,10 +17,10 @@ from app.core.logger import init_logger
 from app.models.tmdb_cache import TmdbCache
 from app.models.tmdb_season import TmdbSeason
 from app.services.poster import build_tmdb_poster_url
-from app.services.tmdb_detail import aired_count_by_season, aired_from_detail, next_air_date_from_detail
+from app.services.tmdb.detail import aired_count_by_season, aired_from_detail, next_air_date_from_detail
 
 if TYPE_CHECKING:
-    from app.services.tmdb import TMDBService
+    from app.services.tmdb.service import TMDBService
 
 logger = init_logger()
 

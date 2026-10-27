@@ -5,7 +5,7 @@ from sqlalchemy import select
 from app.core.errors import AppError, UpstreamError
 from app.models.activity_log import ActivityLog
 from app.models.subscription import Subscription
-from app.services.orchestrator import OrchestratorService
+from app.services.orchestrator.service import OrchestratorService
 
 
 class FakeNf:

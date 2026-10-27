@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-from app.services.decision import GateResult, GateVerdict, evaluate_candidate
+from app.services.decision.engine import GateResult, GateVerdict, evaluate_candidate
 
 
 def pick_best(results: list[dict], title: str, type_hint: str, item_year: str | None = None) -> dict | None:
@@ -79,7 +79,7 @@ async def pick_best_gated(results: list[dict], title: str, type_hint: str, item_
 
     精确匹配（阶段 1~3）是对的、免费的、零延迟的，直接返回不花 JEV 的钱；
     落到阶段 4/5 时把 A 侧选中的**那一个**候选交给
-    :func:`app.services.decision.evaluate_candidate` 判「是否同一部作品」，
+    :func:`app.services.decision.engine.evaluate_candidate` 判「是否同一部作品」，
     判定 `REJECT` 才返回 `None`（上层走「未识别」，不订阅）。
     降级/JEV 不可用一律保留启发式结果，绝不在这里擅自改变下单行为。
     """
@@ -116,7 +116,7 @@ async def judge_candidate(title: str, type_hint: str, item_year: str | None, can
     供 `resolve` 在「阶段 1~3 选中但字面相似度不过」时复核：这类候选
     `pick_best_with_verdict` 会短路（阶段 1~3 命中不调 JEV），而译名/写法差异
     恰恰只能靠 JEV 救回来。判定入口仍唯一 —— 这里只转发给
-    :func:`app.services.decision.evaluate_candidate`。
+    :func:`app.services.decision.engine.evaluate_candidate`。
     """
     return await evaluate_candidate(title, item_year, type_hint, candidate)
 

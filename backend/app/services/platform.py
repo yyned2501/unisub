@@ -125,8 +125,8 @@ async def test_platform_connection(config: PlatformConfig) -> PlatformTestResult
     Returns:
         测试结果
     """
-    from app.services.emby import EmbyService
-    from app.services.moviepilot import MoviePilotService
+    from app.services.emby.service import EmbyService
+    from app.services.moviepilot.service import MoviePilotService
     from app.services.nextfind import NextFindService
 
     try:

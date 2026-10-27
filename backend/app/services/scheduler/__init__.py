@@ -209,7 +209,7 @@ async def _loop(
 
                 # 检查是否需要全量扫描（优先级高）
                 if _last_full_run is None or (now - _last_full_run).total_seconds() >= full_interval * 60:
-                    from app.services.emby_scan import EmbyScanService
+                    from app.services.emby.scan import EmbyScanService
 
                     status = EmbyScanService.get_status()
                     if not status["running"]:
@@ -226,7 +226,7 @@ async def _loop(
 
                 # 检查是否需要轻量刷新
                 if _last_light_run is None or (now - _last_light_run).total_seconds() >= light_interval * 60:
-                    from app.services.emby_scan import EmbyScanService
+                    from app.services.emby.scan import EmbyScanService
 
                     status = EmbyScanService.get_status()
                     if not status["running"]:

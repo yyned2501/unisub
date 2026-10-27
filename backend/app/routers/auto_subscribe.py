@@ -55,7 +55,7 @@ async def trigger_run() -> AutoSubRunResponse:
             result = await svc.run(bg_db, trigger="manual")
             if result.get("success"):
                 from app.services import get_mp_service, get_nf_service, get_tmdb_service
-                from app.services.orchestrator import OrchestratorService
+                from app.services.orchestrator.service import OrchestratorService
 
                 nf = await get_nf_service(bg_db)
                 if nf:

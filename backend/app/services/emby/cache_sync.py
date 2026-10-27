@@ -18,8 +18,8 @@ from app.models.emby_cache import EmbyCache
 from app.models.emby_season_cache import EmbySeasonCache
 
 if TYPE_CHECKING:
-    from app.services.emby import EmbyService
-    from app.services.tmdb import TMDBService
+    from app.services.emby.service import EmbyService
+    from app.services.tmdb.service import TMDBService
 
 logger = init_logger()
 

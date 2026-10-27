@@ -8,14 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import async_session
 from app.core.logger import init_logger
 from app.services import get_emby_service, get_mp_service, get_nf_service, get_tmdb_service
-from app.services.emby_scan import EmbyScanService
+from app.services.emby.scan import EmbyScanService
 
 logger = init_logger()
 
 
 async def _run_nf_sync(db: AsyncSession) -> None:
     """执行 NF 订阅同步（共用逻辑）。"""
-    from app.services.orchestrator import OrchestratorService
+    from app.services.orchestrator.service import OrchestratorService
 
     nf = await get_nf_service(db)
     if not nf:
@@ -76,7 +76,7 @@ async def tmdb_sync_runner() -> None:
         if not nf or not tmdb:
             logger.warning("TMDB 增量刷新跳过: NF 或 TMDB 未配置")
             return
-        from app.services.orchestrator import OrchestratorService
+        from app.services.orchestrator.service import OrchestratorService
 
         orchestrator = OrchestratorService(nf, tmdb_service=tmdb)
         result = await orchestrator.sync_tmdb_from_nf(scan_db)

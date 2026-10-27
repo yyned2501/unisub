@@ -19,7 +19,7 @@ from app.schemas.forward import (
 from app.services import get_mp_service, get_nf_service, get_tmdb_service
 from app.services.auth_config import load_auth_config
 from app.services.forward import ForwardService
-from app.services.orchestrator import OrchestratorService
+from app.services.orchestrator.service import OrchestratorService
 
 router = APIRouter(tags=["Forward API"])
 logger = init_logger()

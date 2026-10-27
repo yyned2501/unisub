@@ -16,7 +16,7 @@ from sqlalchemy import select
 
 from app.models.activity_log import ActivityLog
 from app.models.subscription import Subscription
-from app.services.orchestrator import OrchestratorService
+from app.services.orchestrator.service import OrchestratorService
 
 
 class SlowNf:
@@ -96,7 +96,7 @@ async def test_duplicate_insert_race_is_idempotent(db_session, session_factory, 
     import uuid
     from datetime import UTC, datetime
 
-    import app.services.orchestrator as orch_mod
+    import app.services.orchestrator.service as orch_mod
 
     real_select = orch_mod.select
     state = {"calls": 0}

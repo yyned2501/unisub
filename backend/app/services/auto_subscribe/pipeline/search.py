@@ -13,9 +13,9 @@ from app.services.ai_config import get_ai_config_store
 from app.services.auto_subscribe.models import RankMediaItem
 from app.services.auto_subscribe.pipeline.matching import title_overlap_ratio
 from app.services.bangumi import BangumiService
-from app.services.decision_payload import candidate_title
+from app.services.decision.payload import candidate_title
 from app.services.nextfind import NextFindAuthError, NextFindService
-from app.services.tmdb import TMDBService
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger(__name__)
 

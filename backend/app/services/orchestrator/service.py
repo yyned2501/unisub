@@ -29,14 +29,14 @@ from app.core.logger import init_logger
 from app.models.subscription import Subscription
 from app.schemas.subscription import SubscriptionResponse, SubscriptionSyncResult
 from app.services.activity import log_activity
-from app.services.moviepilot import MoviePilotService
-from app.services.mp_sync import MpSyncEngine
+from app.services.moviepilot.service import MoviePilotService
+from app.services.moviepilot.sync import MpSyncEngine
 from app.services.nextfind import NextFindService
-from app.services.nf_sync import NfSyncEngine
-from app.services.orchestrator_cancel import CancelGuardMixin
-from app.services.orchestrator_maintenance import MaintenanceMixin
-from app.services.orchestrator_upstream import UpstreamPushMixin
-from app.services.tmdb import TMDBService
+from app.services.nf_sync.engine import NfSyncEngine
+from app.services.orchestrator.cancel import CancelGuardMixin
+from app.services.orchestrator.maintenance import MaintenanceMixin
+from app.services.orchestrator.upstream import UpstreamPushMixin
+from app.services.tmdb.service import TMDBService
 
 logger = init_logger()
 

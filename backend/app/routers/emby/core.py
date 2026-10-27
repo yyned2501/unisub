@@ -1,6 +1,6 @@
 """Emby 媒体库路由 — 缺集分析（从缓存表读取）+ 缓存同步 + 黑名单。
 
-TMDB-404 修复端点见 emby_tmdb404.py（共用 /api/emby 前缀）。
+TMDB-404 修复端点见 emby/tmdb404.py（共用 /api/emby 前缀）。
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,17 +29,17 @@ from app.services import (
     require_nf_service,
     require_tmdb_service,
 )
-from app.services.emby import EmbyService
-from app.services.emby_db import (
+from app.services.emby.db import (
     add_blacklist_entry,
     analyze_missing_library,
     list_blacklist,
     remove_blacklist_entry,
 )
-from app.services.emby_scan import EmbyScanService
+from app.services.emby.scan import EmbyScanService
+from app.services.emby.service import EmbyService
 from app.services.nextfind import NextFindService
-from app.services.orchestrator import OrchestratorService
-from app.services.tmdb import TMDBService
+from app.services.orchestrator.service import OrchestratorService
+from app.services.tmdb.service import TMDBService
 
 router = APIRouter(prefix="/api/emby", tags=["Emby 媒体库"], dependencies=[Depends(get_current_user)])
 logger = init_logger()

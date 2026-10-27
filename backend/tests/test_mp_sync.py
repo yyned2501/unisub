@@ -11,7 +11,7 @@ from app.models.emby_cache import EmbyCache
 from app.models.emby_season_cache import EmbySeasonCache
 from app.models.mp_subscription import MpSubscription
 from app.models.subscription import Subscription
-from app.services.mp_sync import MpSyncEngine, _extract_sub_id
+from app.services.moviepilot.sync import MpSyncEngine, _extract_sub_id
 
 
 class FakeMp:

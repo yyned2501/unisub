@@ -28,8 +28,6 @@ from app.routers import (
     cd2,
     dashboard,
     emby,
-    emby_image,
-    emby_tmdb404,
     forward,
     logs,
     platforms,
@@ -37,6 +35,8 @@ from app.routers import (
     subscriptions,
     tasks,
 )
+from app.routers.emby import image as emby_image
+from app.routers.emby import tmdb404 as emby_tmdb404
 
 config = parse_config()
 logger = init_logger(config.debug)
@@ -116,7 +116,7 @@ async def lifespan(app: FastAPI):
 
     # TMDB 缓存数据迁移（从旧表复制到独立 tmdb_cache 表）
     try:
-        from app.services.tmdb_cache_migration import migrate_tmdb_cache
+        from app.services.tmdb.cache_migration import migrate_tmdb_cache
 
         await migrate_tmdb_cache()
     except Exception as e:
@@ -125,7 +125,7 @@ async def lifespan(app: FastAPI):
     # 启动后台调度器
     try:
         from app.services import scheduler as _scheduler_mod
-        from app.services.scheduler_runners import (
+        from app.services.scheduler.runners import (
             auto_subscribe_runner,
             full_scan_runner,
             light_scan_runner,

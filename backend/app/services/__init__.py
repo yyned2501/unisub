@@ -14,11 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.platform_config import PlatformConfig
 from app.services.activity import log_activity
-from app.services.emby import EmbyService
+from app.services.emby.service import EmbyService
 from app.services.forward import ForwardService
-from app.services.moviepilot import MoviePilotService
+from app.services.moviepilot.service import MoviePilotService
 from app.services.nextfind import NextFindService
-from app.services.tmdb import TMDBService
+from app.services.tmdb.service import TMDBService
 
 __all__ = [
     "ForwardService",
