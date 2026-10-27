@@ -9,14 +9,14 @@
 
 import json
 import sys
-
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # backend/
-sys.path.insert(0, str(Path.home() / ".hermes" / "scripts"))        # jev.py（四 profile 共享）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # backend/
+sys.path.insert(0, str(Path.home() / ".hermes" / "scripts"))  # jev.py（四 profile 共享）
+
+from jev import system_one  # noqa: E402
 
 from app.services.auto_subscribe.pipeline.matching import pick_best, title_similar_enough  # noqa: E402
-from jev import system_one  # noqa: E402
 
 # 案例：source = 待订阅条目；candidates = 搜索实际会返回的候选
 # want=True 表示"应当采纳候选"，False 表示"应当拒绝"
@@ -83,8 +83,10 @@ QUESTIONS = {
 
 def ask_jev(case: dict) -> dict:
     """对单个案例问 JEV：是否同一作品（noul）+ 从候选中选一个（choice）。"""
-    labels = {f"cand_{i+1}": f"候选{i+1}: {c['title']}（{c.get('year')}，{c.get('media_type')}）"
-              for i, c in enumerate(case["candidates"])}
+    labels = {
+        f"cand_{i + 1}": f"候选{i + 1}: {c['title']}（{c.get('year')}，{c.get('media_type')}）"
+        for i, c in enumerate(case["candidates"])
+    }
     labels["none"] = "以上都不是同一部作品"
     questions = {
         "same_work__0": dict(QUESTIONS["same_work"]),
@@ -93,7 +95,13 @@ def ask_jev(case: dict) -> dict:
     state = {
         "待订阅": {"标题": case["source"]["title"], "年份": case["source"]["year"], "类型": case["source"]["type"]},
         "搜索结果": [
-            {"序号": i + 1, "标题": c["title"], "年份": c.get("year"), "类型": c.get("media_type"), "评分": c.get("vote_average")}
+            {
+                "序号": i + 1,
+                "标题": c["title"],
+                "年份": c.get("year"),
+                "类型": c.get("media_type"),
+                "评分": c.get("vote_average"),
+            }
             for i, c in enumerate(case["candidates"])
         ],
     }
@@ -135,8 +143,11 @@ def main() -> int:
             "note": case["note"],
         }
         rows.append(row)
-        print(f"[{case['id']}] want={case['want']} | A(相似={a_similar} 采纳={a_accept} 选中={row['A_选中']}) "
-              f"| B(p={b_prob} 选={b_choice} 采纳={b_accept})", flush=True)
+        print(
+            f"[{case['id']}] want={case['want']} | A(相似={a_similar} 采纳={a_accept} 选中={row['A_选中']}) "
+            f"| B(p={b_prob} 选={b_choice} 采纳={b_accept})",
+            flush=True,
+        )
 
     print("\n=== 首例原始响应（确认字段形状）===")
     print(json.dumps(rows[0]["id"], ensure_ascii=False), "→", json.dumps(rows[1], ensure_ascii=False, indent=2))

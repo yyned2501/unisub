@@ -19,8 +19,8 @@ import asyncpg
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.core.database import Base  # noqa: E402
 import app.models  # noqa: F401,E402  触发所有模型注册到 Base.metadata
+from app.core.database import Base  # noqa: E402
 
 TABLE_SQL = "select table_name, column_name from information_schema.columns where table_schema='public'"
 

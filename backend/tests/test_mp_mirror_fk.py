@@ -86,9 +86,7 @@ async def test_movie_subscribe_writes_mirror_row(db_session):
 
     sub = (await db_session.execute(select(Subscription).where(Subscription.tmdb_id == TMDB_MOVIE))).scalar_one()
     rows = (
-        (await db_session.execute(select(MpSubscription).where(MpSubscription.tmdb_id == TMDB_MOVIE)))
-        .scalars()
-        .all()
+        (await db_session.execute(select(MpSubscription).where(MpSubscription.tmdb_id == TMDB_MOVIE))).scalars().all()
     )
 
     assert len(rows) == 1, "电影订阅必须留下一条 MP 镜像"
@@ -117,14 +115,14 @@ async def test_mirror_failure_does_not_lose_subscription(db_session):
         defer_upstream=False,
     )
 
-    sub = (await db_session.execute(select(Subscription).where(Subscription.tmdb_id == TMDB_MOVIE))).scalar_one_or_none()
+    sub = (
+        await db_session.execute(select(Subscription).where(Subscription.tmdb_id == TMDB_MOVIE))
+    ).scalar_one_or_none()
     assert sub is not None, "MP 镜像失败不得回滚本地订阅"
     assert sub.nf_subscribed is True
 
     rows = (
-        (await db_session.execute(select(MpSubscription).where(MpSubscription.tmdb_id == TMDB_MOVIE)))
-        .scalars()
-        .all()
+        (await db_session.execute(select(MpSubscription).where(MpSubscription.tmdb_id == TMDB_MOVIE))).scalars().all()
     )
     assert rows == [], "镜像失败不应留下半成品行"
 
