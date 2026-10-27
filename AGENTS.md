@@ -293,3 +293,5 @@ rg -n "def <你要写的函数名>" --glob '!tests/**'                          
 | CD2 / gRPC | `backend/app/core/clouddrive_client.py:CloudDriveClient` | 裸 gRPC stub |
 | DB / 日志 | `backend/app/core/database.py`、`core/logger.py` | 自建引擎 / print |
 | 前端接口调用 | `frontend/src/service/api/*` | 裸 axios |
+| API Key 脱敏 | `backend/app/schemas/common.py:mask_api_key` | 自建 `_mask_api_key` / 手写 `key[:4]****key[-4:]` |
+| TMDB 海报 URL | `backend/app/services/poster.py:build_tmdb_poster_url` | 内联 `https://image.tmdb.org/t/p/*` 拼接 |
