@@ -87,9 +87,9 @@
 | 层 | 技术 | 说明 |
 |----|------|------|
 | 后端 | FastAPI + SQLAlchemy async + asyncpg | Python 3.13+，三层解耦 |
-| 前端 | Vue 3 + Element Plus + Pinia + Vue Router | Vite 构建 |
+| 前端 | Vue 3 + Naive UI + Pinia + Vue Router + UnoCSS | Vite 构建 |
 | 数据库 | PostgreSQL（新建 `unisub` 库） | 192.168.31.10:5432 |
-| 部署 | Docker Compose（后端 + 前端 + Nginx） | Tower 服务器 |
+| 部署 | systemd → supervisord → uvicorn `:8002` + nginx `:8082` | Tower 服务器 |
 | 外部依赖 | NextFind OpenAPI + MoviePilot REST API | 局域网直连 |
 
 ## 项目结构
@@ -98,65 +98,40 @@
 unisub/
 ├── backend/
 │   ├── app/
-│   │   ├── __init__.py
 │   │   ├── main.py                  # FastAPI 入口
 │   │   ├── config.py                # 配置 dataclass
-│   │   ├── database.py              # SQLAlchemy async 引擎
-│   │   ├── models/
-│   │   │   ├── __init__.py
-│   │   │   ├── platform_config.py   # 平台配置表
-│   │   │   ├── subscription.py      # 订阅记录表
-│   │   │   └── activity_log.py      # 活动日志表
-│   │   ├── schemas/
-│   │   │   ├── __init__.py
-│   │   │   ├── platform.py
-│   │   │   ├── subscription.py
-│   │   │   ├── search.py
-│   │   │   └── dashboard.py
-│   │   ├── services/
-│   │   │   ├── __init__.py
-│   │   │   ├── nextfind.py          # NextFind API 封装
-│   │   │   ├── moviepilot.py        # MoviePilot API 封装
-│   │   │   └── orchestrator.py      # 编排逻辑（订阅+定时任务）
-│   │   └── routers/
-│   │       ├── __init__.py
-│   │       ├── platforms.py         # 平台配置 CRUD
-│   │       ├── search.py            # 搜索
-│   │       ├── subscriptions.py     # 订阅管理
-│   │       ├── dashboard.py         # 看板
-│   │       └── tasks.py             # 定时任务管理
-│   ├── alembic/                     # 数据库迁移
-│   ├── Dockerfile
+│   │   ├── core/                    # 第三方库隔离层（database / http_client / logger / auth）
+│   │   ├── models/                  # SQLAlchemy 模型
+│   │   ├── schemas/                 # Pydantic 模型
+│   │   ├── services/                # 业务层
+│   │   │   ├── nextfind.py / moviepilot.py / tmdb.py   # 外部 API 封装
+│   │   │   ├── orchestrator.py                  # 订阅 CRUD 与同步入口
+│   │   │   ├── orchestrator_upstream.py         # 后台推送（NF 建订阅 + MP 镜像）
+│   │   │   ├── orchestrator_cancel.py           # 取消竞态判定与上游补偿
+│   │   │   ├── orchestrator_maintenance.py      # 缺集补充 / TMDB 增量刷新
+│   │   │   ├── nf_sync.py / mp_sync.py          # 双向同步引擎
+│   │   │   ├── auto_subscribe/                  # 自动订阅流水线
+│   │   │   └── scheduler.py / emby*.py / forward.py
+│   │   ├── routers/                 # FastAPI 路由（含 forward API）
+│   │   └── references/              # 外部 API 实测文档
+│   ├── tests/                       # pytest（sqlite 内存库）
+│   ├── migrations/                  # 存量库手工迁移 SQL（无 alembic）
 │   └── pyproject.toml
 ├── frontend/
 │   ├── src/
-│   │   ├── App.vue
-│   │   ├── main.js
-│   │   ├── api/                     # API 调用封装
-│   │   │   ├── platforms.js
-│   │   │   ├── search.js
-│   │   │   ├── subscriptions.js
-│   │   │   └── dashboard.js
-│   │   ├── router/
-│   │   │   └── index.js
-│   │   ├── stores/
-│   │   │   └── app.js               # Pinia 全局状态
-│   │   ├── views/
-│   │   │   ├── DashboardView.vue    # 看板
-│   │   │   ├── SearchView.vue       # 搜索
-│   │   │   ├── SubscriptionsView.vue # 订阅管理
-│   │   │   └── SettingsView.vue     # 平台配置
-│   │   └── components/
-│   │       ├── MediaCard.vue        # 媒体卡片
-│   │       ├── StatusBadge.vue      # 状态标签
-│   │       ├── SubDialog.vue        # 订阅弹窗
-│   │       └── PlatformStatus.vue   # 平台状态组件
-│   ├── Dockerfile
-│   └── nginx.conf                   # 开发代理 + 生产反向代理
-├── docker-compose.yml               # 编排文件
-├── .env.example                     # 环境变量模板
-├── .gitignore
-└── README.md
+│   │   ├── main.ts / App.vue
+│   │   ├── service/                 # axios 实例 + 各模块 API 封装
+│   │   ├── store/                   # Pinia
+│   │   ├── composables/             # 页面业务逻辑（复用 loading / 轮询 / 行级状态）
+│   │   ├── types/                   # 领域类型（镜像后端 schemas）
+│   │   ├── components/ / views/ / router/ / plugins/ / utils/
+│   │   └── styles/
+│   └── vite.config.ts
+├── deploy/                          # supervisor.conf / nginx.conf / start-api.sh
+├── docs/                            # 架构评审与专题 spec
+├── Makefile                         # 统一命令入口
+├── AGENTS.md / ARCHITECTURE.md / README.md
+└── .gitignore
 ```
 
 ## 数据库模型
@@ -276,23 +251,28 @@ PUT    /api/tasks/config               # 更新定时任务配置
 ## 部署
 
 ```bash
-# Tower 上执行
+# Tower 上执行，完整步骤见 deploy/README.md
 git clone https://github.com/yyned2501/unisub.git
 cd unisub
-cp .env.example .env
-# 编辑 .env 填写配置
-docker compose up -d
+cp backend/.env.example backend/.env   # 编辑填入数据库与平台密钥
+(cd backend && uv sync)
+(cd frontend && npm ci && npm run build)
+sudo ln -sf "$PWD/deploy/supervisor.conf" /etc/supervisor/conf.d/unisub.conf
+sudo supervisorctl reread && sudo supervisorctl update
 ```
+
+访问 `http://<IP>:8082`（nginx 入口，`/api/` 反代到后端 `:8002`）。
 
 ## 开发
 
 ```bash
-# 后端
+# 后端（8002）
 cd backend
 uv sync
-uv run python3 -m app.main
+set -a && . ./.env && set +a
+uv run uvicorn app.main:app --reload --port 8002
 
-# 前端
+# 前端（9527，/api 代理到 localhost:8002）
 cd frontend
 npm install
 npm run dev
@@ -301,7 +281,7 @@ npm run dev
 ## 开发原则
 
 - 严格遵循 Yy 的 Python 项目架构标准（三层解耦、类型注解、中文 docstring、<300行/文件）
-- 前端使用 Element Plus 组件库，保持风格统一
+- 前端使用 Naive UI 组件库 + UnoCSS 原子类，保持风格统一
 - API 错误统一处理，前端统一展示
 - 定时任务使用 FastAPI 的 BackgroundTasks + asyncio 实现，不依赖外部调度器
 - 配置项可运行时修改，无需重启

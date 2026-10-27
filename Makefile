@@ -2,6 +2,9 @@
 # 用法: make <target>
 # 生产架构: systemd → supervisord → unisub:backend(uvicorn:8002) + unisub:frontend(nginx:8082)
 
+# Windows 控制台默认 GBK，lint-imports / pytest 按 locale 解码源码会直接崩 —— 统一 UTF-8
+export PYTHONUTF8 := 1
+
 .PHONY: help setup setup-hooks dev-backend dev-frontend lint lint-backend lint-frontend lint-secret \
 	test test-backend test-frontend build clean \
 	status restart restart-backend restart-frontend logs

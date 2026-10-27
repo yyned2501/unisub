@@ -28,33 +28,45 @@ NF 转存入库 → 状态更新
 
 ### 环境要求
 
-- Docker & Docker Compose
-- PostgreSQL 数据库（默认连接 192.168.31.10:5432）
+- Python 3.13+（uv 管理）
+- Node.js 20+
+- PostgreSQL（默认连接 192.168.31.10:5432）
+- supervisor（生产，systemd 发行版自带）
 
 ### 部署
+
+完整步骤见 [`deploy/README.md`](deploy/README.md)，摘要：
 
 ```bash
 # 1. 克隆
 git clone https://github.com/yyned2501/unisub.git
 cd unisub
 
-# 2. 配置环境变量
-cp .env.example .env
-# 编辑 .env 填写你的数据库连接和平台密钥
+# 2. 配置环境变量（backend/.env 已 gitignore）
+cp backend/.env.example backend/.env
+# 编辑 backend/.env 填写数据库连接和平台密钥
 
-# 3. 启动
-docker compose up -d
+# 3. 依赖 + 构建
+cd backend && uv sync && cd ..
+cd frontend && npm ci && npm run build && cd ..
+
+# 4. 注册 supervisor 子进程
+sudo ln -sf "$PWD/deploy/supervisor.conf" /etc/supervisor/conf.d/unisub.conf
+sudo supervisorctl reread && sudo supervisorctl update
 ```
+
+部署后访问 `http://<IP>:8082`（nginx 入口，`/api/` 反代到后端 `:8002`）。
 
 ### 开发
 
 ```bash
-# 后端
+# 后端（8002，先加载 backend/.env）
 cd backend
 uv sync
-uv run uvicorn app.main:app --reload --port 8000
+set -a && . ./.env && set +a
+uv run uvicorn app.main:app --reload --port 8002
 
-# 前端
+# 前端（9527，/api 代理到 localhost:8002）
 cd frontend
 npm install
 npm run dev
@@ -67,10 +79,12 @@ npm run dev
 | UNISUB_DEBUG | 调试模式 | false |
 | UNISUB_DATABASE_URL | 数据库连接 | postgresql+asyncpg://unisub:unisub@192.168.31.10:5432/unisub |
 | UNISUB_CORS_ORIGINS | 允许的跨域来源 | ["http://localhost:5173","http://localhost:3000"] |
+| UNISUB_JWT_SECRET | JWT 签名密钥（未配置则每次启动随机生成） | — |
+| UNISUB_FORWARD_USERNAME / UNISUB_FORWARD_PASSWORD | Forward API 登录账号 | — |
 
 ### 平台配置（通过 UI）
 
-部署后访问 `http://<IP>:3001`，进入「设置」页面添加平台配置：
+部署后访问 `http://<IP>:8082`，进入「设置」页面添加平台配置：
 
 - **NextFind**: URL + API Key（X-API-Key 鉴权）
 - **MoviePilot**: URL + API Token（Bearer Token 鉴权）
@@ -78,5 +92,5 @@ npm run dev
 ## 技术栈
 
 - **后端**: FastAPI + SQLAlchemy async + asyncpg + PostgreSQL
-- **前端**: Vue 3 + Element Plus + Pinia + Vue Router + Vite
-- **部署**: Docker Compose（Nginx + Uvicorn）
+- **前端**: Vue 3 + Naive UI + Pinia + Vue Router + Vite + UnoCSS
+- **部署**: systemd → supervisord → uvicorn `:8002` + nginx `:8082`

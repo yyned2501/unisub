@@ -42,3 +42,6 @@ PROGRESS.md
 
 # 第三方参考代码（插件源码等，仅供查阅不入库）
 /references/
+
+# Qoder Sites 描述文件（机器生成，含 projectId/siteId）
+*.qoder.site
